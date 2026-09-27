@@ -31,25 +31,7 @@
   abort controllers) instead of `try/finally` cleanup.
 - `structuredClone` over JSON round-trips; `Object.groupBy` over hand-rolled reducers.
 
-## Imports and module boundaries
+## Files and imports
 
-- Shared packages expose curated subpath exports, listed explicitly in `package.json` `exports`
-  and mirrored in tsconfig `paths`. Never a `"./*"` wildcard: it bypasses the public-API boundary
-  and resolves differently across bundlers and `tsc`.
-- Browser code imports narrow subpaths, never a server-capable barrel.
-
-## Breaking up large files
-
-Split on a measured trigger (cognitive complexity > 30, or a function > 60 lines), not on a line
-count you eyeballed. Extract within the same file first; promote to a sibling file only when the
-unit is reused or large enough to stand alone. Colocate siblings with their consumer — no shared
-`utils/` dumps. Sibling suffixes:
-
-| Suffix | Holds |
-| --- | --- |
-| `*-model.ts` | State, hooks, submission and derivation logic. No JSX. |
-| `*-primitives.tsx` | Presentational subcomponents with no feature logic. |
-| `*.server.ts` | Server-only modules (session, secrets). |
-
-Add a new suffix to this table before using it. Don't split a function whose branches share
-mutable state, and don't extract a wrapper that is called once and only forwards arguments.
+File naming, suffixes, module entry points, subpath exports, and when to split a file:
+[code organisation](code-organisation.md).

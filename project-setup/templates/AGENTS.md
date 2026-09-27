@@ -85,9 +85,12 @@ Read only the rows your task touches, and only the linked sections you need.
 | Task | Read |
 | --- | --- |
 | Any implementation | [architecture](context/architecture.md) + [code standards](context/code-standards.md) (routers: follow only matching links) |
+| New module, use case, entity, port, or repository | [domain modules](context/architecture/domain-modules.md) |
+| New file or folder; naming; where code goes | [code organisation](context/standards/code-organisation.md) |
 | Product orientation, package purposes | [project overview](context/project-overview.md), [glossary](context/glossary.md) |
 {{#if HAS_UI}}
 | UI work (components, styling, forms) | [UI rules](context/ui-rules.md), [UI tokens](context/ui-tokens.md) |
+| React state, data fetching, caching, performance | [React](context/standards/react.md) |
 | Building or matching a UI component | [UI registry](context/ui-registry.md), then `/imprint` after |
 {{/if}}
 {{#if HAS_DB}}

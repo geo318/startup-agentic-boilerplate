@@ -35,8 +35,9 @@ context/
   glossary.md          agreed vocabulary
   code-map.md          "where do I change X?"
   agents-map.md        which AGENTS.md covers what
-  architecture.md      router → architecture/{deployment,tenant-isolation,authorization,ai}.md
-  code-standards.md    router → standards/{typescript,testing,delivery,database}.md
+  architecture.md      router → architecture/{domain-modules,deployment,tenant-isolation,authorization,ai}.md
+  code-standards.md    router → standards/{design-principles,code-organisation,react,typescript,
+                       testing,delivery,database}.md
   ui-rules.md · ui-tokens.md · ui-registry.md
   library-docs.md      library → skill → project deviations
   build-plan.md        milestones (M0 foundation, M1 vertical slice…), open questions, blockers
@@ -49,10 +50,11 @@ docs/  README.md · local-setup.md · archive/product-brief.md (your plan, verba
 .githooks/ + scripts/git/conventions.mjs     branch / commit / PR-title rules
 scripts/checks/docs-check.mjs  placeholders, dead links + anchors, doc size budgets, stale catalog
 .github/  ci.yml · merge-gate.yml (do-not-merge) · PR template · dependabot
-biome.json · tsconfig.base.json (strict)     TypeScript presets only
+biome.json · tsconfig.base.json (strict)     TypeScript presets only; Biome enforces kebab-case
+                                             files, no import cycles, no `export *`
 ```
 
-Files are gated by flags (UI, DB, auth, multi-tenant, AI, jobs, GitHub, TypeScript), so a
+Files are gated by flags (UI, Next.js, DB, auth, multi-tenant, AI, jobs, GitHub, TypeScript), so a
 backend-only or non-TypeScript project gets only what applies.
 
 ## Layout of this repo

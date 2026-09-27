@@ -7,7 +7,11 @@
 - Schema, client, migrations, and repositories live in one package/folder
   (<!-- FILL: path -->). No ORM or SQL imports anywhere else.
 - Repositories own queries and persistence mapping only: no HTTP, no authorization decisions, no
-  business rules. Services orchestrate transactions through repository methods.
+  business rules. Use cases own transactions through the unit of work
+  ([domain modules](../architecture/domain-modules.md#transactions-unit-of-work)).
+- Each module's tables are read and written only by that module's repositories. A join across
+  module boundaries belongs in a read model the owning module exposes, not in another module's
+  query.
 - Every column that can be null says why in the schema, or is made non-null.
 {{#if MULTI_TENANT}}
 - Every tenant-owned table has a non-null tenant column and an index that starts with it. See
@@ -30,4 +34,21 @@
 
 - Select only the columns a caller needs for list endpoints; paginate every list.
 - Put constraints (unique, foreign key, check, exclusion) in the database, not only in code.
-- A transaction lives in one service method; never hold one open across a network call.
+- A transaction lives in one use case (`uow.run`); never hold one open across a network call.
+
+## Repositories
+
+- One repository per aggregate: `<db>/repositories/<module>/<entity>-repository.ts`, created by
+  `create<Entity>Repository(executor)` so the same code runs inside or outside a transaction.
+- Methods are named for the domain question (`findOverdue`, `save`), return domain types, and map
+  rows inside the repository. ORM row types never leave it.
+- A repository never opens a transaction, reads the clock, or calls another repository.
+
+## Caching reads
+
+- Add a cache only after measuring a slow or expensive read, and record where it lives.
+- The use case that changes the data invalidates its cache entry in the same change set; name the
+  invalidation next to the write.
+- Cache keys include every input that changes the result{{#if MULTI_TENANT}}, and always the tenant
+  id{{/if}}. Never cache an authorization decision across users.
+- The database stays the source of truth: a cache miss or outage degrades speed, never correctness.

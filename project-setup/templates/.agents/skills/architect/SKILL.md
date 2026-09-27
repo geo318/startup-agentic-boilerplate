@@ -30,11 +30,20 @@ Trace the change through every hop of the canonical request path:
 {{/if}}
 For each layer the change touches, note what it owns and what it must not do. Also check:
 
+- the owning module, the aggregate each command changes, and whether this needs a new module
+  (`context/architecture/domain-modules.md`);
+- where each new file goes and what it is called (`context/standards/code-organisation.md`);
 - data ownership{{#if MULTI_TENANT}} and tenant scope (where the actor context comes from){{/if}};
 - where input/output contracts live and who validates them;
 - transaction boundaries, concurrency, idempotency, and retry behaviour;
 - expected failures, typed errors, and observability;
-- the composition root that wires services to adapters;
+- the composition root that wires use cases to adapters, and any new port;
+{{#if HAS_UI}}
+- where the UI state lives, which queries and caches a mutation invalidates, and any
+  performance-sensitive path (`context/standards/react.md`);
+{{/if}}
+- the simplest design that meets this milestone: no option, abstraction, or extension point the
+  build plan does not ask for (`context/standards/design-principles.md`);
 - existing paths this replaces, so nothing is left duplicated or still connected.
 
 ## 2. Align on language
@@ -74,6 +83,10 @@ decision is settled — not when every question is answered — and say **"Bluep
 
 ### Layer map
 - <layer>: <responsibility in this feature>
+
+### Modules and files
+- Module: <owning module>; aggregate(s) changed: <…>; new ports: <…>
+- New files: <path> — <purpose>
 
 ### Contracts and failure behaviour
 - Input / output: <schema and where it is validated>

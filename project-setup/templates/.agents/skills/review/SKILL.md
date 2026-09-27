@@ -21,14 +21,20 @@ changes) and read every changed file in full, not only the hunks.
 2. **Invariants** — each `AGENTS.md` invariant against the diff. Any violation is critical.
 3. **Layering** — every change sits in the layer that owns it; no shortcuts across the request
    path; no old path left connected beside its replacement.
-4. **Correctness** — input validation at boundaries, error paths, empty/loading/partial states,
+4. **Design** — the owning module holds the logic; business rules sit in `domain/`, not use
+   cases, routes, repositories, or UI; no import past another module's entry point; one
+   transaction per command, no network call inside it; files named and placed per code
+   organisation; no speculative abstraction, option, or extension point (YAGNI); no duplicated
+   rule or schema (DRY of knowledge){{#if HAS_UI}}; every mutation invalidates what it changes,
+   and no request waterfall or unmeasured memoization{{/if}}.
+5. **Correctness** — input validation at boundaries, error paths, empty/loading/partial states,
    concurrency and double-submit, idempotency of retries, timezone and money handling.
-5. **Security** — authorization on every new route *and* row; no secrets in code or logs; no
+6. **Security** — authorization on every new route *and* row; no secrets in code or logs; no
    untrusted value used as an id, URL, query fragment, or HTML.
-6. **Tests** — new behaviour has tests that would fail without it; bug fixes carry a regression
+7. **Tests** — new behaviour has tests that would fail without it; bug fixes carry a regression
    test; nothing asserts implementation details.
-7. **Standards** — `context/code-standards.md` rules{{#if HAS_UI}}, UI rules and the UI registry{{/if}}, naming, dead code.
-8. **Docs** — build plan, progress tracker, and any rule docs updated in the same change.
+8. **Standards** — `context/code-standards.md` rules, design principles{{#if HAS_UI}}, UI rules and the UI registry{{/if}}, naming, dead code.
+9. **Docs** — build plan, progress tracker, and any rule docs updated in the same change.
 
 Run the verification checks in `AGENTS.md` and read their output.
 

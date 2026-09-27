@@ -20,6 +20,9 @@ invariant needs to be short and obviously right, or it will erode.
 | A5 | One HTTP client. Any other (`fetch`) needs an unavoidable platform reason recorded in the contract-test exception list, plus developer approval. Baseline entries are debt, not precedent. | TS | contract test | (observed) the only justified exceptions were streaming responses; everything else was convenience. |
 | A6 | Internal packages expose curated subpath exports mirrored in tsconfig paths — never a `"./*"` wildcard. | monorepo | exports contract test | (observed) a wildcard resolved differently in `tsc` and bundlers, and the core barrel dragged the whole AI dependency graph into small imports. |
 | A7 | Vendor SDKs are injected through ports; business logic never imports them directly. | integrations/AI/jobs | contract test | Providers and job runners can be swapped or faked in tests without touching services. |
+| A8 | Business logic is organised in modules (bounded contexts). A module owns its tables and exposes one `index.ts`; nothing imports past another module's entry or touches its tables. | any domain logic | contract test (entry rule) + Biome `noImportCycles` | Without an enforced entry point, modules become one tangle and every change ripples. |
+| A9 | Business rules live in pure domain functions; use cases only orchestrate (load, decide, persist, emit). Core imports no framework, ORM, or vendor SDK. | any domain logic | contract test (`core-is-framework-free`) | Rules in routes, repositories, or UI get duplicated per transport and cannot be tested without infrastructure. |
+| A10 | One transaction per command, opened by the use case through the unit-of-work port; repositories are executor-bound and never open transactions; no network call inside a transaction; events go to an outbox in the same transaction. | DB | review + integration tests | Without one convention, some writes escape the transaction and events fire for rolled-back state. |
 
 ## Data, tenancy, security
 
@@ -44,6 +47,8 @@ invariant needs to be short and obviously right, or it will erode.
 | T4 | No nested ternaries; block statements always. | TS | Biome | — |
 | T5 | Structured AI output only through one runner (schema-injected, validated, repair-retried). | AI | contract test | Hand-parsed model output fails silently and unevenly. |
 | T6 | Split files on measured complexity (cognitive > 30, function > 60 LOC), not line counts. | TS | fallow ratchet | — |
+| T7 | Files and folders are kebab-case; one primary export per file, named after it; no `utils`/`helpers`/`common` files; no `export *`. | TS | Biome `useFilenamingConvention`, `noReExportAll` | Predictable names let agents find code without searching and stop dumping-ground files. |
+| T8 | YAGNI: no option, flag, generic, or extension point the build plan does not need; an interface with one implementation exists only at an I/O boundary. | always | review | Agents over-abstract by default; speculative structure is the most common slop. |
 
 ## UI
 
@@ -54,6 +59,9 @@ invariant needs to be short and obviously right, or it will erode.
 | U3 | After a new component, run `/imprint`; before one, match the registry. | UI | process | Agent-built UI drifts without memory. |
 | U4 | Placeholders are the size of what replaces them; static text never skeletons. | UI | review | Prevents layout shift. |
 | U5 | Public-page bundle budgets are enforced in CI; analytics/heavy SDKs load only on authenticated routes. | marketing site | bundle check | (observed) importing the analytics SDK on a public page measurably cost Lighthouse points. |
+| U6 | Server Components by default; `"use client"` only on interactive leaves; client components receive only the fields they render. | Next.js | review | Client boundaries at the page level ship the whole tree's JS and serialize whole records to the browser. |
+| U7 | Every mutation names what it invalidates (query-key prefixes, cache tags); query keys and tags come from one factory per feature. | UI + cached data | review | Stale data after a write is the most common UI bug in cached apps. |
+| U8 | Server data lives only in the query library or Server Components — never copied into `useState` or a client store. | React | review | Two copies of server state drift and need effects to sync. |
 
 ## Operations
 

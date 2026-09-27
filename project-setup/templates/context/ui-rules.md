@@ -24,8 +24,9 @@ a named `useMountEffect()` hook.
 
 ## Data and forms
 
-- Server components fetch directly; client components use the query library — never a
-  `useState` + effect fetch, never hand-rolled caching or retries.
+- Server data comes from the query library or a server component — never a `useState` + effect
+  fetch, never hand-rolled caching or retries. Where state lives, query and cache rules:
+  [React](standards/react.md).
 - Forms use <!-- FILL: form library + schema resolver, e.g. react-hook-form + Zod --> with the
   schema shared with the server, which parses the same input again.
 

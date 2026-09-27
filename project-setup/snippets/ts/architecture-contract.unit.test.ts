@@ -5,7 +5,7 @@
 // copy. New violations fail; so do stale baseline entries, which forces the baseline to shrink.
 
 import { type Dirent, readdirSync, readFileSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { join, posix, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
@@ -24,6 +24,17 @@ interface CallRule {
   call: string;
   /** Repo-relative path prefixes where the call is allowed without a baseline entry. */
   allowIn: string[];
+  reason: string;
+}
+
+interface EntryRule {
+  name: string;
+  /** Repo-relative folders whose direct subfolders are modules, e.g. "packages/core/src". */
+  roots: string[];
+  /** Import prefixes that resolve into the repo, e.g. { "@/": "apps/web/src/" }. */
+  aliases: Record<string, string>;
+  /** Module folder names exempt from the rule, e.g. the shared kernel. */
+  exempt: string[];
   reason: string;
 }
 
@@ -56,6 +67,12 @@ const IMPORT_RULES: ImportRule[] = [
     reason: "Routes delegate to services; persistence stays behind repositories.",
   },
   {
+    name: "core-is-framework-free",
+    from: ["packages/core/src"],
+    forbid: ["@scope/db", "drizzle-orm", "next", "react", "elysia", "hono"],
+    reason: "Domain and use cases depend on ports; adapters and frameworks depend on core.",
+  },
+  {
     name: "ui-does-not-touch-the-database",
     from: ["apps/web"],
     forbid: ["@scope/db", "drizzle-orm"],
@@ -69,6 +86,16 @@ const CALL_RULES: CallRule[] = [
     call: "fetch(",
     allowIn: [],
     reason: "All HTTP goes through the shared client; exceptions need a recorded reason.",
+  },
+];
+
+const ENTRY_RULES: EntryRule[] = [
+  {
+    name: "modules-import-each-other-through-index",
+    roots: ["packages/core/src", "apps/web/src/features"],
+    aliases: { "@/": "apps/web/src/" },
+    exempt: ["shared"],
+    reason: "A module's index.ts is its public API; everything behind it is internal.",
   },
 ];
 
@@ -133,6 +160,53 @@ function forbidden(specifier: string, forbid: string[]): boolean {
   return forbid.some((module) => specifier === module || specifier.startsWith(`${module}/`));
 }
 
+function resolveSpecifier(
+  fromPath: string,
+  specifier: string,
+  aliases: Record<string, string>,
+): string | null {
+  if (specifier.startsWith(".")) {
+    return posix.join(posix.dirname(fromPath), specifier);
+  }
+  for (const [prefix, target] of Object.entries(aliases)) {
+    if (specifier.startsWith(prefix)) {
+      return posix.join(target, specifier.slice(prefix.length));
+    }
+  }
+  return null;
+}
+
+function stripExtension(path: string): string {
+  const extension = [...SOURCE_EXTENSIONS, ".js"].find((candidate) => path.endsWith(candidate));
+  return extension === undefined ? path : path.slice(0, -extension.length);
+}
+
+/** Counts imports that reach past another module's entry point (its folder or `index`). */
+function deepModuleImports(path: string, specifiers: string[], rule: EntryRule): number {
+  let count = 0;
+  for (const specifier of specifiers) {
+    const target = resolveSpecifier(path, specifier, rule.aliases);
+    if (target === null) {
+      continue;
+    }
+    for (const root of rule.roots) {
+      if (!target.startsWith(`${root}/`)) {
+        continue;
+      }
+      const [module, ...rest] = stripExtension(target.slice(root.length + 1)).split("/");
+      if (module === undefined || rule.exempt.includes(module)) {
+        continue;
+      }
+      const ownModule = path.startsWith(`${root}/${module}/`);
+      const isEntry = rest.length === 0 || (rest.length === 1 && rest[0] === "index");
+      if (!ownModule && !isEntry) {
+        count += 1;
+      }
+    }
+  }
+  return count;
+}
+
 function countOccurrences(source: string, needle: string): number {
   let count = 0;
   let index = source.indexOf(needle);
@@ -156,14 +230,14 @@ function collectViolations(): Map<string, number> {
   };
   for (const path of sourceFiles()) {
     const source = readFileSync(join(repoRoot, path), "utf8");
+    const specifiers = importSpecifiers(source);
     for (const rule of IMPORT_RULES) {
       if (matchesPrefix(path, rule.from)) {
-        add(
-          rule.name,
-          path,
-          importSpecifiers(source).filter((spec) => forbidden(spec, rule.forbid)).length,
-        );
+        add(rule.name, path, specifiers.filter((spec) => forbidden(spec, rule.forbid)).length);
       }
+    }
+    for (const rule of ENTRY_RULES) {
+      add(rule.name, path, deepModuleImports(path, specifiers, rule));
     }
     for (const rule of CALL_RULES) {
       if (!matchesPrefix(path, rule.allowIn)) {

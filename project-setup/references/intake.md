@@ -103,6 +103,7 @@ re-rendered). All `vars` values are strings; all `flags` are booleans.
     "TYPESCRIPT": true,
     "BUN": true,
     "HAS_UI": true,
+    "NEXTJS": true,
     "HAS_DB": true,
     "HAS_AUTH": true,
     "MULTI_TENANT": true,
@@ -134,6 +135,8 @@ Notes:
   items, e.g. `"better-auth", "@better-auth/*"`. Dependabot keeps them out of grouped PRs.
 - `CMD_*`, `RUNTIME`, and `DEFAULT_BRANCH` may not contain `"`, `\`, or line breaks (they are
   written into JSON and YAML strings). Wrap a complex command in a package script instead.
+- `NEXTJS` is true when any app uses Next.js; it adds the rendering and caching sections to
+  `context/standards/react.md`. `HAS_UI` without `NEXTJS` (Expo, Vite) keeps the React rules only.
 - `REQUEST_PATH_SET` is false for `docs-only` or when the layering is undecided; the request-path
   sections are then omitted rather than left vague.
 - `APP_PURPOSE` is a full sentence ending with a period (it is followed by more text in the app's

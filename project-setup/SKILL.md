@@ -48,7 +48,9 @@ Show the one-screen summary from intake.md. Do not write files until the user co
 
 Run the preset's generators and skeleton steps from stack-presets.md **before** rendering docs.
 Use `snippets/ts/` for `try-catch.ts`, `guards.ts`, and `architecture-contract.unit.test.ts`
-(edit its `RULES`, scope, and root depth — it contains a `FIXME(setup)` to resolve). Install
+(edit its `IMPORT_RULES`, `ENTRY_RULES` roots and aliases, the `@scope` names, and the root depth
+— it contains a `FIXME(setup)` to resolve). Build the domain skeleton (shared kernel, unit of work,
+composition root) described in the preset. Install
 dependencies and confirm the dev server starts.
 
 ### 5. Render
@@ -70,8 +72,9 @@ Work through every `<!-- FILL: … -->` marker (`grep -rn "FILL:" <target> --inc
 `.agents/skills/*/SKILL.md`). Each marker's text is the instruction; replace the whole marker with
 the content. Order: `docs/archive/product-brief.md` (paste the brief verbatim) →
 `context/project-overview.md` → `glossary.md` → `AGENTS.md` invariants → `architecture.md` and its
-topics → `code-map.md` → `code-standards.md` → app `AGENTS.md` files → `build-plan.md` →
-decisions → the rest. Keep `AGENTS.md` under 200 lines.
+topics (including `architecture/domain-modules.md`, whose modules come from the product areas) →
+`code-map.md` (one row per module) → `code-standards.md` and `standards/code-organisation.md` →
+app `AGENTS.md` files → `build-plan.md` → decisions → the rest. Keep `AGENTS.md` under 200 lines.
 
 ### 7. Wire tooling
 
