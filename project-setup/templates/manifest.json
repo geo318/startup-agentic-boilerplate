@@ -1,0 +1,22 @@
+{
+  "rename": {
+    "gitignore": ".gitignore",
+    "env.example": ".env.example"
+  },
+  "executable": [".githooks/", "scripts/git/", "scripts/checks/"],
+  "when": [
+    { "path": "context/ui-rules.md", "flag": "HAS_UI" },
+    { "path": "context/ui-tokens.md", "flag": "HAS_UI" },
+    { "path": "context/ui-registry.md", "flag": "HAS_UI" },
+    { "path": ".agents/skills/imprint", "flag": "HAS_UI" },
+    { "path": "context/standards/database.md", "flag": "HAS_DB" },
+    { "path": "context/architecture/tenant-isolation.md", "flag": "MULTI_TENANT" },
+    { "path": "context/architecture/authorization.md", "flag": "HAS_AUTH" },
+    { "path": "context/architecture/ai.md", "flag": "HAS_AI" },
+    { "path": "context/standards/typescript.md", "flag": "TYPESCRIPT" },
+    { "path": "biome.json", "flag": "TYPESCRIPT" },
+    { "path": "tsconfig.base.json", "flag": "TYPESCRIPT" },
+    { "path": ".github", "flag": "GITHUB" },
+    { "path": ".claude", "flag": "CLAUDE_CODE" }
+  ]
+}

@@ -1,0 +1,27 @@
+version: 2
+updates:
+{{#if BUN}}
+  - package-ecosystem: bun
+{{else}}
+  - package-ecosystem: npm
+{{/if}}
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+{{#if HAS_AUTH}}
+        # Auth-library bumps are schema releases, patches included: never grouped, each one
+        # reviewed and verified against a real database (context/architecture/authorization.md).
+        exclude-patterns: [{{AUTH_PACKAGE_PATTERNS}}]
+{{/if}}
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "ci"

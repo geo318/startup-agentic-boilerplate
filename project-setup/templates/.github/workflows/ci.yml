@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: ["{{DEFAULT_BRANCH}}"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  conventions:
+    if: github.event_name == 'pull_request' && !startsWith(github.head_ref, 'dependabot/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+{{#if BUN}}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+{{else}}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+{{/if}}
+      # Untrusted PR fields go through env vars, never straight into the script.
+      - name: Validate branch, commits, and PR title
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          {{RUNTIME}} scripts/git/conventions.mjs branch "$HEAD_REF"
+          {{RUNTIME}} scripts/git/conventions.mjs title "$PR_TITLE"
+          {{RUNTIME}} scripts/git/conventions.mjs commits "$BASE_SHA" HEAD
+
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+{{#if BUN}}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+{{else}}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      # pnpm/yarn: add their setup action here before Install.
+{{/if}}
+      - name: Install
+        run: "{{CMD_INSTALL_CI}}"
+      - name: Docs
+        run: "{{RUNTIME}} scripts/checks/docs-check.mjs"
+      - name: Lint
+        run: "{{CMD_LINT}}"
+{{#if TYPESCRIPT}}
+      - name: Typecheck
+        run: "{{CMD_TYPECHECK}}"
+{{/if}}
+      - name: Test
+        run: "{{CMD_TEST}}"

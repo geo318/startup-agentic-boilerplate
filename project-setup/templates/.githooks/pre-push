@@ -1,0 +1,3 @@
+#!/bin/sh
+{{RUNTIME}} scripts/git/conventions.mjs current || exit 1
+exec {{RUNTIME}} scripts/checks/docs-check.mjs

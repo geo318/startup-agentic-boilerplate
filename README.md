@@ -1,0 +1,79 @@
+# Startup agentic boilerplate
+
+A Claude Code skill, `project-setup`, that turns a product plan into a ready-to-build repository
+with the documentation and guardrail system developed in **pocos**: agent rules, a routed
+`context/` doc set, invariants, a build plan and progress tracker, workflow skills, git
+conventions, CI with a merge gate — and optionally the stack's code skeleton.
+
+## Install
+
+```bash
+./install.sh --global --link        # available in every project; edits here apply immediately
+./install.sh ~/apps/new-thing       # or only inside one project
+```
+
+## Use
+
+In an empty directory (or an existing repo to retrofit), in Claude Code:
+
+```
+/project-setup ./plan.md
+```
+
+or paste the plan. The skill reads the plan, asks only what it cannot infer (preset, tenancy,
+whether to scaffold code, forge), shows one summary for confirmation, then renders and fills
+everything, runs the checks, and hands off with the first `/architect` task.
+
+## What a generated project gets
+
+```
+AGENTS.md · CLAUDE.md (@AGENTS.md) · README.md · .env.example · .gitignore
+apps/<app>/AGENTS.md + CLAUDE.md          per-app dev loop and scoped rules
+context/
+  README.md            doc map, doc types, maintenance + size budgets
+  project-overview.md  users, non-goals, stack, apps, packages, product areas
+  glossary.md          agreed vocabulary
+  code-map.md          "where do I change X?"
+  agents-map.md        which AGENTS.md covers what
+  architecture.md      router → architecture/{deployment,tenant-isolation,authorization,ai}.md
+  code-standards.md    router → standards/{typescript,testing,delivery,database}.md
+  ui-rules.md · ui-tokens.md · ui-registry.md
+  library-docs.md      library → skill → project deviations
+  build-plan.md        milestones (M0 foundation, M1 vertical slice…), open questions, blockers
+  progress-tracker.md  dated evidence; rotates into history/
+  plans/ · history/ · decisions/ (ADR 0001 initial stack)
+docs/  README.md · local-setup.md · archive/product-brief.md (your plan, verbatim)
+.agents/README.md + skills/{architect,review,recover,remember,imprint}  (+ .claude/skills symlinks)
+.claude/settings.json          allowlist for the project's check commands
+.githooks/ + scripts/git/conventions.mjs     branch / commit / PR-title rules
+scripts/checks/docs-check.mjs  placeholders, dead links + anchors, doc size budgets
+.github/  ci.yml · merge-gate.yml (do-not-merge) · PR template · dependabot
+biome.json · tsconfig.base.json (strict)     TypeScript presets only
+```
+
+Files are gated by flags (UI, DB, auth, multi-tenant, AI, jobs, GitHub, TypeScript), so a
+backend-only or non-TypeScript project gets only what applies.
+
+## Layout of this repo
+
+```
+project-setup/
+  SKILL.md                     the workflow the agent follows
+  references/                  intake + answers schema, stack presets, invariants catalog,
+                               doc-system rationale, skills catalog
+  templates/                   the output tree ({{VAR}}, {{#if FLAG}}, {{#each APPS}}, FILL markers)
+  scripts/scaffold.mjs         deterministic renderer (Node/Bun, no dependencies)
+  snippets/ts/                 tryCatch, Guard/hasKey, architecture-contract test
+install.sh
+```
+
+Structure is rendered deterministically by the script; prose that needs judgement is left as
+`<!-- FILL: instruction -->` markers that the agent writes from your plan, and `docs-check.mjs`
+fails until none remain.
+
+## Maintaining it
+
+- Improve a rule in pocos → port it to `templates/` or `references/invariants-catalog.md`.
+- Test a template change: write an answers file (schema in `references/intake.md`), render into
+  a temp dir with `node project-setup/scripts/scaffold.mjs --answers a.json --target /tmp/x`,
+  strip FILL markers, and run `node /tmp/x/scripts/checks/docs-check.mjs --root /tmp/x`.

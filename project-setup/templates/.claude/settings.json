@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash({{CMD_LINT}})",
+      "Bash({{CMD_LINT}} *)",
+      "Bash({{CMD_TYPECHECK}})",
+      "Bash({{CMD_TYPECHECK}} *)",
+      "Bash({{CMD_TEST}})",
+      "Bash({{CMD_TEST}} *)",
+      "Bash({{RUNTIME}} scripts/checks/docs-check.mjs)",
+      "Bash({{RUNTIME}} scripts/checks/docs-check.mjs *)",
+      "Bash({{RUNTIME}} scripts/git/conventions.mjs *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git fetch *)"
+    ]
+  }
+}
