@@ -1,6 +1,6 @@
 # Tenant isolation
 
-<!-- FILL: one sentence naming the tenant unit in this product (e.g. "workspace", "organization", "salon") and the glossary term used for it. -->
+<!-- FILL: one sentence naming the tenant unit in this product (e.g. "workspace", "organization", "team") and the glossary term used for it. -->
 
 ## Rules
 

@@ -46,6 +46,9 @@ When work lands or a milestone completes, update the docs in the same change set
 {{#if HAS_UI}}
 - `context/ui-registry.md` — through `/imprint` after any new UI component.
 {{/if}}
+- `.agents/skills-index.md` — regenerate with `{{RUNTIME}} scripts/skills/index.mjs` whenever a
+  skill is added, removed, or its description changes. Never edit it by hand; docs-check fails
+  while it is stale.
 
 Before calling a feature done, scan the touched area for stale "TODO", "mock", "placeholder", or
 outdated blocker notes; fix them or say why they remain true. Then run

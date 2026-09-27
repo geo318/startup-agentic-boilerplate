@@ -2,7 +2,7 @@
 
 A preset fixes the repository shape, the request path, default flags, commands, and which code
 scaffolding to run. Pick one at intake; the brief may override any part of it. Versions below are
-what pocos ran in 2026-09 — **check the current stable release of each before scaffolding** and
+the reference production stack ran in 2026-09 — **check the current stable release of each before scaffolding** and
 record what you actually installed.
 
 Always scaffold code with the framework's official generator (it knows current versions), then
@@ -13,7 +13,7 @@ then move in (never overwrite files that already exist; merge `.gitignore` and `
 
 ---
 
-## `ts-monorepo` — pocos shape
+## `ts-monorepo` — multi-app monorepo
 
 For: products with more than one deployable (web + API, optionally mobile and workers) sharing
 business logic.
@@ -36,7 +36,7 @@ packages/
 - **Request path:** `UI → feature hook → client DAL → shared HTTP client → route → core service → repository`
 - **Flags:** `MONOREPO, TYPESCRIPT, BUN, HAS_UI, HAS_DB, HAS_AUTH, REQUEST_PATH_SET, GITHUB,
   CLAUDE_CODE` on; `MULTI_TENANT`, `HAS_AI`, `HAS_JOBS`, `HAS_E2E` per brief.
-- **Stack line (pocos):** Bun + Turborepo · Next.js 16 App Router · Elysia on Bun · Expo SDK 54 ·
+- **Reference stack line:** Bun + Turborepo · Next.js 16 App Router · Elysia on Bun · Expo SDK 54 ·
   Better Auth · Drizzle + Postgres (Neon) · Zod v4 · TanStack Query · Axios · Tailwind v4 +
   shadcn-style primitives · Biome · Vitest + Playwright · Trigger.dev · TypeScript 7 (`tsgo`).
 - **Commands:** `bun install`, `bun run dev` (web + api together), `bun run lint` (= `biome check .`),
@@ -60,7 +60,7 @@ packages/
   `"docs:check": "bun scripts/checks/docs-check.mjs"`,
   `"git:check-current-branch": "bun scripts/git/conventions.mjs current"`, `lint`, `format`,
   `typecheck`, `test`, `test:e2e`.
-- **Pocos lessons baked in:** web `dev` alone fails if web proxies `/api` to the API — `dev`
+- **Lessons baked in:** web `dev` alone fails if web proxies `/api` to the API — `dev`
   starts both; migrations never in builds; auth-library bumps are schema releases; curated
   subpath exports only; browser code imports narrow `shared/<domain>` subpaths, never the barrel.
 

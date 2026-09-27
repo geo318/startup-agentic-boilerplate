@@ -12,6 +12,8 @@ precedence over generic skill guidance.
 Pick the skill from this index, read its `SKILL.md`, then follow only the references the current
 operation needs. Never load every skill in a category or every reference a skill links.
 
+For skills outside these common workflows, use the [complete skill catalog](skills-index.md).
+
 ## Workflow
 
 - `architect`: before a non-trivial feature — align terms, resolve decisions, confirmed plan.

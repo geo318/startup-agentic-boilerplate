@@ -3,11 +3,13 @@
 //   - no unresolved scaffold placeholders or FILL markers
 //   - every relative Markdown link points at a real file, and every #anchor at a real heading
 //   - entry points stay inside their line budgets (warnings; errors with --strict)
+//   - .agents/skills-index.md matches the installed skills (scripts/skills/index.mjs --check)
 //
 //   docs-check.mjs [--root <dir>] [--strict]
 //
 // Runs under both Node and Bun; no dependencies.
 
+import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 
@@ -200,6 +202,20 @@ function checkFile(root, file, errors) {
     : null;
 }
 
+// The skill catalog is generated; a skill added or removed without regenerating fails here.
+function checkSkillsIndex(root, errors) {
+  const script = join(root, "scripts", "skills", "index.mjs");
+  if (!existsSync(script) || !existsSync(join(root, ".agents", "skills"))) {
+    return;
+  }
+  const result = spawnSync(process.execPath, [script, "--check", "--root", root], {
+    encoding: "utf8",
+  });
+  if (result.status !== 0) {
+    errors.push((result.stderr || result.stdout || "skills index check failed").trim());
+  }
+}
+
 function main() {
   const { root, strict } = parseArgs(process.argv.slice(2));
   const errors = [];
@@ -211,6 +227,7 @@ function main() {
       (strict ? errors : warnings).push(warning);
     }
   }
+  checkSkillsIndex(root, errors);
   for (const warning of warnings) {
     console.warn(`warning: ${warning}`);
   }

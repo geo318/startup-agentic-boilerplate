@@ -50,7 +50,7 @@ breaking the design. Read this before writing FILL content or adding docs the te
 | A UI pattern | `/imprint` → `context/ui/<component>.md` | Registry entry |
 | A new app | `apps/<app>/AGENTS.md` + `CLAUDE.md` | Row in `agents-map.md` and the root repo map |
 
-## Failure modes seen in pocos (and the countermeasure built in)
+## Failure modes seen in practice (and the countermeasure built in)
 
 | Failure | Countermeasure |
 | --- | --- |

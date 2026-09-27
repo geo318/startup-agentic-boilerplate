@@ -3,7 +3,7 @@
     "gitignore": ".gitignore",
     "env.example": ".env.example"
   },
-  "executable": [".githooks/", "scripts/git/", "scripts/checks/"],
+  "executable": [".githooks/", "scripts/git/", "scripts/checks/", "scripts/skills/"],
   "when": [
     { "path": "context/ui-rules.md", "flag": "HAS_UI" },
     { "path": "context/ui-tokens.md", "flag": "HAS_UI" },

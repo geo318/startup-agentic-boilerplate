@@ -1,11 +1,11 @@
 ---
 name: project-setup
-description: Turn a product plan into a ready-to-build project — agent rules (AGENTS.md/CLAUDE.md), a context/ documentation system (overview, code map, architecture, code standards, invariants, glossary, build plan, progress tracker, decisions), workflow skills (architect, review, recover, remember, imprint), git conventions with hooks, CI with a merge gate, and optionally the stack's code skeleton. Distilled from the pocos monorepo. Use when starting a new project from a brief/plan/PRD, bootstrapping or scaffolding a repo for agentic development, or retrofitting this documentation system onto an existing codebase.
+description: Turn a product plan into a ready-to-build project — agent rules (AGENTS.md/CLAUDE.md), a context/ documentation system (overview, code map, architecture, code standards, invariants, glossary, build plan, progress tracker, decisions), workflow skills (architect, review, recover, remember, imprint), git conventions with hooks, CI with a merge gate, and optionally the stack's code skeleton. Use when starting a new project from a brief/plan/PRD, bootstrapping or scaffolding a repo for agentic development, or retrofitting this documentation system onto an existing codebase.
 ---
 
 # Project setup
 
-Builds the pocos-style agentic project foundation in the current directory from the user's plan.
+Builds an agentic project foundation in the current directory from the user's plan.
 The output is a repository where any coding agent knows the product, the rules, where things go,
 what is next, and how to verify its work.
 
@@ -75,13 +75,23 @@ decisions → the rest. Keep `AGENTS.md` under 200 lines.
 
 ### 7. Wire tooling
 
-- `package.json` (JS/TS repos): add `"prepare": "<runtime> scripts/git/conventions.mjs install-hooks"`,
-  `"docs:check"`, `"git:check-current-branch"`, and make `lint`/`typecheck`/`test` match the
-  commands in the answers. Run the install so hooks activate. Non-JS repos: run
+- `package.json` (JS/TS repos): add these scripts, and make `lint`/`typecheck`/`test` match
+  the commands in the answers. Run the install so the hooks activate.
+
+  ```json
+  "prepare": "<runtime> scripts/git/conventions.mjs install-hooks",
+  "docs:check": "<runtime> scripts/checks/docs-check.mjs",
+  "skills:index": "<runtime> scripts/skills/index.mjs",
+  "git:check-current-branch": "<runtime> scripts/git/conventions.mjs current"
+  ```
+
+  `docs:check` also verifies the generated skill catalog, so CI and the pre-push hook fail when
+  a skill is added without regenerating it. Non-JS repos: run
   `node scripts/git/conventions.mjs install-hooks` once and document it in `docs/local-setup.md`.
 - Install library skills for the confirmed stack per
   [references/skills-catalog.md](references/skills-catalog.md); fill `.agents/README.md` and
-  `context/library-docs.md` from what was actually installed.
+  `context/library-docs.md` from what was actually installed, then regenerate the catalog with
+  `<runtime> scripts/skills/index.mjs`.
 - `git init -b <default-branch>` if the target is not a repository.
 - GitHub (if chosen): tell the user to create the `do-not-merge` label and make `Merge gate` and
   `CI` required checks — do not do it for them unless asked.
@@ -118,6 +128,7 @@ a file, move the old one aside, rerender, and merge. Never pass `--force` withou
 | --- | --- |
 | `templates/` | The output tree. `manifest.json` gates files on flags and renames dotfiles. |
 | `scripts/scaffold.mjs` | Renderer: `{{VAR}}`, `{{#if}}/{{else}}/{{/if}}`, `{{#unless}}`, `{{#each APPS}}`, `__APP_DIR__` paths. |
-| `templates/scripts/checks/docs-check.mjs` | Ships into the project: placeholders, FILL markers, links, anchors, line budgets. |
+| `templates/scripts/checks/docs-check.mjs` | Ships into the project: placeholders, FILL markers, links, anchors, line budgets, stale skill catalog. |
+| `templates/scripts/skills/index.mjs` | Ships into the project: generates `.agents/skills-index.md` from each `SKILL.md`; `--check` for CI. |
 | `snippets/ts/` | Code copied by hand during step 4. |
 | `references/` | Intake, presets, invariants, doc-system rationale, skills catalog. |

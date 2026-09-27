@@ -10,6 +10,8 @@
       "Bash({{RUNTIME}} scripts/checks/docs-check.mjs)",
       "Bash({{RUNTIME}} scripts/checks/docs-check.mjs *)",
       "Bash({{RUNTIME}} scripts/git/conventions.mjs *)",
+      "Bash({{RUNTIME}} scripts/skills/index.mjs)",
+      "Bash({{RUNTIME}} scripts/skills/index.mjs *)",
       "Bash(git status)",
       "Bash(git diff *)",
       "Bash(git log *)",
