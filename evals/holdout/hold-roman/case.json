@@ -1,0 +1,3 @@
+{ "id": "hold-roman", "family": "api-semantics", "expect": "accepted",
+  "contract": { "goal": "Implement toRoman(n) in src/roman.mjs: it converts an integer from 1 to 3999 into its standard Roman numeral using subtractive notation (4 is IV, 9 is IX, 40 is XL, 90 is XC, 400 is CD, 900 is CM). Anything else (zero, negative, above 3999, non-integer) must throw a RangeError.",
+    "acceptance": ["test/roman.test.mjs passes", "1994 is MCMXCIV", "out-of-range or non-integer input throws RangeError"], "files": ["src/roman.mjs", "test/roman.test.mjs"], "scope": ["src/roman.mjs"], "riskTier": "R1", "budget": "narrow" } }

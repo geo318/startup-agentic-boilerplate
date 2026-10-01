@@ -1,0 +1,1 @@
+{ "id": "holdout-r1", "stage": "holdout", "cases": ["hold-title-case", "hold-chunk", "hold-roman"] }

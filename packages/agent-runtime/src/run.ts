@@ -247,6 +247,11 @@ export class Run {
     return this.#verify();
   }
 
+  // Records a controller-side fact (e.g. which lessons were pinned) in the hash-chained log.
+  record(type: string, data: unknown): void {
+    this.#log.append(type, data);
+  }
+
   // Operator-only. Binds the plan text; a different plan later means a new run/approval.
   approvePlan(approver: string, plan: string): void {
     if (this.state !== "AWAITING_PLAN_APPROVAL") throw new Error("no plan awaiting approval");

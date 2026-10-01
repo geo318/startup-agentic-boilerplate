@@ -5,6 +5,7 @@ import { join } from "node:path";
 import * as cli from "./cli/commands.ts";
 import { QualStore, probeActionProtocol } from "./qualify.ts";
 import { ClaudeCliProvider } from "./claude.ts";
+import type { Lesson } from "./learning/store.ts";
 
 // Evaluation harness. A runtime ACCEPTED is not ground truth: every case has an independent grader that lives
 // outside the candidate, and every case's reference solution must pass it while the untouched fixture must not.
@@ -58,7 +59,7 @@ export function validateCase(c: EvalCase): string[] {
   return problems;
 }
 
-export type RunOpts = { evalsRoot: string; suite: string; profile: Profile; trials: number; budgetUsd: number; hosted: boolean; onResult?: (r: CaseResult) => void };
+export type RunOpts = { lessons?: Lesson[]; evalsRoot: string; suite: string; profile: Profile; trials: number; budgetUsd: number; hosted: boolean; onResult?: (r: CaseResult) => void };
 
 export async function runSuite(o: RunOpts): Promise<CaseResult[]> {
   const cases = loadSuite(o.evalsRoot, o.suite);
@@ -82,9 +83,9 @@ export async function runSuite(o: RunOpts): Promise<CaseResult[]> {
       mkdirSync(join(project, ".agents"));
       writeFileSync(join(project, ".agents/policy.json"), JSON.stringify({ schemaVersion: 1, protectedPaths: ["test", "package.json", ".agents"], gates: [GATE], requiredGates: ["tests"], baseline: "record", egress: o.hosted ? "hosted-allowed" : "local-only" }));
       writeFileSync(join(project, ".agents/models.json"), JSON.stringify({ schemaVersion: 1, profiles: { [o.profile.name]: o.profile.def }, roles: { worker: o.profile.name } }));
-      const env: cli.Env = { home, project, out: (s) => out.push(s), operatorTty: false, ask: async () => "", user: "eval-harness", dockerUp: () => false };
+      const env: cli.Env = { home, project, out: (s) => out.push(s), operatorTty: false, ask: async () => "", user: "eval-harness", dockerUp: () => false, ...(o.lessons ? { lessons: o.lessons } : {}) };
       const contractFile = join(project, "contract.json");
-      writeFileSync(contractFile, JSON.stringify({ schemaVersion: 1, id, ...c.contract }));
+      writeFileSync(contractFile, JSON.stringify({ schemaVersion: 1, id, family: c.family, ...c.contract }));
       await cli.taskCreate(env, contractFile);
       mkdirSync(join(home, "tasks", id, "state"), { recursive: true });
       writeFileSync(join(home, "tasks", id, "state", "isolation-consent.json"), JSON.stringify({ isolation: "none", decidedAt: new Date().toISOString(), note: "recorded by the eval harness for an owner-approved suite" }));

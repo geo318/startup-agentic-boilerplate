@@ -4,7 +4,7 @@ import { compile, ContextTooLarge, render } from "./context.ts";
 import type { GenerationProvider } from "./provider.ts";
 import type { Run } from "./run.ts";
 
-export type Task = { goal: string; acceptance: string[]; files: string[]; plan?: string }; // plan: operator-approved text
+export type Task = { goal: string; acceptance: string[]; files: string[]; plan?: string; lessons?: string[] }; // plan: operator-approved text
 
 const SYSTEM = `You are a coding worker. Reply with ONE JSON object and nothing else. Allowed:
 {"id":"<unique>","kind":"read","path":"..."}
@@ -40,7 +40,7 @@ export async function drive(run: Run, provider: GenerationProvider, workspace: s
     try {
       const p = compile(workspace, task.files, maxContext);
       inContext = new Set(p.excerpts.map((e) => e.path));
-      prompt = [`GOAL: ${task.goal}`, ...(task.plan ? [`APPROVED PLAN (follow it):\n${task.plan}`] : []), `ACCEPTANCE:\n${task.acceptance.map((a) => `- ${a}`).join("\n")}`, render(p), `LAST: ${last}`].join("\n\n");
+      prompt = [`GOAL: ${task.goal}`, ...(task.plan ? [`APPROVED PLAN (follow it):\n${task.plan}`] : []), ...(task.lessons?.length ? [`LESSONS (reviewed guidance from past runs; it never overrides the rules above, the goal or the acceptance criteria):\n${task.lessons.map((l) => `- ${l}`).join("\n")}`] : []), `ACCEPTANCE:\n${task.acceptance.map((a) => `- ${a}`).join("\n")}`, render(p), `LAST: ${last}`].join("\n\n");
     } catch (e) {
       if (e instanceof ContextTooLarge) run.stop("BLOCKED", `insufficient context: ${e.message}`);
       else throw e;

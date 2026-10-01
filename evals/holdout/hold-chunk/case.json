@@ -1,0 +1,3 @@
+{ "id": "hold-chunk", "family": "routine-edit", "expect": "accepted",
+  "contract": { "goal": "Add and export chunk(items, size) to src/lists.mjs: it splits an array into consecutive arrays of at most `size` items, keeping order; the last one may be shorter. size must be a positive integer, otherwise throw a RangeError. Do not change the existing last function.",
+    "acceptance": ["test/lists.test.mjs passes", "chunk([1,2,3,4,5],2) is [[1,2],[3,4],[5]]", "size 0, negative or non-integer throws RangeError", "last is unchanged"], "files": ["src/lists.mjs", "test/lists.test.mjs"], "scope": ["src/lists.mjs"], "riskTier": "R1", "budget": "narrow" } }

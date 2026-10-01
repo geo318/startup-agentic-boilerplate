@@ -24,6 +24,8 @@ import { JevClient, type DecisionTransport } from "../jev/client.ts";
 import { calibrate } from "../jev/calibrate.ts";
 import { type Family, Fabric, type Item, loadCalibrations, type Mode, readTelemetry, saveCalibrations } from "../jev/fabric.ts";
 import { readdirSync } from "node:fs";
+import * as learn from "../learning/store.ts";
+import { activeLessons, type Lesson } from "../learning/store.ts";
 
 export type Env = {
   home: string; // controller state (tasks, qualifications): outside every project
@@ -35,6 +37,8 @@ export type Env = {
   dockerUp?: () => boolean;
   secrets?: Record<string, string>; // loaded by main from $AGENTIC_HOME/secrets.env; never passed to workers
   jevTransport?: DecisionTransport; // tests inject a fake
+  lessons?: Lesson[]; // evaluation only: replaces the active release for this process
+  evalsRoot?: string; // where evals/ lives (holdout material is checked against it)
   onRun?: (run: Run) => void; // lets main wire SIGINT → run.cancel()
 };
 
@@ -69,7 +73,7 @@ function loadValidated<T>(file: string, schemaName: string): T {
 
 type Contract = {
   id: string; goal: string; acceptance: string[]; files: string[]; scope?: string[]; riskTier: RiskTier; riskTags?: string[];
-  budget: "narrow" | "standard" | "complex"; recipe?: { path: string; find: string; replace: string }; unresolvedQuestions?: string[];
+  family?: string; budget: "narrow" | "standard" | "complex"; recipe?: { path: string; find: string; replace: string }; unresolvedQuestions?: string[];
 };
 type ProjectPolicy = {
   protectedPaths: string[]; gates: Policy["gates"]; requiredGates: string[]; egress: Policy["egress"]; dockerImage?: string;
@@ -295,9 +299,17 @@ export async function taskRun(env: Env, id: string): Promise<number> {
   const run = new Run(t.policy(iso), env.dockerUp ? { dockerUp: env.dockerUp } : {});
   env.onRun?.(run);
   try {
+    // Lessons are pinned per task at its first start: later promotions never change a run midway.
+    const pinFile = join(t.dir, "lessons-pin.json");
+    if (fresh) {
+      const a = env.lessons ? { releaseId: "eval-override", lessons: env.lessons } : activeLessons(env.home, { ...(t.contract.family ? { family: t.contract.family } : {}), maxTokens: 300 });
+      writeFileSync(pinFile, JSON.stringify({ releaseId: a.releaseId, lessons: a.lessons.map((l) => ({ id: l.id, text: l.text })) }));
+    }
+    const pinned: Array<{ id: string; text: string }> = existsSync(pinFile) ? JSON.parse(readFileSync(pinFile, "utf8")).lessons : [];
     if (fresh) {
       await run.prepare();
       run.start();
+      if (pinned.length) run.record("lessons_pinned", { release: JSON.parse(readFileSync(pinFile, "utf8")).releaseId, ids: pinned.map((l) => l.id) });
       const fabric = makeFabric(env, t.pp);
       if (fabric && run.state === "IMPLEMENTING" && (await jevDecisions(env, t, id, fabric)) === "ask") {
         run.stop("NEEDS_INPUT", "jev (calibrated, enabled): the request needs clarification before any model call");
@@ -327,7 +339,7 @@ export async function taskRun(env: Env, id: string): Promise<number> {
           break;
         }
         const plan = existsSync(planFile) ? (JSON.parse(readFileSync(planFile, "utf8")).text as string) : undefined;
-        await drive(run, providers.worker!, t.candidate, { goal: t.contract.goal, acceptance: t.contract.acceptance, files: t.contract.files, ...(plan ? { plan } : {}) }, t.budget.limits.toolActions, t.budget.maxOut, t.budget.maxContext);
+        await drive(run, providers.worker!, t.candidate, { goal: t.contract.goal, acceptance: t.contract.acceptance, files: t.contract.files, ...(plan ? { plan } : {}), ...(pinned.length ? { lessons: pinned.map((l) => l.text) } : {}) }, t.budget.limits.toolActions, t.budget.maxOut, t.budget.maxContext);
         continue;
       }
       if (run.state === "REVIEWING") {
@@ -526,5 +538,58 @@ export async function jevCalibrate(env: Env, family: Family, labelsFile: string,
   saveCalibrations(calibrationFile(env), [...loadCalibrations(calibrationFile(env)).filter((c) => c.family !== family), { id: cal.id, family, threshold: cal.threshold, n: cal.n, target }]);
   env.out(`${family}: n=${cal.n} labelled, threshold ${cal.threshold ?? "none: not enough accurate high-confidence data, so Jev cannot act"}  (target ${target}, min n ${minN})`);
   for (const b of cal.bins.filter((x) => x.n)) env.out(`  confidence ${b.lo.toFixed(1)}-${b.hi.toFixed(1)}: n=${b.n} accuracy ${(b.accuracy! * 100).toFixed(0)}%`);
+  return 0;
+}
+
+// ---------------- controlled learning ----------------
+
+export async function learnCapture(env: Env, taskId: string): Promise<number> {
+  const inc = learn.captureIncident(env.home, taskId);
+  env.out(inc ? `incident ${inc.id}: ${inc.facts.join("; ")}` : "nothing verified to learn from in that task");
+  return inc ? 0 : 1;
+}
+
+// Proposals are written to quarantine; nothing a worker sees changes. The file is a Proposal minus id/state/createdAt.
+export async function learnPropose(env: Env, file: string): Promise<number> {
+  const input = JSON.parse(readFileSync(file, "utf8"));
+  const holdoutDir = env.evalsRoot ? join(env.evalsRoot, "holdout") : undefined;
+  const p = learn.propose(env.home, input, holdoutDir ? { holdoutDir } : {});
+  env.out(`proposal ${p.id} quarantined (lesson ${p.lesson.id}, topic ${p.lesson.topic}). Not active. Evaluate it, then a person promotes it.`);
+  return 0;
+}
+
+export async function learnList(env: Env): Promise<number> {
+  const cur = learn.currentReleaseId(env.home);
+  env.out(`active release: ${cur ?? "none"}  lessons: ${learn.activeLessons(env.home, {}).lessons.map((l) => l.id).join(", ") || "none"}`);
+  for (const p of learn.listProposals(env.home)) env.out(`${p.id}  ${p.state.padEnd(11)} ${p.lesson.topic}${p.evaluation ? `  eval=${p.evaluation.verdict}` : ""}`);
+  return 0;
+}
+
+async function humanConfirm(env: Env, what: string, detail: string): Promise<boolean> {
+  requireOperator(env, what);
+  env.out(detail);
+  return (await env.ask(`${what}? (yes/no): `)).trim().toLowerCase() === "yes";
+}
+
+export async function learnPromote(env: Env, proposalId: string): Promise<number> {
+  requireOperator(env, "promoting a lesson");
+  const p = learn.getProposal(env.home, proposalId);
+  const ev = p.evaluation;
+  if (!(await humanConfirm(env, "promote this lesson to active guidance", `lesson [${p.lesson.topic}]: ${p.lesson.text}\ncause: ${p.cause}\nevaluation: ${ev ? `${ev.verdict}; baseline correct ${ev.baseline.acceptedCorrect}/${ev.baseline.expectedAccepted}, candidate ${ev.candidate.acceptedCorrect}/${ev.candidate.expectedAccepted}; regressions ${ev.regressions.length}; n=${ev.n} (${ev.profile})` : "NONE"}`))) return 1;
+  const rel = learn.promote(env.home, proposalId, `operator:${env.user}`);
+  env.out(`promoted: release ${rel.id} (rollback target ${rel.rollbackTarget ?? "none"}). Applies to tasks started from now on.`);
+  return 0;
+}
+export async function learnRollback(env: Env, toRelease?: string): Promise<number> {
+  requireOperator(env, "rolling back lessons");
+  const rel = learn.rollback(env.home, toRelease);
+  env.out(`active release is now ${rel.id}: ${rel.note}`);
+  return 0;
+}
+export async function learnRetire(env: Env, lessonId: string, purgeToo = false): Promise<number> {
+  requireOperator(env, purgeToo ? "purging a lesson" : "retiring a lesson");
+  if (purgeToo) learn.purge(env.home, lessonId, `operator:${env.user}`);
+  else learn.retire(env.home, lessonId, `operator:${env.user}`);
+  env.out(`${purgeToo ? "purged" : "retired"} ${lessonId}`);
   return 0;
 }

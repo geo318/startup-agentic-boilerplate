@@ -9,6 +9,7 @@ import { type CaseResult, compare, GATE, grade, loadSuite, summarize, validateCa
 
 const evals = join(fileURLToPath(import.meta.url), "..", "..", "..", "..", "evals");
 const cases = loadSuite(evals, "dev-r1");
+const holdout = loadSuite(evals, "holdout-r1");
 
 test("suite loads: every case has a family, an expectation and a contract that fits the schema's shape", () => {
   assert.equal(cases.length, 8);
@@ -22,6 +23,10 @@ for (const c of cases) {
   test(`fixture audit: ${c.id} — untouched fixture fails its grader; reference passes it`, () => {
     assert.deepEqual(validateCase(c), []);
   });
+}
+
+for (const c of holdout) {
+  test(`holdout fixture audit: ${c.id}`, () => assert.deepEqual(validateCase(c), []));
 }
 
 test("a defective case is caught: a grader that accepts the untouched fixture is reported", () => {

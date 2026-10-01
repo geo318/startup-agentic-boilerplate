@@ -13,6 +13,7 @@ const USAGE = `agentic <command>
   doctor | validate [contract.json...]
   qualify <profile> [--owner-declare architecture|review|action-protocol]
   task create <contract.json> | run <id> | status <id> | approve <id> | accept <id> | cancel <id> | verify <id> | export <id>
+  learn capture <task> | propose <file> | list | promote <proposal> | rollback [release] | retire <lesson> | purge <lesson>   (promote/rollback/retire/purge need a terminal)
   jev status | report | calibrate --family <f> --labels <file>
   report <id>
 Options: --project <dir> (default: cwd). Controller state: $AGENTIC_HOME (default ~/.agentic).`;
@@ -45,6 +46,15 @@ async function main(): Promise<number> {
     case "validate": return c.validateFiles(env, argv.slice(1).filter((a) => !a.startsWith("--") && a !== env.project));
     case "qualify": return c.qualify(env, sub ?? "", flag("--owner-declare") as any);
     case "report": return c.report(env, sub ?? "");
+    case "learn":
+      if (sub === "capture") return c.learnCapture(env, arg ?? "");
+      if (sub === "propose") return c.learnPropose(env, resolve(arg ?? ""));
+      if (sub === "list") return c.learnList(env);
+      if (sub === "promote") return c.learnPromote(env, arg ?? "");
+      if (sub === "rollback") return c.learnRollback(env, arg);
+      if (sub === "retire") return c.learnRetire(env, arg ?? "");
+      if (sub === "purge") return c.learnRetire(env, arg ?? "", true);
+      break;
     case "jev":
       if (sub === "status") return c.jevStatus(env);
       if (sub === "report") return c.jevReport(env);

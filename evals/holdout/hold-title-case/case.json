@@ -1,0 +1,3 @@
+{ "id": "hold-title-case", "family": "isolated-bug", "expect": "accepted",
+  "contract": { "goal": "titleCase(text) in src/title.mjs must capitalise the first letter of every space-separated word and lowercase the rest of each word. Runs of spaces are kept as they are. It currently only lowercases.",
+    "acceptance": ["test/title.test.mjs passes", "'hello wORLD' becomes 'Hello World'", "spacing is preserved"], "files": ["src/title.mjs", "test/title.test.mjs"], "scope": ["src/title.mjs"], "riskTier": "R1", "budget": "narrow" } }
