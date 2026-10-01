@@ -26,7 +26,7 @@ import { canonical, sha256 } from "../hash.ts";
 import { ManualProvider } from "../manual.ts";
 import { OllamaProvider } from "../ollama.ts";
 import { type GenerationProvider, MockProvider } from "../provider.ts";
-import { QualStore, selectProfile } from "../qualify.ts";
+import { needsStrongWorker, QualStore, selectProfile } from "../qualify.ts";
 import { maxTier, riskFloor } from "../risk.ts";
 import { architect, review, RoleFailed } from "../roles.ts";
 import { runGate } from "../gates.ts";
@@ -134,7 +134,7 @@ type ProjectPolicy = {
 };
 type Models = {
   profiles: Record<string, Record<string, any>>;
-  roles: { worker: string; architect?: string; reviewer?: string };
+  roles: { worker: string; workerStrong?: string; architect?: string; reviewer?: string };
 };
 
 // Copies what git considers part of the project (tracked + untracked, minus ignored): no build output, no .env.
@@ -526,7 +526,12 @@ export async function taskRun(env: Env, id: string): Promise<number> {
   // Providers and qualifications are checked before any state is created: a task we cannot route has no side effects.
   const store = new QualStore(join(env.home, "qualifications.json"));
   const usesModel = !(t.tier === "R0" && t.contract.recipe);
-  const providers: { worker?: GenerationProvider; architect?: GenerationProvider; reviewer?: GenerationProvider } = {};
+  const providers: {
+    worker?: GenerationProvider;
+    workerStrong?: GenerationProvider;
+    architect?: GenerationProvider;
+    reviewer?: GenerationProvider;
+  } = {};
   if (usesModel) {
     const models = t.models();
     if (!models)
@@ -543,6 +548,14 @@ export async function taskRun(env: Env, id: string): Promise<number> {
       const sel = selectProfile(role, t.tier, [makeProvider(name, models)], store);
       if (!sel.ok) throw new CliError(`${sel.reason} (profile "${name}"). Qualify it first: agentic qualify ${name}`);
       providers[role] = sel.provider;
+    }
+    if (models.roles.workerStrong) {
+      const sel = selectProfile("worker", t.tier, [makeProvider(models.roles.workerStrong, models)], store);
+      if (!sel.ok)
+        throw new CliError(
+          `${sel.reason} (profile "${models.roles.workerStrong}"). Qualify it first: agentic qualify ${models.roles.workerStrong}`,
+        );
+      providers.workerStrong = sel.provider;
     }
   }
 
@@ -591,6 +604,7 @@ export async function taskRun(env: Env, id: string): Promise<number> {
       beginCall: (reserved: number) => run.beginCall(reserved),
     });
 
+    const routes: string[] = []; // worker profile per drive, so outcomes can be compared per route
     for (let round = 0; round < 4; round++) {
       if (run.state === "AWAITING_PLAN_APPROVAL") {
         if (!existsSync(planFile)) {
@@ -616,9 +630,12 @@ export async function taskRun(env: Env, id: string): Promise<number> {
           break;
         }
         const plan = existsSync(planFile) ? (JSON.parse(readFileSync(planFile, "utf8")).text as string) : undefined;
+        const strong = providers.workerStrong && needsStrongWorker(t.tier, t.contract.files.length, run.ledger.repairs);
+        const worker = strong ? providers.workerStrong! : providers.worker!;
+        routes.push(worker.id);
         await drive(
           run,
-          providers.worker!,
+          worker,
           t.candidate,
           {
             goal: t.contract.goal,
@@ -655,6 +672,7 @@ export async function taskRun(env: Env, id: string): Promise<number> {
         task: id,
         state: run.state,
         tier: t.tier,
+        ...(routes.length ? { workers: routes } : {}),
         tokens: run.ledger.tokens,
         costUsd: run.ledger.costUsd,
         unknownUsageCalls: run.ledger.unknownUsageCalls,

@@ -30,7 +30,7 @@
     },
     "roles": {
       "type": "object", "additionalProperties": false, "required": ["worker"],
-      "properties": { "worker": { "type": "string" }, "architect": { "type": "string" }, "reviewer": { "type": "string" } }
+      "properties": { "worker": { "type": "string" }, "workerStrong": { "type": "string" }, "architect": { "type": "string" }, "reviewer": { "type": "string" } }
     }
   }
 }

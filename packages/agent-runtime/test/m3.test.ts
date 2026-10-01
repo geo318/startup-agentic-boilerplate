@@ -397,3 +397,12 @@ test("roles obey egress: hosted provider under local-only never receives the pro
   await assert.rejects(architect(ctx(hosted), { goal: "g", acceptance: [], context: "secret source" }), /local-only/);
   assert.equal(hosted.calls.length, 0);
 });
+
+test("worker routing: cheap for small R1, strong for R2/R3, wide contracts, and after a repair", async () => {
+  const { needsStrongWorker } = await import("../src/qualify.ts");
+  assert.equal(needsStrongWorker("R1", 2, 0), false);
+  assert.equal(needsStrongWorker("R1", 4, 0), true);
+  assert.equal(needsStrongWorker("R1", 1, 1), true);
+  assert.equal(needsStrongWorker("R2", 1, 0), true);
+  assert.equal(needsStrongWorker("R3", 1, 0), true);
+});

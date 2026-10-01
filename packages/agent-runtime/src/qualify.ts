@@ -125,3 +125,10 @@ export function selectProfile(
   for (const c of candidates) if (store.has(c.id, FAMILY[role])) return { ok: true, provider: c };
   return { ok: false, reason: `unsupported capability: no profile qualified for ${FAMILY[role]}` };
 }
+
+// Rule-based worker routing, no model call. The cheap worker takes small low-risk tasks; the strong one takes R2/R3,
+// wide contracts, and any retry after a failed repair (a cheap miss costs one escalation, never a weaker check).
+export const STRONG_FILE_COUNT = 3;
+export function needsStrongWorker(tier: RiskTier, fileCount: number, repairs: number): boolean {
+  return tier === "R2" || tier === "R3" || fileCount > STRONG_FILE_COUNT || repairs > 0;
+}

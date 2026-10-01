@@ -39,3 +39,9 @@ One real-project pilot (family-tracker, scratch clone, Claude Haiku): one accept
 Jev: optional, off by default, shadow evidence only ([docs/jev.md](../../docs/jev.md)).
 Learning: lifecycle built and tested; the first live evaluation passed a harmful lesson through a noisy single-baseline design, which is fixed but not yet re-run live ([docs/learning.md](../../docs/learning.md)).
 Not built: TypeScript-parser architecture analysis, model-drafted proposals.
+
+## Worker routing (no model call)
+
+With `roles.workerStrong` in `.agents/models.json`, small R1 tasks (≤ 3 contract files) use `roles.worker` (cheap); R2/R3, wider
+contracts, and any retry after a failed repair use `workerStrong`. Both profiles must be qualified. The task result lists the
+profiles used (`workers`) so outcomes can be compared per route. Without `workerStrong`, behaviour is unchanged.
