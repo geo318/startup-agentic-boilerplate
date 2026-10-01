@@ -5,7 +5,8 @@ import { PathRejected, resolveSafe } from "./paths.ts";
 
 export type Edit =
   | { kind: "replace"; path: string; expectHash: string; find: string; replace: string }
-  | { kind: "create"; path: string; content: string };
+  | { kind: "create"; path: string; content: string }
+  | { kind: "replace_file"; path: string; expectHash: string; content: string }; // whole-file rewrite, guarded by the hash the model saw
 
 export class EditRejected extends Error {
   readonly reason: string;
@@ -24,7 +25,7 @@ export function applyEdits(root: string, edits: Edit[], protectedPaths: string[]
     const abs = resolveSafe(root, e.path, protectedPaths);
     if (planned.has(abs)) throw new EditRejected("policy violation", `two edits to ${e.path}`);
     if (e.kind === "create") {
-      if (existsSync(abs)) throw new EditRejected("stale evidence", `exists: ${e.path}`);
+      if (existsSync(abs)) throw new EditRejected("stale evidence", `${e.path} already exists: to rewrite it use kind "replace_file" with its current expectHash, or "replace" for a part`);
       if (e.content.includes("\0") || Buffer.byteLength(e.content) > MAX_BYTES) {
         throw new EditRejected("policy violation", `binary or oversized: ${e.path}`);
       }
@@ -33,6 +34,12 @@ export function applyEdits(root: string, edits: Edit[], protectedPaths: string[]
     }
     if (!existsSync(abs)) throw new EditRejected("insufficient context", `missing: ${e.path}`);
     const current = readFileSync(abs, "utf8");
+    if (e.kind === "replace_file") {
+      if (sha256(current) !== e.expectHash) throw new EditRejected("stale evidence", `stale content: ${e.path}`);
+      if (e.content.includes("\0") || Buffer.byteLength(e.content) > MAX_BYTES) throw new EditRejected("policy violation", `binary or oversized: ${e.path}`);
+      planned.set(abs, e.content);
+      continue;
+    }
     if (sha256(current) !== e.expectHash) throw new EditRejected("stale evidence", `stale content: ${e.path}`);
     if (!e.find) throw new EditRejected("insufficient context", "empty find");
     const first = current.indexOf(e.find);

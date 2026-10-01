@@ -27,3 +27,20 @@ correct and unnecessary abstentions · tokens · hosted cost · wall time ·
 saves `evals/baselines/<suite>-<profile>-<utc>.json`. Compare two result files with `compare()` ([eval.ts](../packages/agent-runtime/src/eval.ts)).
 Mock/replay passes prove the engine, not a model. Small samples show feasibility and large effects only; repeat trials before claiming small differences.
 Rotating the worker model changes the qualification (profile id), so each arm is probed first.
+
+## Results so far (development set, n=1 per case per arm; not a holdout)
+
+| Run | Independently correct | False acceptances | Correct abstentions | Cost (all attempts) | Cost / accepted | Wall |
+| --- | --- | --- | --- | --- | --- | --- |
+| Haiku 4.5, first valid run | 3/5 | 0 | 3/3 | $0.147 | $0.049 | 310 s |
+| Sonnet 5.5 (reference), same run | 4/5 | 0 | 3/3 | $0.107 | $0.027 | 63 s |
+| Haiku 4.5, after `replace_file` fix | 5/5 | 0 | 3/3 | $0.134 | $0.027 | 190 s |
+| Sonnet 5.5, after `replace_file` fix | 5/5 | 0 | 3/3 | $0.087 | $0.017 | 51 s |
+
+How to read this honestly:
+- An earlier Haiku run (0/5) was discarded: my discovery regex did not match Node's non-terminal output, so every correct fix was reported `incomplete`. The runtime failed safe; the harness was wrong.
+- The first valid runs exposed a protocol gap (rewriting an existing file with `create` failed with a terse error and both models looped until their token budget ran out). Adding a hash-guarded `replace_file` and an actionable error fixed it. The post-fix numbers were measured on the same cases used to find the gap, so they are optimistic.
+- The 12k "narrow" token budget is tight with the Claude CLI's ~1.3k tokens of overhead per call; two of the Haiku failures were `budget exhausted: tokens`, not wrong code.
+- The stronger model was cheaper and faster here because it wastes fewer calls; that is a property of these 5 small tasks, not a general claim. n is far too small to claim a quality difference or frontier equivalence.
+- `sensitive-path` (an auth change) is refused with zero model calls in every run.
+

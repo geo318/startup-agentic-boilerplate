@@ -8,7 +8,8 @@ export type Task = { goal: string; acceptance: string[]; files: string[]; plan?:
 
 const SYSTEM = `You are a coding worker. Reply with ONE JSON object and nothing else. Allowed:
 {"id":"<unique>","kind":"read","path":"..."}
-{"id":"<unique>","kind":"edit","edits":[{"kind":"replace","path":"...","expectHash":"<hash shown>","find":"<exact unique text>","replace":"..."} | {"kind":"create","path":"...","content":"..."}]}
+{"id":"<unique>","kind":"edit","edits":[{"kind":"replace","path":"...","expectHash":"<hash shown>","find":"<exact unique text>","replace":"..."} | {"kind":"create","path":"...","content":"..."} | {"kind":"replace_file","path":"...","expectHash":"<hash shown>","content":"<whole new file>"}]}
+"create" is only for files that do not exist yet; to rewrite an existing file use "replace_file".
 {"id":"<unique>","kind":"run_gate","gateId":"..."}
 {"id":"<unique>","kind":"finish"}   (requests verification; it is not completion)
 {"id":"<unique>","kind":"blocked","reason":"..."}

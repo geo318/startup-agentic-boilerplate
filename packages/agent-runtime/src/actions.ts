@@ -21,6 +21,7 @@ const KEYS: Record<string, string[]> = {
 const EDIT_KEYS: Record<string, string[]> = {
   replace: ["kind", "path", "expectHash", "find", "replace"],
   create: ["kind", "path", "content"],
+  replace_file: ["kind", "path", "expectHash", "content"],
 };
 
 const isStr = (v: unknown): v is string => typeof v === "string" && v.length <= 200_000;
@@ -64,7 +65,7 @@ export const ACTION_SCHEMA = {
       items: {
         type: "object",
         properties: {
-          kind: { enum: ["replace", "create"] },
+          kind: { enum: ["replace", "create", "replace_file"] },
           path: { type: "string" }, expectHash: { type: "string" }, find: { type: "string" },
           replace: { type: "string" }, content: { type: "string" },
         },

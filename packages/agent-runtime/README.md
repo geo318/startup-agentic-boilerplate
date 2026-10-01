@@ -25,8 +25,9 @@ Schemas: [/schemas](../../schemas). Controller state (tasks, events, qualificati
 
 ## Status
 
-Verified: the controller, resume/cancel, schemas, CLI flows with deterministic replay providers, and live runs with Claude Haiku (feasibility only, n=1 per case).
-**Not verified:** a real Docker container run, Ollama or Codex against a real model, typechecking (`@types/node` not installed), and anything about task success rates.
-Not built: TypeScript-parser architecture analysis, Jev, learning, scaffolder integration of the runtime config.
-
-Tests: `node --test 'test/*.test.ts'`. Live pilots (spend money, hosted): `scripts/live.ts`, `scripts/live-r2.ts`.
+Verified: controller, resume/cancel, schemas, CLI, trusted base-branch CI verifier, adversarial suite, eval harness with independent graders.
+Live evidence (development set `dev-r1`, 8 synthetic cases, **n=1 per case per arm**, tuned against, so optimistic; not a holdout):
+see [docs/evaluation.md](../../docs/evaluation.md) and `evals/baselines/` (pre-fix and post-fix runs are both kept).
+One real-project pilot (family-tracker, scratch clone, Claude Haiku): one accepted-and-independently-verified task, one refused R3 change.
+**Not verified:** a real Docker container run, Ollama or Codex, typechecking (`@types/node` not installed), holdout/regression suites, anything about success rates beyond these small samples.
+Not built: TypeScript-parser architecture analysis, Jev (M4), controlled learning (M6).

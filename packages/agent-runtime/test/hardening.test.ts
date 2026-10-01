@@ -125,3 +125,18 @@ test("crash between applying an edit and logging it: resume blocks instead of re
   b.resume();
   assert.equal(b.state, "BLOCKED");
 });
+
+test("replace_file: whole-file rewrite needs the current hash; stale, missing, protected and create-over-existing are rejected with guidance", async () => {
+  const { policy, ws } = setup();
+  const run = await start(policy);
+  const cur = readFileSync(join(ws, "value.txt"), "utf8");
+  const rf = (id: string, path: string, expectHash: string, content = "good") => run.handle({ id, kind: "edit", edits: [{ kind: "replace_file", path, expectHash, content }] });
+  assert.equal((await rf("r1", "value.txt", sha256("not the content"))).ok, false); // stale
+  assert.equal((await rf("r2", "nope.txt", sha256(""))).ok, false); // missing
+  assert.equal((await rf("r3", "check.mjs", sha256(readFileSync(join(ws, "check.mjs"), "utf8")))).ok, false); // protected
+  const dup = await run.handle({ id: "r4", kind: "edit", edits: [{ kind: "create", path: "value.txt", content: "x" }] });
+  assert.match(dup.reason ?? "", /replace_file/); // the error tells the model what to do instead
+  assert.equal(readFileSync(join(ws, "value.txt"), "utf8"), cur);
+  assert.equal((await rf("r5", "value.txt", sha256(cur))).ok, true);
+  assert.equal(readFileSync(join(ws, "value.txt"), "utf8"), "good");
+});
