@@ -391,7 +391,11 @@ export class Run {
     for (const id of requiredGates) {
       const spec = gates.find((g) => g.id === id);
       if (!spec) throw new Error(`required gate not defined: ${id}`);
-      let r = await runGate(spec, workspace, snapshot(workspace), this.#sandbox());
+      const before = snapshot(workspace);
+      let r = await runGate(spec, workspace, before, this.#sandbox());
+      // A gate that rewrites the candidate certifies bytes it never tested.
+      if (r.status === "pass" && snapshot(workspace) !== before)
+        r = { ...r, status: "fail", note: "gate modified the candidate; evidence would not match the tested bytes" };
       // Deleting or skipping tests must not pass: fewer discovered tests than the green baseline is a failure.
       const floor = this.#baselineDiscovered[id];
       if (r.status === "pass" && floor !== undefined && (r.discovered ?? 0) < floor) {
@@ -474,6 +478,11 @@ export class Run {
     writeFileSync(join(this.#policy.stateDir, "evidence.json"), JSON.stringify(this.evidence, null, 2));
     this.#go("AWAITING_ACCEPTANCE");
     return { ok: true, data: { state: this.state } };
+  }
+
+  // Gate results of the just-completed verification, available to the reviewer before evidence is final.
+  get draftGates(): GateResult[] {
+    return this.#draft?.gates ?? [];
   }
 
   // Controller-side: called with validated reviewer findings. Blocking findings send the run to repair.

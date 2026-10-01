@@ -639,7 +639,7 @@ export async function taskRun(env: Env, id: string): Promise<number> {
           goal: t.contract.goal,
           acceptance: t.contract.acceptance,
           changed: run.changed(),
-          gates: run.evidence?.gates ?? [],
+          gates: run.draftGates,
         });
         run.endCall();
         run.completeReview(findings);

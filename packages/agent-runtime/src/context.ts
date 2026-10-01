@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, posix, relative, sep } from "node:path";
 import { sha256 } from "./hash.ts";
+import { resolveSafe } from "./paths.ts";
 
 export type Excerpt = { path: string; hash: string; reason: "mandatory" | "related"; tokens: number; text: string };
 export type Packet = {
@@ -51,7 +52,7 @@ export function compile(
   const excerpts: Excerpt[] = [];
   let used = 0;
   const take = (path: string, reason: Excerpt["reason"]) => {
-    const text = readFileSync(join(root, path), "utf8");
+    const text = readFileSync(resolveSafe(root, path), "utf8"); // rejects traversal, absolute paths, symlink escapes
     return { path, hash: sha256(text), reason, tokens: approx(text), text };
   };
   for (const path of mandatory) {
@@ -68,7 +69,7 @@ export function compile(
   };
   for (const m of mandatory) {
     const dir = dirname(m);
-    const text = readFileSync(join(root, m), "utf8");
+    const text = readFileSync(resolveSafe(root, m), "utf8");
     for (const [, spec] of text.matchAll(IMPORT_SPEC)) {
       if (!spec!.startsWith(".")) continue;
       const base = posix.normalize(posix.join(dir, spec!));

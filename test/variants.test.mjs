@@ -332,6 +332,8 @@ test("fresh scaffold → pin → create → run with a replay worker → awaitin
   const pol = JSON.parse(readFileSync(join(t, ".agents/policy.json"), "utf8"));
   pol.gates[0].argv = ["node", "check.mjs"];
   pol.baseline = "off"; // this fixture starts red on purpose
+  assert.ok(pol.bootstrap?.argv.length, "generated policy bootstraps dependencies"); // npm/pnpm projects ignore node_modules
+  delete pol.bootstrap; // no network in the fixture
   pol.protectedPaths.push("check.mjs");
   writeFileSync(join(t, ".agents/policy.json"), JSON.stringify(pol));
   const contract = join(t, "contract.json");
@@ -466,7 +468,8 @@ test("runtime workflow: positive required check present, runs base policy, no se
     .join("\n");
   assert.match(wf, /pull_request:/);
   assert.doesNotMatch(wf, /pull_request_target/);
-  assert.match(wf, /trusted-gates\.mjs --base origin\/main/);
+  assert.match(wf, /trusted-gates\.mjs" --base origin\/main/);
+  assert.match(wf, /git show origin\/main:scripts\/checks\/trusted-gates\.mjs/); // verifier itself comes from base
   assert.ok(existsSync(join(t, ".github/workflows/merge-gate.yml")));
   assert.match(readFileSync(join(t, ".github/workflows/merge-gate.yml"), "utf8"), /do-not-merge/);
   const off = render({}).t;

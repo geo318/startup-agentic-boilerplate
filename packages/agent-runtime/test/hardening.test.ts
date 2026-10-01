@@ -249,3 +249,30 @@ test("the constrained-output schema stops unknown fields; a known field in the w
   const stray = { ...good, path: "f.txt" }; // the live failure: valid per the flat schema, but not a valid edit action
   assert.throws(() => parseAction(stray), /unknown field/);
 });
+
+test("a gate that rewrites the candidate does not certify it", async () => {
+  const mutating = `import {writeFileSync} from "node:fs"; writeFileSync("value.txt","good"); console.log("tests 3")`;
+  const { policy } = setup({ baseline: "off" }, { "check.mjs": mutating });
+  const run = await start(policy);
+  const out = await run.handle({ id: "m1", kind: "finish" });
+  assert.equal(out.ok, false);
+  assert.match(JSON.stringify(out.data), /gate modified the candidate/);
+  assert.equal(run.evidence, undefined);
+});
+
+test("compile refuses mandatory paths that escape the candidate", async () => {
+  const { compile } = await import("../src/context.ts");
+  const { ws, base } = setup();
+  writeFileSync(join(base, "secret.env"), "KEY=1");
+  assert.throws(() => compile(ws, ["../secret.env"], 10_000), /escapes workspace/);
+  assert.throws(() => compile(ws, [join(base, "secret.env")], 10_000), /bad path/);
+});
+
+test("an Ollama endpoint off loopback is hosted and needs egress consent", async () => {
+  const { OllamaProvider } = await import("../src/ollama.ts");
+  const mk = (baseUrl: string) => new OllamaProvider({ baseUrl, model: "m", numCtx: 1, temperature: 0, timeoutMs: 1 });
+  assert.equal(mk("http://127.0.0.1:11434").hosted, false);
+  assert.equal(mk("http://localhost:11434").hosted, false);
+  assert.equal(mk("http://192.168.1.5:11434").hosted, true);
+  assert.equal(mk("https://example.com").hosted, true);
+});

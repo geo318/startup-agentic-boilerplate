@@ -130,6 +130,7 @@ function withRuntimeDerivations({ vars, flags, apps }) {
   return {
     vars: {
       ...vars,
+      AGENTIC_INSTALL_ARGV_JSON: JSON.stringify((vars.CMD_INSTALL_CI ?? "").trim().split(/\s+/)),
       AGENTIC_TEST_ARGV_JSON: JSON.stringify(vars.CMD_TEST.trim().split(/\s+/)),
       AGENTIC_DISCOVER_REGEX_JSON: JSON.stringify(vars.GATE_DISCOVER_REGEX),
       AGENTIC_DOCKER_IMAGE: vars.AGENTIC_DOCKER_IMAGE ?? "",

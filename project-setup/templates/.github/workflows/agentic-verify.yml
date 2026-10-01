@@ -44,4 +44,6 @@ jobs:
           MAINTENANCE: ${{ contains(github.event.pull_request.labels.*.name, 'maintenance') }}
         run: |
           if [ "$MAINTENANCE" = "true" ]; then EXTRA="--allow-protected-changes"; fi
-          {{RUNTIME}} scripts/checks/trusted-gates.mjs --base origin/{{DEFAULT_BRANCH}} $EXTRA
+          # The verifier itself comes from the base branch too: the PR's copy is never executed.
+          git show origin/{{DEFAULT_BRANCH}}:scripts/checks/trusted-gates.mjs > "$RUNNER_TEMP/trusted-gates.mjs"
+          {{RUNTIME}} "$RUNNER_TEMP/trusted-gates.mjs" --base origin/{{DEFAULT_BRANCH}} $EXTRA

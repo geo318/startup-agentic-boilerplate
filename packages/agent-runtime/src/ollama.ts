@@ -8,14 +8,23 @@ export type OllamaProfile = {
   timeoutMs: number;
 };
 
+function isLoopback(url: string): boolean {
+  try {
+    return ["localhost", "127.0.0.1", "[::1]"].includes(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
+
 // Native /api/chat, non-streaming. Schema-constrained output when a schema is given; the caller still
 // validates semantics. Usage comes from the server's own counters, or null if absent.
 export class OllamaProvider implements GenerationProvider {
   readonly id: string;
-  readonly hosted = false; // local server; if baseUrl points off-box the user chose that
+  readonly hosted: boolean; // anything but loopback is off-machine: egress consent applies
   #p: OllamaProfile;
   constructor(profile: OllamaProfile) {
     this.#p = profile;
+    this.hosted = !isLoopback(profile.baseUrl);
     this.id = `ollama/${profile.model}@ctx${profile.numCtx}`;
   }
 
