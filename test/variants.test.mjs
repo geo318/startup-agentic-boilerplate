@@ -261,3 +261,73 @@ test("fresh scaffold → pin → create → run with a replay worker → awaitin
   assert.match(acc.stderr, /interactive terminal/);
   assert.equal(readFileSync(join(t, "value.txt"), "utf8"), "bad"); // the project tree was never touched
 });
+
+// ---------- trusted CI verifier ----------
+const trusted = join(root, "project-setup/templates/scripts/checks/trusted-gates.mjs");
+function ciRepo(policyOverride) {
+  const d = tmp();
+  const g = (...a) => spawnSync("git", ["-c", "user.email=a@b", "-c", "user.name=n", ...a], { cwd: d, encoding: "utf8" });
+  g("init", "-q", "-b", "main");
+  mkdirSync(join(d, ".agents"));
+  writeFileSync(join(d, "tests.txt"), "test a\ntest b\n");
+  writeFileSync(join(d, "check.mjs"), `import {readFileSync} from "node:fs"; const n=readFileSync("tests.txt","utf8").split("\\n").filter(l=>l.startsWith("test ")).length; console.log("tests "+n); process.exit(readFileSync("value.txt","utf8")==="good"?0:1)`);
+  writeFileSync(join(d, "value.txt"), "good");
+  const policy = { schemaVersion: 1, protectedPaths: [".agents", "check.mjs"], requiredGates: ["unit"], egress: "local-only", gates: [{ id: "unit", argv: ["node", "check.mjs"], timeoutMs: 20000, discover: { regex: "tests (\\d+)", min: 2 } }], ...policyOverride };
+  writeFileSync(join(d, ".agents/policy.json"), JSON.stringify(policy));
+  g("add", "-A"); g("commit", "-qm", "base");
+  g("checkout", "-qb", "pr");
+  return { d, g, policy };
+}
+const verify = (d, ...extra) => spawnSync(process.execPath, [trusted, "--base", "main", ...extra], { cwd: d, encoding: "utf8" });
+
+test("trusted-gates: green change passes; failing test fails; deleted tests fail on discovery", () => {
+  const { d, g } = ciRepo();
+  assert.equal(verify(d).status, 0);
+  writeFileSync(join(d, "value.txt"), "bad"); g("commit", "-qam", "break");
+  assert.equal(verify(d).status, 1);
+  writeFileSync(join(d, "value.txt"), "good"); writeFileSync(join(d, "tests.txt"), "test a\n"); g("commit", "-qam", "delete a test");
+  const r = verify(d);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /incomplete \(discovered 1, need 2\)/);
+});
+
+test("trusted-gates: a PR that weakens the policy or the gate script cannot approve itself", () => {
+  const { d, g, policy } = ciRepo();
+  // the PR rewrites the policy to run `true` with no discovery requirement, and breaks the real behaviour
+  writeFileSync(join(d, ".agents/policy.json"), JSON.stringify({ ...policy, gates: [{ id: "unit", argv: ["true"], timeoutMs: 1000, discover: { regex: ".", min: 0 } }] }));
+  writeFileSync(join(d, "value.txt"), "bad");
+  g("commit", "-qam", "weaken");
+  const r = verify(d);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /protected paths changed/);
+  const maint = verify(d, "--allow-protected-changes"); // even with the maintenance override the BASE gates still run
+  assert.equal(maint.status, 1);
+  assert.match(maint.stdout, /gate unit: fail/);
+});
+
+test("trusted-gates: replacing the gate script is caught; missing base policy fails closed", () => {
+  const { d, g } = ciRepo();
+  writeFileSync(join(d, "check.mjs"), `console.log("tests 99"); process.exit(0)`);
+  g("commit", "-qam", "fake green");
+  assert.match(verify(d).stderr, /protected paths changed/);
+  const empty = tmp();
+  spawnSync("git", ["init", "-q", "-b", "main"], { cwd: empty });
+  writeFileSync(join(empty, "a"), "x");
+  spawnSync("git", ["-c", "user.email=a@b", "-c", "user.name=n", "add", "-A"], { cwd: empty });
+  spawnSync("git", ["-c", "user.email=a@b", "-c", "user.name=n", "commit", "-qm", "x"], { cwd: empty });
+  const r = verify(empty);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /base branch must define the gates/);
+});
+
+test("runtime workflow: positive required check present, runs base policy, no secrets trigger; label stays a veto", () => {
+  const { t } = render({ ...runtimeFlags });
+  const wf = readFileSync(join(t, ".github/workflows/agentic-verify.yml"), "utf8").split("\n").filter((l) => !l.trim().startsWith("#")).join("\n");
+  assert.match(wf, /pull_request:/);
+  assert.doesNotMatch(wf, /pull_request_target/);
+  assert.match(wf, /trusted-gates\.mjs --base origin\/main/);
+  assert.ok(existsSync(join(t, ".github/workflows/merge-gate.yml")));
+  assert.match(readFileSync(join(t, ".github/workflows/merge-gate.yml"), "utf8"), /do-not-merge/);
+  const off = render({}).t;
+  assert.ok(!existsSync(join(off, ".github/workflows/agentic-verify.yml")) && !existsSync(join(off, "scripts/checks/trusted-gates.mjs")));
+});

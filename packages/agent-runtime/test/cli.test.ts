@@ -192,3 +192,18 @@ test("qualify: owner-declared needs a terminal and a literal yes", async () => {
   assert.equal(await c.qualify(w.env(), "reviewer", "review"), 0);
   assert.equal(new QualStore(join(w.home, "qualifications.json")).has("mock/replay:reviewer.replay.json", "review"), true);
 });
+
+test("verify: re-runs the gates on the exact candidate; detects tampering afterwards; changes no state", async () => {
+  const w = world();
+  w.qualifyAll();
+  await c.taskCreate(w.env(), w.contract());
+  w.answers.push("no");
+  await c.taskRun(w.env(), "fix-value");
+  const before = c.statusOf(w.env(), "fix-value");
+  assert.equal(await c.verifyTask(w.env(), "fix-value"), 0);
+  assert.match(w.out.at(-1)!, /^verified:/);
+  assert.deepEqual(c.statusOf(w.env(), "fix-value").state, before.state);
+  writeFileSync(join(w.home, "tasks/fix-value/candidate/value.txt"), "good, then edited");
+  assert.equal(await c.verifyTask(w.env(), "fix-value"), 1);
+  assert.match(w.out.at(-1)!, /candidate changed/);
+});

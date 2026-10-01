@@ -110,6 +110,14 @@
     {
       "path": "scripts/agentic.mjs",
       "flag": "AGENTIC_RUNTIME"
+    },
+    {
+      "path": "scripts/checks/trusted-gates.mjs",
+      "flag": "AGENTIC_RUNTIME"
+    },
+    {
+      "path": ".github/workflows/agentic-verify.yml",
+      "flag": "AGENTIC_RUNTIME"
     }
   ]
 }

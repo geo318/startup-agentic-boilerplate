@@ -10,14 +10,15 @@ import { askIsolation, loadChoice, saveChoice } from "../consent.ts";
 import { compile, render } from "../context.ts";
 import { drive } from "../drive.ts";
 import { EventLog } from "../events.ts";
-import { sha256 } from "../hash.ts";
+import { canonical, sha256 } from "../hash.ts";
 import { ManualProvider } from "../manual.ts";
 import { OllamaProvider } from "../ollama.ts";
 import { type GenerationProvider, MockProvider } from "../provider.ts";
 import { QualStore, selectProfile } from "../qualify.ts";
 import { maxTier, riskFloor } from "../risk.ts";
 import { architect, review, RoleFailed } from "../roles.ts";
-import { type Policy, Run, type RiskTier } from "../run.ts";
+import { runGate } from "../gates.ts";
+import { type Policy, Run, type RiskTier, snapshot } from "../run.ts";
 import { validate } from "../schema.ts";
 
 export type Env = {
@@ -348,6 +349,27 @@ export async function report(env: Env, id: string): Promise<number> {
   return withRun(env, id, (run) => {
     env.out(JSON.stringify({ state: run.state, ledger: run.ledger.snapshot(), uncertainBilling: run.uncertainBilling, evidence: run.evidence ?? null }, null, 2));
     return 0;
+  });
+}
+
+// Independent re-check of a finished task: same candidate bytes, same policy, gates run again from scratch.
+// Read-only: it never changes the task's state. Exit 0 only if everything still holds.
+export async function verifyTask(env: Env, id: string): Promise<number> {
+  return withRun(env, id, async (run, t) => {
+    const e = run.evidence;
+    if (!e) throw new CliError(`no evidence to verify: task is ${run.state}`);
+    const problems: string[] = [];
+    if (snapshot(t.candidate) !== e.candidate) problems.push("candidate changed since it was verified");
+    const iso = loadChoice(t.stateDir)!;
+    if (sha256(canonical(t.policy(iso))) !== e.policyHash) problems.push("policy changed since it was verified");
+    for (const gateId of t.pp.requiredGates) {
+      const spec = t.pp.gates.find((g) => g.id === gateId)!;
+      const r = await runGate(spec, t.candidate, snapshot(t.candidate), iso === "docker" ? { image: t.pp.dockerImage! } : undefined);
+      env.out(`gate ${gateId}: ${r.status}${r.discovered !== null ? ` (${r.discovered} discovered)` : ""}`);
+      if (r.status !== "pass") problems.push(`gate ${gateId} is ${r.status}`);
+    }
+    env.out(problems.length ? `NOT VERIFIED: ${problems.join("; ")}` : `verified: candidate ${e.candidate.slice(0, 12)} passes ${t.pp.requiredGates.join(", ")}`);
+    return problems.length ? 1 : 0;
   });
 }
 

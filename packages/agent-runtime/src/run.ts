@@ -232,7 +232,7 @@ export class Run {
     this.#protectedBase = saved.protectedBase;
     this.#baseFiles = new Map(saved.files);
     if (existsSync(join(dir, "draft.json"))) this.#draft = JSON.parse(readFileSync(join(dir, "draft.json"), "utf8"));
-    if (existsSync(join(dir, "evidence.json")) && this.state === "AWAITING_ACCEPTANCE") this.evidence = JSON.parse(readFileSync(join(dir, "evidence.json"), "utf8"));
+    if (existsSync(join(dir, "evidence.json")) && (this.state === "AWAITING_ACCEPTANCE" || this.state === "ACCEPTED")) this.evidence = JSON.parse(readFileSync(join(dir, "evidence.json"), "utf8"));
     const live = !["ACCEPTED", "BLOCKED", "ESCALATED", "CANCELLED", "NEEDS_INPUT"].includes(this.state);
     if (live && policyHash !== sha256(canonical(this.#policy))) {
       this.#go("BLOCKED", "stale evidence: policy changed since the run started");

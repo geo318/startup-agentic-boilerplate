@@ -1,0 +1,47 @@
+name: Agentic verify
+
+# The required, positive check for a change: the BASE branch's `.agents/policy.json` decides which gates run,
+# and each must pass and discover tests. The `do-not-merge` label (merge-gate.yml) is only an extra veto:
+# removing it never makes this check pass. Make this a required status check in branch protection
+# (`node project-setup/scripts/protection.mjs --require` reports whether that is actually in place).
+#
+# `pull_request`, not `pull_request_target`: the change's code runs without secrets or write access.
+on:
+  pull_request:
+    branches: ["{{DEFAULT_BRANCH}}"]
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agentic-verify-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  trusted-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+{{#if BUN}}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+{{else}}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+{{/if}}
+      - name: Install dependencies
+        run: {{CMD_INSTALL_CI}}
+      # Labels are untrusted text: compared inside the expression, never interpolated into the script.
+      - name: Run base-branch gates on the final revision
+        env:
+          MAINTENANCE: ${{ contains(github.event.pull_request.labels.*.name, 'maintenance') }}
+        run: |
+          if [ "$MAINTENANCE" = "true" ]; then EXTRA="--allow-protected-changes"; fi
+          {{RUNTIME}} scripts/checks/trusted-gates.mjs --base origin/{{DEFAULT_BRANCH}} $EXTRA

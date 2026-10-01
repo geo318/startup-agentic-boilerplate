@@ -11,7 +11,7 @@ const USAGE = `agentic <command>
   pin   (writes .agents/runtime.json pointing at this runtime checkout)
   doctor | validate [contract.json...]
   qualify <profile> [--owner-declare architecture|review|action-protocol]
-  task create <contract.json> | run <id> | status <id> | approve <id> | accept <id> | cancel <id> | export <id>
+  task create <contract.json> | run <id> | status <id> | approve <id> | accept <id> | cancel <id> | verify <id> | export <id>
   report <id>
 Options: --project <dir> (default: cwd). Controller state: $AGENTIC_HOME (default ~/.agentic).`;
 
@@ -50,6 +50,7 @@ async function main(): Promise<number> {
       if (sub === "accept") return c.taskAccept(env, arg ?? "");
       if (sub === "cancel") return c.taskCancel(env, arg ?? "");
       if (sub === "export") return c.exportPatch(env, arg ?? "");
+      if (sub === "verify") return c.verifyTask(env, arg ?? "");
   }
   console.log(USAGE);
   return 1;
