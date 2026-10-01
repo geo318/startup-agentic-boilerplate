@@ -337,6 +337,8 @@ function main() {
         pending.push({ destination, content, executable, lockKey: shown });
         report.updated.push(shown);
       } else if (action === "merge") {
+        // lock the new render so the next sync sees "template unchanged" and the merged file wins
+        lock[shown] = sha256(content);
         pending.push({ destination: join(target, SYNC_DIR, shown), content, executable });
         report.merge.push(shown);
       }
