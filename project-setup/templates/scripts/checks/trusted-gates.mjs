@@ -8,7 +8,7 @@
 //   2. files changed since the merge base that fall under policy.protectedPaths → fail, unless
 //      --allow-protected-changes (a deliberate maintenance review: the previous trusted policy still runs)
 //   3. every requiredGate runs against the working tree; it must exit 0 AND discover >= min tests/files
-// Runs with a minimal environment. Do not run it from a trigger that exposes secrets (use `pull_request`).
+// Runs with a minimal environment. The base-controlled workflow must grant only read permissions and expose no secrets to candidate code.
 
 import { spawnSync } from "node:child_process";
 

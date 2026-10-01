@@ -32,9 +32,19 @@ function run(label, command, args) {
 }
 
 function hasBase() {
-  return ["@{upstream}", "origin/HEAD", "origin/main", "origin/master"].some(
+  return ["origin/HEAD", "origin/main", "origin/master", "main", "master"].some(
     (ref) => spawnSync("git", ["rev-parse", "--verify", "--quiet", ref]).status === 0,
   );
+}
+
+function branchChanges() {
+  for (const ref of ["origin/HEAD", "origin/main", "origin/master", "main", "master"]) {
+    const result = spawnSync("git", ["diff", "--name-only", `${ref}...HEAD`], { encoding: "utf8" });
+    if (result.status === 0) {
+      return result.stdout.split("\n").filter(Boolean);
+    }
+  }
+  return [];
 }
 
 function main() {
@@ -46,10 +56,12 @@ function main() {
   process.chdir(process.env.CLAUDE_PROJECT_DIR ?? process.cwd());
 
   const status = spawnSync("git", ["status", "--porcelain", "--untracked-files=all"], { encoding: "utf8" });
+  const committed = branchChanges();
   const changed = (status.stdout ?? "")
     .split("\n")
     .filter((line) => line.length > 3)
-    .map((line) => line.slice(3));
+    .map((line) => line.slice(3))
+    .concat(committed);
   if (changed.length === 0) {
     return;
   }

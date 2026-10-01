@@ -50,6 +50,14 @@ export async function sessionCheck(o: {
     .stdout.split("\n")
     .filter((l) => l.length > 3)
     .map((l) => l.slice(3).split(" -> ").pop()!);
+  // An agent may commit before handoff; a clean worktree still needs its branch changes checked.
+  for (const ref of ["origin/HEAD", "origin/main", "origin/master", "main", "master"]) {
+    const changed = git(o.project, "diff", "--name-only", `${ref}...HEAD`);
+    if (changed.status === 0) {
+      paths.push(...changed.stdout.split("\n").filter(Boolean));
+      break;
+    }
+  }
   if (paths.length === 0 || paths.every((p) => /\.mdx?$/.test(p))) return 0; // nothing to test
   const digest = snapshot(o.project);
   const prior = readSessions(o.home)
@@ -80,7 +88,7 @@ export async function sessionCheck(o: {
     project: o.project,
     branch: currentBranch(o.project),
     digest,
-    changed: paths.length,
+    changed: new Set(paths).size,
     tier: riskFloor({ paths }),
     passed: !bad && results.length === o.requiredGates.length,
     gates: results.map((r) => ({ id: r.gateId, status: r.status, discovered: r.discovered, ms: r.durationMs })),

@@ -73,3 +73,16 @@ test("pr summary and stats report the recorded checks, and claim no savings", as
   assert.match(formatStats(summarizeTasks([], "x", [], undefined, readSessions(r.home))), /2 \(1 passed, 1 failed\)/);
   assert.match(prSummary(r.home, mkdtempSync(join(tmpdir(), "sess-none-"))), /No automatic gate checks/);
 });
+
+test("session check verifies committed branch changes and records a failing gate", async () => {
+  const r = repo();
+  sh(r.project, "branch", "main");
+  writeFileSync(join(r.project, "value.txt"), "bad");
+  sh(r.project, "add", "-A");
+  sh(r.project, "commit", "-qm", "break value");
+  assert.equal(await r.check(), 2);
+  assert.equal(readSessions(r.home).length, 1);
+  assert.equal(readSessions(r.home)[0]!.changed, 1);
+  assert.equal(await r.check(), 2);
+  assert.equal(readSessions(r.home).length, 1);
+});

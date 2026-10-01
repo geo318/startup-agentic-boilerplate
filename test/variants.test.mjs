@@ -472,8 +472,10 @@ test("runtime workflow: positive required check present, runs base policy, no se
     .split("\n")
     .filter((l) => !l.trim().startsWith("#"))
     .join("\n");
-  assert.match(wf, /pull_request:/);
-  assert.doesNotMatch(wf, /pull_request_target/);
+  assert.match(wf, /pull_request_target:/);
+  assert.match(wf, /ref: \$\{\{ github.event.pull_request.head.sha \}\}/);
+  assert.match(wf, /npm_config_ignore_scripts: "true"/);
+  assert.match(wf, /YARN_ENABLE_SCRIPTS: "false"/);
   assert.match(wf, /trusted-gates\.mjs" --base "\$BASE_SHA"/);
   assert.match(wf, /git show "\$BASE_SHA:scripts\/checks\/trusted-gates\.mjs"/);
   assert.ok(
