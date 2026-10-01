@@ -127,6 +127,7 @@ Read only the rows your task touches, and only the linked sections you need.
 | Priorities, open gaps, blockers | [build plan](context/build-plan.md) |
 | Resuming earlier or multi-session work | [progress tracker](context/progress-tracker.md), `memory.md` |
 | Committing, pushing, finishing a feature | [delivery](context/standards/delivery.md) |
+| Starting parallel work; branch ↔ worktree mapping; cleaning up worktrees | [delivery → worktrees](context/standards/delivery.md#worktrees) |
 
 ## Workflow skills
 

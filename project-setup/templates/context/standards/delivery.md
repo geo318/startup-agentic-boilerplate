@@ -26,6 +26,32 @@ in CI on every PR{{/if}}.
   colon marks a breaking change, explained in the body.
 - Check before pushing: `{{RUNTIME}} scripts/git/conventions.mjs current`.
 
+## Worktrees
+
+Use a worktree for any change that is not a one-liner, so branches never get mixed and parallel work (people or agents) cannot trample
+each other. `{{RUNTIME}} scripts/git/worktrees.mjs` creates, lists, audits, and cleans them.
+
+**Mapping.** One worktree = one branch = one task/PR.
+
+- The main checkout stays on `{{DEFAULT_BRANCH}}`, clean, for reading and updating only. Never switch branches inside a worktree.
+- Worktrees live *outside* the repo, at `../<repo>.worktrees/<slug>`, where `<slug>` is the branch name with `/` replaced by `-`
+  (`feat/add-login` → `feat-add-login`). Claude Code's own `.claude/worktrees/` is accepted. A branch is checked out in at most one worktree.
+- Create with `{{RUNTIME}} scripts/git/worktrees.mjs new <type>/<kebab-name> [--base origin/{{DEFAULT_BRANCH}}]`. It validates the branch name against
+  the conventions above, fetches the base, and refuses an existing branch, an existing path, or a slug another branch already uses.
+
+**Per worktree.** Install dependencies in each one. Copy `.env` by hand when needed and never commit it. Dev servers and databases are shared
+machine resources: run them from one worktree at a time or give each its own ports and database.
+
+**Agents.** Work in your own worktree for non-trivial changes and report its path and branch when you stop. Never modify, remove, or clean a
+worktree you did not create, and never use `git worktree remove --force`, `git branch -D`, or `rm -rf` on one: ask the person.
+
+**Cleanup.** After a PR merges, run `{{RUNTIME}} scripts/git/worktrees.mjs clean` (a dry run; add `--yes` to apply). It removes only worktrees that are
+clean, fully pushed, unlocked, and whose branch is already merged into the base, using `git worktree remove` and `git branch -d` (never forced), and
+never the main checkout or the directory you are in. Anything skipped is listed with the reason. A branch whose remote was deleted after a squash
+merge cannot be proven merged by history, so it is listed for a person to confirm. Run `{{RUNTIME}} scripts/git/worktrees.mjs doctor` weekly: it
+flags stale worktrees (no commit for 14 days and unmerged), misplaced paths, bad branch names, and missing directories (`prune` repairs metadata).
+Delete remote branches through the PR's "delete branch on merge" setting, not by script.
+
 {{#if GITHUB}}
 ## Pull requests
 
