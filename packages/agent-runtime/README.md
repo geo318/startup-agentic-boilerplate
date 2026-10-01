@@ -31,4 +31,5 @@ see [docs/evaluation.md](../../docs/evaluation.md) and `evals/baselines/` (pre-f
 One real-project pilot (family-tracker, scratch clone, Claude Haiku): one accepted-and-independently-verified task, one refused R3 change.
 **Not verified:** a real Docker container run, Ollama or Codex, typechecking (`@types/node` not installed), holdout/regression suites, anything about success rates beyond these small samples.
 Jev: optional, off by default, shadow evidence only ([docs/jev.md](../../docs/jev.md)).
-Not built: TypeScript-parser architecture analysis, controlled learning (M6).
+Learning: lifecycle built and tested; the first live evaluation passed a harmful lesson through a noisy single-baseline design, which is fixed but not yet re-run live ([docs/learning.md](../../docs/learning.md)).
+Not built: TypeScript-parser architecture analysis, model-drafted proposals.

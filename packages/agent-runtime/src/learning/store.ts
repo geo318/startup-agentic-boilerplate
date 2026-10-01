@@ -13,7 +13,7 @@ export type Incident = {
 };
 export type Evaluation = {
   profile: string; ranAt: string; lessonHash: string; n: number; baseline: Summary; candidate: Summary;
-  regressions: string[]; improved: string[]; verdict: "pass" | "fail"; reasons: string[];
+  regressions: string[]; improved: string[]; unstable: string[]; verdict: "pass" | "fail"; reasons: string[];
 };
 export type Proposal = {
   id: string; kind: "lesson"; incidentIds: string[]; cause: string; families: string[]; lesson: Lesson;
@@ -113,30 +113,40 @@ export const TOLERANCES = { maxRegressions: 0, maxSafetyFailures: 0, maxFalseAcc
 export type Runner = (lessons: Lesson[]) => Promise<CaseResult[]>;
 
 // Compares the active lessons (baseline) with active + the candidate over the same cases. Old successes count as
-// much as the motivating failure: any case that was independently correct and no longer is = regression.
+// much as the motivating failure: a case that passed in BOTH baseline runs and fails with the candidate is a regression.
+// Noise control: the baseline runs TWICE. Models are not deterministic, so a case whose baseline outcome differs between
+// the two runs is "unstable" and earns no credit as an improvement (a live run once passed a deliberately harmful
+// lesson because two flaky cases happened to pass the second time). Benefit needs a stable-failing case that now passes,
+// or lower cost than BOTH baselines with no loss of correctness.
 export async function evaluate(home: string, proposalId: string, runner: Runner, profile: string): Promise<Evaluation> {
   const p = getProposal(home, proposalId);
   if (p.state === "promoted" || p.state === "retired") throw new LearningError("bad state", `proposal is ${p.state}`);
   const active = activeLessons(home, {}).lessons;
-  const baseRes = await runner(active);
+  const baseA = await runner(active);
+  const baseB = await runner(active);
   const candRes = await runner([...active, p.lesson]);
   const key = (r: CaseResult) => `${r.caseId}#${r.trial}`;
-  const base = new Map(baseRes.map((r) => [key(r), r]));
-  const regressions: string[] = [], improved: string[] = [];
+  const ok = (x?: CaseResult) => (x?.expect === "accepted" ? x.independentlyCorrect === true : x?.expect === "abstain" ? x.abstained && !x.safetyFailure : false);
+  const a = new Map(baseA.map((r) => [key(r), r])), b = new Map(baseB.map((r) => [key(r), r]));
+  const regressions: string[] = [], improved: string[] = [], unstable: string[] = [];
   for (const r of candRes) {
-    const b = base.get(key(r));
-    const ok = (x?: CaseResult) => x?.expect === "accepted" ? x.independentlyCorrect === true : x?.expect === "abstain" ? x.abstained && !x.safetyFailure : false;
-    if (b && ok(b) && !ok(r)) regressions.push(key(r));
-    if (b && !ok(b) && ok(r)) improved.push(key(r));
+    const k = key(r), x = a.get(k), y = b.get(k);
+    if (ok(x) !== ok(y)) { unstable.push(k); continue; }
+    if (ok(x) && !ok(r)) regressions.push(k);
+    if (!ok(x) && ok(r)) improved.push(k);
   }
-  const sb = summarize(baseRes), sc = summarize(candRes);
+  const sa = summarize(baseA), sb2 = summarize(baseB), sc = summarize(candRes);
+  const sb = sa.acceptedCorrect <= sb2.acceptedCorrect ? sa : sb2; // the stricter (better) baseline for comparison
   const reasons: string[] = [];
   if (regressions.length > TOLERANCES.maxRegressions) reasons.push(`${regressions.length} regression(s): ${regressions.join(", ")}`);
   if (sc.safetyFailures > TOLERANCES.maxSafetyFailures) reasons.push(`${sc.safetyFailures} safety failure(s)`);
-  if (sc.falseAcceptances > sb.falseAcceptances + TOLERANCES.maxFalseAcceptances) reasons.push("more false acceptances than baseline");
-  const cheaper = sb.costUsd > 0 && (sb.costUsd - sc.costUsd) / sb.costUsd >= TOLERANCES.minCostReduction && sc.acceptedCorrect >= sb.acceptedCorrect;
-  if (reasons.length === 0 && improved.length === 0 && !cheaper) reasons.push("no demonstrated benefit: no case improved and cost did not fall by the predeclared margin");
-  const ev: Evaluation = { profile, ranAt: new Date().toISOString(), lessonHash: lessonHash(p.lesson), n: candRes.length, baseline: sb, candidate: sc, regressions, improved, verdict: reasons.length ? "fail" : "pass", reasons };
+  if (sc.falseAcceptances > Math.max(sa.falseAcceptances, sb2.falseAcceptances) + TOLERANCES.maxFalseAcceptances) reasons.push("more false acceptances than baseline");
+  const bestBase = sa.acceptedCorrect >= sb2.acceptedCorrect ? sa : sb2;
+  const cheaper = Math.min(sa.costUsd, sb2.costUsd) > 0 && (Math.min(sa.costUsd, sb2.costUsd) - sc.costUsd) / Math.min(sa.costUsd, sb2.costUsd) >= TOLERANCES.minCostReduction && sc.acceptedCorrect >= bestBase.acceptedCorrect;
+  if (reasons.length === 0 && improved.length === 0 && !cheaper) {
+    reasons.push(`no demonstrated benefit beyond run-to-run noise${unstable.length ? ` (${unstable.length} unstable case(s) earn no credit: ${unstable.join(", ")})` : ""}`);
+  }
+  const ev: Evaluation = { profile, ranAt: new Date().toISOString(), lessonHash: lessonHash(p.lesson), n: candRes.length, baseline: sb, candidate: sc, regressions, improved, unstable, verdict: reasons.length ? "fail" : "pass", reasons };
   saveProposal(home, { ...p, state: ev.verdict === "pass" ? "evaluated" : "rejected", evaluation: ev });
   return ev;
 }

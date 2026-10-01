@@ -90,12 +90,40 @@ const goodWorker = () => {
   return new MockProvider(['{"id":"p1","kind":"finish"}', JSON.stringify({ id: "p2", kind: "edit", edits: [{ kind: "replace", path: "f.txt", expectHash: h, find: "alpha", replace: "beta" }] })]);
 };
 
+test("qualification needs every repeated attempt: one flaky answer in three fails the probe", async () => {
+  const h = sha256("alpha");
+  const edit = JSON.stringify({ id: "p2", kind: "edit", edits: [{ kind: "replace", path: "f.txt", expectHash: h, find: "alpha", replace: "beta" }] });
+  const stray = JSON.stringify({ id: "p2", kind: "edit", path: "f.txt", edits: [{ kind: "replace", path: "f.txt", expectHash: h, find: "alpha", replace: "beta" }] });
+  const fin = '{"id":"p1","kind":"finish"}';
+  const store = new QualStore(join(tmp(), "q.json"));
+  const steady = Object.assign(new MockProvider([fin, edit, fin, edit, fin, edit]), { id: "mock/steady" });
+  assert.equal((await probeActionProtocol(steady, store)).passed, true);
+  const flaky = Object.assign(new MockProvider([fin, edit, fin, stray, stray, fin, edit]), { id: "mock/flaky" });
+  const q = await probeActionProtocol(flaky, store);
+  assert.equal(q.passed, false);
+  assert.equal(q.detail.patch_apply, "2/3"); // one attempt failed even after its retry
+});
+
+test("a probe attempt may recover once from a rejected reply; first-try quality is still recorded", async () => {
+  const h = sha256("alpha");
+  const edit = JSON.stringify({ id: "p2", kind: "edit", edits: [{ kind: "replace", path: "f.txt", expectHash: h, find: "alpha", replace: "beta" }] });
+  const stray = JSON.stringify({ id: "p2", kind: "edit", path: "f.txt", edits: [{ kind: "replace", path: "f.txt", expectHash: h, find: "alpha", replace: "beta" }] });
+  const fin = '{"id":"p1","kind":"finish"}';
+  const store = new QualStore(join(tmp(), "q.json"));
+  const recovers = Object.assign(new MockProvider([fin, stray, edit]), { id: "mock/recovers" });
+  const q = await probeActionProtocol(recovers, store, 1);
+  assert.equal(q.passed, true);
+  assert.equal(q.detail.first_try, "1/2");
+  const stubborn = Object.assign(new MockProvider([fin, stray, stray]), { id: "mock/stubborn" });
+  assert.equal((await probeActionProtocol(stubborn, store, 1)).passed, false);
+});
+
 test("qualification: probe passes a good worker, fails a bad one; probes never grant architecture/review", async () => {
   const store = new QualStore(join(tmp(), "q.json"));
   const good = goodWorker();
-  assert.equal((await probeActionProtocol(good, store)).passed, true);
+  assert.equal((await probeActionProtocol(good, store, 1)).passed, true);
   const bad = Object.assign(new MockProvider(["nope", "nope"]), { id: "mock/bad" });
-  const q = await probeActionProtocol(bad, store);
+  const q = await probeActionProtocol(bad, store, 1);
   assert.equal(q.passed, false);
   assert.equal(q.detail.cancellation, "not-probed");
   assert.equal(store.has(good.id, "architecture"), false);

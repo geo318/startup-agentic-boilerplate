@@ -34,35 +34,42 @@ export class QualStore {
   }
 }
 
-// Probes: valid output + a real patch applied to a scratch file. Cancellation and context-fit are reported
-// as not probed rather than assumed.
-export async function probeActionProtocol(p: GenerationProvider, store: QualStore): Promise<Qualification> {
-  const detail: Record<string, string> = { cancellation: "not-probed", context_fit: "not-probed" };
-  const sys = 'Reply with ONE JSON object only. Allowed kinds: finish, edit (edits:[{kind:"replace",path,expectHash,find,replace}]).';
-  try {
-    const a = await p.generate({ system: sys, prompt: 'Reply with the finish action: {"id":"p1","kind":"finish"}', maxOutputTokens: 100, schema: ACTION_SCHEMA });
-    detail.valid_output = parseAction(JSON.parse(a.content)).kind === "finish" && a.finishReason === "stop" ? "pass" : "fail";
-  } catch {
-    detail.valid_output = "fail";
-  }
-  const dir = mkdtempSync(join(tmpdir(), "probe-"));
-  writeFileSync(join(dir, "f.txt"), "alpha");
-  try {
-    const b = await p.generate({
-      system: sys,
-      prompt: `File f.txt (hash ${sha256("alpha")}) contains: alpha\nReply with one edit action replacing "alpha" with "beta" in f.txt.`,
-      maxOutputTokens: 300, schema: ACTION_SCHEMA,
-    });
-    const act = parseAction(JSON.parse(b.content));
-    if (act.kind === "edit") applyEdits(dir, act.edits, []);
-    detail.patch_apply = readFileSync(join(dir, "f.txt"), "utf8") === "beta" ? "pass" : "fail";
-  } catch {
-    detail.patch_apply = "fail";
-  }
-  const q: Qualification = {
-    profileId: p.id, family: "action-protocol", source: "probe", at: new Date().toISOString(), detail,
-    passed: detail.valid_output === "pass" && detail.patch_apply === "pass",
+// Probes: valid output + a real patch applied to a scratch file, repeated: a single sample is too noisy to qualify a
+// model. Each attempt may use one retry with the exact rejection as feedback (what the driver does at run time);
+// first-try results are recorded separately. Passing needs EVERY attempt to succeed. Cancellation and context-fit
+// are reported as not probed rather than assumed.
+export async function probeActionProtocol(p: GenerationProvider, store: QualStore, attempts = 3): Promise<Qualification> {
+  const detail: Record<string, string> = { cancellation: "not-probed", context_fit: "not-probed", attempts: String(attempts) };
+  const sys = 'Reply with ONE JSON object only. Allowed kinds: finish, edit (edits:[{kind:"replace",path,expectHash,find,replace}]). An edit action has only id, kind and edits.';
+  let validOk = 0, patchOk = 0, validFirst = 0, patchFirst = 0;
+  const attempt = async (prompt: string, check: (content: string) => boolean): Promise<[boolean, boolean]> => {
+    let feedback = "";
+    for (let t = 0; t < 2; t++) {
+      try {
+        const r = await p.generate({ system: sys, prompt: prompt + feedback, maxOutputTokens: 300, schema: ACTION_SCHEMA });
+        if (r.finishReason === "stop" && check(r.content)) return [true, t === 0];
+        feedback = "\nYour previous reply was rejected as invalid. Reply again with exactly one valid action.";
+      } catch (e) {
+        feedback = `\nYour previous reply was rejected: ${(e as Error).message}. Reply again with exactly one valid action.`;
+      }
+    }
+    return [false, false];
   };
+  for (let i = 0; i < attempts; i++) {
+    const [v, vf] = await attempt('Reply with the finish action: {"id":"p1","kind":"finish"}', (c) => parseAction(JSON.parse(c)).kind === "finish");
+    validOk += v ? 1 : 0; validFirst += vf ? 1 : 0;
+    const dir = mkdtempSync(join(tmpdir(), "probe-"));
+    writeFileSync(join(dir, "f.txt"), "alpha");
+    const [pa, pf] = await attempt(
+      `File f.txt (hash ${sha256("alpha")}) contains: alpha\nReply with one edit action replacing "alpha" with "beta" in f.txt.`,
+      (c) => { const act = parseAction(JSON.parse(c)); if (act.kind === "edit") applyEdits(dir, act.edits, []); return readFileSync(join(dir, "f.txt"), "utf8") === "beta"; },
+    );
+    patchOk += pa ? 1 : 0; patchFirst += pf ? 1 : 0;
+  }
+  detail.valid_output = `${validOk}/${attempts}`;
+  detail.patch_apply = `${patchOk}/${attempts}`;
+  detail.first_try = `${validFirst + patchFirst}/${attempts * 2}`;
+  const q: Qualification = { profileId: p.id, family: "action-protocol", source: "probe", at: new Date().toISOString(), detail, passed: validOk === attempts && patchOk === attempts };
   store.record(q);
   return q;
 }

@@ -140,3 +140,14 @@ test("replace_file: whole-file rewrite needs the current hash; stale, missing, p
   assert.equal((await rf("r5", "value.txt", sha256(cur))).ok, true);
   assert.equal(readFileSync(join(ws, "value.txt"), "utf8"), "good");
 });
+
+test("the constrained-output schema stops unknown fields; a known field in the wrong place is still rejected by the parser", async () => {
+  const { ACTION_SCHEMA, parseAction } = await import("../src/actions.ts");
+  const { validate } = await import("../src/schema.ts");
+  const good = { id: "1", kind: "edit", edits: [{ kind: "replace", path: "f.txt", expectHash: "h", find: "a", replace: "b" }] };
+  assert.deepEqual(validate(ACTION_SCHEMA as any, good), []);
+  assert.ok(validate(ACTION_SCHEMA as any, { ...good, cmd: "rm -rf /" }).length > 0); // unknown field: closed by the schema
+  assert.ok(validate(ACTION_SCHEMA as any, { id: "1", kind: "accept" }).length > 0);
+  const stray = { ...good, path: "f.txt" }; // the live failure: valid per the flat schema, but not a valid edit action
+  assert.throws(() => parseAction(stray), /unknown field/);
+});

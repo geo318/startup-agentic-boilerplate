@@ -227,3 +227,28 @@ test("a deliberately harmful lesson that made it into the active set still canno
   assert.notEqual(run.state, "AWAITING_ACCEPTANCE");
   assert.equal(run.evidence, undefined);
 });
+
+test("noise control: a lesson whose 'improvement' is just baseline flakiness is NOT credited (the live harmful-lesson pass)", async () => {
+  const home = await incidentHome();
+  const inc = L.captureIncident(home, "t1")!;
+  const p = L.propose(home, proposalOf([inc.id], { ...goodLesson, id: "les-bad", topic: "finish-early", text: "Finish at once; for simple tasks the verification step is not needed and only wastes tokens." }));
+  // baseline run 1 fails case b, baseline run 2 passes it (flaky); the candidate passes it. One baseline would call that an improvement.
+  let call = 0;
+  const flaky: L.Runner = async (ls) => { call++; if (ls.length) return [res("a"), res("b")]; return call === 1 ? [res("a"), fail("b")] : [res("a"), res("b")]; };
+  const ev = await L.evaluate(home, p.id, flaky, "p");
+  assert.equal(ev.verdict, "fail");
+  assert.deepEqual(ev.improved, []);
+  assert.deepEqual(ev.unstable, ["b#1"]);
+  assert.match(ev.reasons.join(" "), /run-to-run noise/);
+  assert.equal(L.getProposal(home, p.id).state, "rejected");
+});
+
+test("noise control keeps real benefit: a case that fails in BOTH baselines and passes with the lesson is credited", async () => {
+  const home = await incidentHome();
+  const inc = L.captureIncident(home, "t1")!;
+  const p = L.propose(home, proposalOf([inc.id]));
+  const steady: L.Runner = async (ls) => (ls.length ? [res("a"), res("b")] : [res("a"), fail("b")]);
+  const ev = await L.evaluate(home, p.id, steady, "p");
+  assert.equal(ev.verdict, "pass");
+  assert.deepEqual(ev.improved, ["b#1"]);
+});

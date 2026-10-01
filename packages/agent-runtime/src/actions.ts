@@ -51,27 +51,25 @@ export function parseAction(raw: unknown): Action {
   return o as Action;
 }
 
-// JSON Schema handed to providers that support constrained output. Shape only: parseAction still decides.
+// JSON Schema handed to providers that support constrained output. Providers differ: the Claude CLI's structured
+// output needs a top-level object (a top-level oneOf made every call fail, measured live), so this is one flat,
+// closed object. It stops unknown fields but cannot forbid a known field in the wrong place (e.g. `path` on an edit);
+// parseAction rejects those independently and the driver feeds the exact error back for one retry.
+const str = { type: "string" } as const;
 export const ACTION_SCHEMA = {
   type: "object",
+  additionalProperties: false,
+  required: ["id", "kind"],
   properties: {
-    id: { type: "string" },
+    id: str,
     kind: { enum: ["read", "edit", "run_gate", "finish", "blocked"] },
-    path: { type: "string" },
-    gateId: { type: "string" },
-    reason: { type: "string" },
+    path: str, gateId: str, reason: str,
     edits: {
-      type: "array",
+      type: "array", minItems: 1, maxItems: 20,
       items: {
-        type: "object",
-        properties: {
-          kind: { enum: ["replace", "create", "replace_file"] },
-          path: { type: "string" }, expectHash: { type: "string" }, find: { type: "string" },
-          replace: { type: "string" }, content: { type: "string" },
-        },
-        required: ["kind", "path"],
+        type: "object", additionalProperties: false, required: ["kind", "path"],
+        properties: { kind: { enum: ["replace", "create", "replace_file"] }, path: str, expectHash: str, find: str, replace: str, content: str },
       },
     },
   },
-  required: ["id", "kind"],
 } as const;

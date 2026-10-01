@@ -153,6 +153,7 @@ test("ollama worker through the driver: fake server replies drive a real run to 
   await drive(run, new OllamaProvider(profile(f.baseUrl)), ws, { goal: "make value.txt say good", acceptance: ["check passes"], files: ["value.txt"] });
   assert.equal(run.state, "AWAITING_ACCEPTANCE");
   assert.equal(run.ledger.tokens, 480);
-  assert.ok(f.seen[0].format.properties.kind); // constrained output was requested
-  f.close();
+  f.close(); // close first: a failing assertion must not leave the server holding the process open
+  assert.equal(f.seen[0].format.additionalProperties, false); // constrained output was requested, and it is closed
+  assert.deepEqual(f.seen[0].format.properties.kind.enum, ["read", "edit", "run_gate", "finish", "blocked"]);
 });
