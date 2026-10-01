@@ -1,0 +1,3 @@
+{ "id": "fix-slugify", "family": "isolated-bug", "expect": "accepted",
+  "contract": { "goal": "slugify() in src/slugify.mjs must return a lowercase URL slug: every run of characters other than letters and digits becomes a single dash, and no dash appears at the start or end. Fix it so the existing tests pass.",
+    "acceptance": ["test/slugify.test.mjs passes", "runs of separators collapse to one dash", "no leading or trailing dash"], "files": ["src/slugify.mjs", "test/slugify.test.mjs"], "scope": ["src/slugify.mjs"], "riskTier": "R1", "budget": "narrow" } }

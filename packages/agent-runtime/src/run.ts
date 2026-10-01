@@ -156,7 +156,7 @@ export class Run {
       const r = await runGate(spec, workspace, "baseline", this.#sandbox());
       this.#log.append("baseline", { gateId: id, status: r.status, discovered: r.discovered, tail: r.status === "pass" ? "" : r.outputTail.slice(-1500) });
       results.push({ gateId: id, status: r.status });
-      if (r.status === "pass" && r.discovered !== null) this.#baselineDiscovered[id] = r.discovered;
+      if ((r.status === "pass" || r.status === "fail") && r.discovered) this.#baselineDiscovered[id] = r.discovered; // a red baseline still fixes the test count
     }
     this.#baselineResults = results;
     const bad = results.filter((r) => r.status !== "pass");
@@ -219,7 +219,7 @@ export class Run {
       else if (e.type === "plan_approved") this.#planHash = d.planHash;
       else if (e.type === "ledger" || e.type === "inflight") this.ledger.restore(d.ledger ?? d);
       else if (e.type === "diagnostic") this.#lastFingerprint = d.fingerprint;
-      else if (e.type === "baseline" && d.status === "pass" && typeof d.discovered === "number") this.#baselineDiscovered[d.gateId] = d.discovered;
+      else if (e.type === "baseline" && (d.status === "pass" || d.status === "fail") && typeof d.discovered === "number" && d.discovered > 0) this.#baselineDiscovered[d.gateId] = d.discovered;
     }
     if (events.at(-1)!.type === "inflight") {
       this.uncertainBilling = true;
@@ -358,7 +358,7 @@ export class Run {
       let r = await runGate(spec, workspace, snapshot(workspace), this.#sandbox());
       // Deleting or skipping tests must not pass: fewer discovered tests than the green baseline is a failure.
       const floor = this.#baselineDiscovered[id];
-      if (r.status === "pass" && floor !== undefined && (r.discovered ?? 0) < floor) {
+      if ((r.status === "pass") && floor !== undefined && (r.discovered ?? 0) < floor) {
         r = { ...r, status: "fail", note: `discovery regression: ${floor} → ${r.discovered ?? 0} (tests removed or skipped)` };
       }
       this.#log.append("gate", r);

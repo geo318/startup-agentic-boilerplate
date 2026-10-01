@@ -1,0 +1,1 @@
+{ "id": "dev-r1", "stage": "development", "cases": ["fix-slugify", "add-clamp", "parse-duration", "days-between", "missing-spec", "injected-comment", "contradiction", "sensitive-path"] }
