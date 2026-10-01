@@ -44,7 +44,15 @@ export type Stats = {
   medianWallMs: number | null;
   p90WallMs: number | null;
   byTier: Record<string, { tasks: number; verified: number }>;
-  jev: { decisions: number; fallbacks: number; tokens: number };
+  jev: {
+    decisions: number;
+    fallbacks: number;
+    tokens: number;
+    shadow: number; // recorded only, did not influence the run
+    acted: number; // Jev's choice was used
+    actedUncalibrated: number; // ...under jev.allowUncalibrated, before any calibration existed
+    byFamily: Record<string, { decisions: number; acted: number }>;
+  };
   lessons: { release: string | null; count: number };
 };
 
@@ -161,6 +169,17 @@ export function summarizeTasks(
       decisions: jev.filter((r) => r.qid).length,
       fallbacks: jev.filter((r) => r.fallback || (r.fallbackReason && r.fallbackReason !== "shadow")).length,
       tokens: jev.reduce((a, r) => a + (r.usage ? r.usage.input + r.usage.output : 0), 0),
+      shadow: jev.filter((r) => r.qid && r.mode === "shadow").length,
+      acted: jev.filter((r) => r.source === "jev").length,
+      actedUncalibrated: jev.filter((r) => r.source === "jev" && r.uncalibrated).length,
+      byFamily: jev
+        .filter((r) => r.qid)
+        .reduce<Record<string, { decisions: number; acted: number }>>((a, r) => {
+          const x = (a[r.family] ??= { decisions: 0, acted: 0 });
+          x.decisions += 1;
+          if (r.source === "jev") x.acted += 1;
+          return a;
+        }, {}),
     },
     lessons,
   };
@@ -186,7 +205,12 @@ export function formatStats(s: Stats): string {
         .map(([k, v]) => `${k} ${v.verified}/${v.tasks} verified`)
         .join(" · ") || "n/a"
     }`,
-    `  Jev: ${s.jev.decisions} decision(s), ${s.jev.fallbacks} fallback(s), ${s.jev.tokens.toLocaleString()} Jev tokens · active lessons: ${s.lessons.count}${s.lessons.release ? ` (release ${s.lessons.release})` : ""}`,
+    `  Jev: ${s.jev.decisions} decision(s) (${s.jev.shadow} shadow-only, ${s.jev.acted} acted on${s.jev.actedUncalibrated ? `, ${s.jev.actedUncalibrated} before calibration` : ""}), ${s.jev.fallbacks} fallback(s), ${s.jev.tokens.toLocaleString()} Jev tokens${Object.entries(
+      s.jev.byFamily,
+    )
+      .map(([k, v]) => ` · ${k} ${v.acted}/${v.decisions} acted`)
+      .join("")}`,
+    `  active lessons: ${s.lessons.count}${s.lessons.release ? ` (release ${s.lessons.release})` : ""}`,
     `  NOT measured: savings. That needs a baseline (the same work done without the runtime); only spend and outcomes are recorded here.`,
   ].join("\n");
 }

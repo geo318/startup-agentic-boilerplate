@@ -28,12 +28,15 @@ export type Resolved = {
   fallbackReason?: string;
   jevChoice?: string;
   confidence?: number;
+  uncalibrated?: boolean;
 };
 export type FabricPolicy = {
   egress: "local-only" | "hosted-allowed";
   allowSource: boolean;
   modes: Partial<Record<Family, Mode>>;
   pinnedModel?: string;
+  // Owner opt-in (jev.allowUncalibrated): act on an enabled family before a calibration exists. Recorded as uncalibrated.
+  allowUncalibrated?: boolean;
 };
 
 export class Fabric {
@@ -135,14 +138,16 @@ export class Fabric {
       const allowed = Object.keys(i.options);
       let chosen = i.rulesDefault,
         source: Resolved["source"] = "rules",
-        fallbackReason: string | undefined;
+        fallbackReason: string | undefined,
+        uncalibrated = false;
       if (mode === "shadow") fallbackReason = "shadow";
       else if (!allowed.includes(a.choice)) fallbackReason = a.choice in ESCAPES ? `escape:${a.choice}` : "not-allowed";
-      else if (!cal || cal.threshold === null) fallbackReason = "uncalibrated";
-      else if (a.confidence < cal.threshold) fallbackReason = "below-threshold";
+      else if ((!cal || cal.threshold === null) && !this.#p.allowUncalibrated) fallbackReason = "uncalibrated";
+      else if (cal && cal.threshold !== null && a.confidence < cal.threshold) fallbackReason = "below-threshold";
       else {
         chosen = a.choice;
         source = "jev";
+        uncalibrated = !cal || cal.threshold === null;
       }
       out.push({
         id: i.id,
@@ -151,6 +156,7 @@ export class Fabric {
         ...(fallbackReason ? { fallbackReason } : {}),
         jevChoice: a.choice,
         confidence: a.confidence,
+        ...(uncalibrated ? { uncalibrated } : {}),
       });
       this.#log({
         ...base,
@@ -164,6 +170,7 @@ export class Fabric {
         resolved: chosen,
         source,
         fallbackReason,
+        ...(uncalibrated ? { uncalibrated } : {}),
         usage: result.usage,
         latencyMs: result.latencyMs,
         cached,

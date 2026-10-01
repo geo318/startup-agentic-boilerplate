@@ -173,3 +173,18 @@ test("stats from real task runs: scoped to the repo, --since filters, --all span
   assert.equal(JSON.parse(none.join("")).tasks, 0);
   await assert.rejects(c.stats(envA, { since: "yesterday-ish" }), /--since/);
 });
+
+test("stats report Jev shadow vs acted decisions, uncalibrated acts, and per-family counts", async () => {
+  const { summarizeTasks, formatStats } = await import("../src/stats.ts");
+  const rows = [
+    { taskId: "t", qid: "a", family: "workflow-select", mode: "shadow", source: "rules", fallbackReason: "shadow" },
+    { taskId: "t", qid: "b", family: "workflow-select", mode: "enabled", source: "jev", uncalibrated: true },
+    { taskId: "t", qid: "c", family: "skill-select", mode: "shadow", source: "rules", fallbackReason: "shadow" },
+  ];
+  const s = summarizeTasks([{ id: "t", state: "BLOCKED" } as any], "x", rows);
+  assert.equal(s.jev.shadow, 2);
+  assert.equal(s.jev.acted, 1);
+  assert.equal(s.jev.actedUncalibrated, 1);
+  assert.deepEqual(s.jev.byFamily["workflow-select"], { decisions: 2, acted: 1 });
+  assert.match(formatStats(s), /2 shadow-only, 1 acted on, 1 before calibration/);
+});

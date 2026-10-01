@@ -14,6 +14,13 @@ These defaults cannot change what a run does today: an enabled decision acts onl
 `jev.auto: false` opts out; explicit `jev.modes` always wins. The project's `egress` still gates sending: with `local-only`, `agentic doctor` reports "key present but NOT used".
 What would be sent: the task goal, acceptance criteria, file names, risk tier and skill descriptions, never source.
 
+## Opting in before calibration
+
+`"jev": { "allowUncalibrated": true }` in `.agents/policy.json` (owner-set, in a protected path) lets an `enabled` family act without waiting for a
+calibration. A calibration that exists still applies its threshold. Every such act is logged with `uncalibrated: true` and counted in `stats`
+("N before calibration"). Today only `workflow-select` has a consumer, and it can only stop a task to ask you first: more human involvement,
+never fewer checks. It does not save tokens by itself; the savings come from worker routing (`roles.workerStrong`, see the runtime README).
+
 ## Behaviour
 
 | Mode | What happens |
@@ -46,7 +53,7 @@ Not built: tool steering, pre-tool judgment, failure triage, context compaction,
 // .agents/policy.json
 "jev": { "modes": { "workflow-select": "shadow" }, "allowSource": false, "pinnedModel": "jev-1.13.0", "timeoutMs": 10000 }
 ```
-`agentic jev status | report | calibrate --family <f> --labels <file>`. `model` defaults to the alias `jev-latest`, which moves; the resolved version is recorded
+`agentic stats` shows Jev decisions split into shadow-only vs acted on (and per family). `agentic jev status | report | calibrate --family <f> --labels <file>`. `model` defaults to the alias `jev-latest`, which moves; the resolved version is recorded
 per decision and `pinnedModel` makes a different version fall back to rules.
 
 ## Evidence so far (synthetic dev-r1 cases, 7 distinct prompts × 3 trials; not independent samples)

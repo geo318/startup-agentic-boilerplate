@@ -368,3 +368,24 @@ test("secrets: loaded from the user-level store; a group-readable file is refuse
   assert.equal(loadSecrets(home).JEV_API_KEY, "abc123");
   assert.deepEqual(loadSecrets(tmp()), {});
 });
+
+test("fabric: allowUncalibrated lets an enabled family act before calibration, recorded as uncalibrated; a real threshold still applies", async () => {
+  const run = async (c: ReturnType<typeof cal>, conf = 0.9) => {
+    const m = mk(
+      fake(() => res("ask-clarification", conf)),
+      policy({ allowUncalibrated: true }),
+      c,
+    );
+    const r = (await m.fabric.decide("workflow-select", { taskId: "x", state: "S", items: [item] }))[0]!;
+    return { r, rec: readTelemetry(m.f)[0]! };
+  };
+  const none = await run([]);
+  assert.equal(none.r.source, "jev");
+  assert.equal(none.r.uncalibrated, true);
+  assert.equal(none.rec.uncalibrated, true);
+  assert.equal((await run(cal(null))).r.source, "jev");
+  assert.equal((await run(cal(0.95), 0.9)).r.fallbackReason, "below-threshold"); // calibration still wins when it exists
+  const calibrated = await run(cal(0.8), 0.9);
+  assert.equal(calibrated.r.source, "jev");
+  assert.equal(calibrated.r.uncalibrated, undefined);
+});

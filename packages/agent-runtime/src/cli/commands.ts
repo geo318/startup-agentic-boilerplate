@@ -130,6 +130,7 @@ type ProjectPolicy = {
     model?: string;
     pinnedModel?: string;
     timeoutMs?: number;
+    allowUncalibrated?: boolean;
   };
 };
 type Models = {
@@ -246,6 +247,7 @@ function makeFabric(env: Env, pp: ProjectPolicy): Fabric | undefined {
     policy: {
       egress: pp.egress,
       allowSource: j?.allowSource ?? false,
+      ...(j?.allowUncalibrated ? { allowUncalibrated: true } : {}),
       modes,
       ...(j?.pinnedModel ? { pinnedModel: j.pinnedModel } : {}),
     },
@@ -590,7 +592,7 @@ export async function taskRun(env: Env, id: string): Promise<number> {
         });
       const fabric = makeFabric(env, t.pp);
       if (fabric && run.state === "IMPLEMENTING" && (await jevDecisions(env, t, id, fabric)) === "ask") {
-        run.stop("NEEDS_INPUT", "jev (calibrated, enabled): the request needs clarification before any model call");
+        run.stop("NEEDS_INPUT", "jev (enabled): the request needs clarification before any model call");
       }
     } else run.resume();
     if (run.state === "VERIFYING") await run.reverify();
