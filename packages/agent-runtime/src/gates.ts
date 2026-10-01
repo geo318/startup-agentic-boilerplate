@@ -27,6 +27,8 @@ export type GateResult = {
 };
 
 const MAX_OUTPUT = 64 * 1024;
+// Colour codes would split "Tests  518 passed" and defeat discovery; strip them before matching or reporting.
+const ANSI = /\u001b\[[0-9;?]*[ -/]*[@-~]/g;
 
 // Every running gate's process group, so cancellation can terminate the command and all descendants.
 const active = new Set<() => void>();
@@ -61,7 +63,7 @@ export function runGate(spec: GateSpec, cwd: string, snapshot: string, docker?: 
     const home = docker ? (process.env.HOME ?? "") : mkdtempSync(join(tmpdir(), "gate-home-"));
     const child = spawn(cmd, args, {
       cwd,
-      env: { PATH: process.env.PATH ?? "", HOME: home, CI: "1", ...(docker ? {} : spec.env ?? {}) },
+      env: { PATH: process.env.PATH ?? "", HOME: home, CI: "1", NO_COLOR: "1", ...(docker ? {} : spec.env ?? {}) },
       detached: true,
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -82,6 +84,7 @@ export function runGate(spec: GateSpec, cwd: string, snapshot: string, docker?: 
     child.stdout.on("data", collect);
     child.stderr.on("data", collect);
     const finish = (status: GateStatus, exitCode: number | null, signal: string | null, discovered: number | null) => {
+      out = out.replace(ANSI, "");
       clearTimeout(timer);
       active.delete(killGroup);
       killGroup(); // descendants
@@ -94,7 +97,7 @@ export function runGate(spec: GateSpec, cwd: string, snapshot: string, docker?: 
     child.on("close", (code, signal) => {
       if (timedOut) return finish("timeout", code, signal, null);
       if (code === 0 && spec.discover.min === 0) return finish("pass", code, signal, null);
-      const m = new RegExp(spec.discover.regex).exec(out);
+      const m = new RegExp(spec.discover.regex).exec(out.replace(ANSI, ""));
       const discovered = m ? Number(m[1]) : 0;
       if (code !== 0) return finish("fail", code, signal, discovered);
       finish(Number.isFinite(discovered) && discovered >= spec.discover.min ? "pass" : "incomplete", code, signal, discovered);

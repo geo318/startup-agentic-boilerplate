@@ -81,13 +81,22 @@ function project(files: Record<string, string>) {
   return { base, ws };
 }
 
-test("context: mandatory never truncated; too big → ContextTooLarge; optional by relevance; manifest of rest", () => {
-  const { ws } = project({ "a.ts": "x".repeat(400), "billing.ts": "invoice total", "other.ts": "zzz" });
-  assert.throws(() => compile(ws, ["a.ts"], "g", 50), ContextTooLarge);
-  const p = compile(ws, ["a.ts"], "fix invoice total", 500);
-  assert.deepEqual(p.excerpts.map((e) => [e.path, e.reason]), [["a.ts", "mandatory"], ["billing.ts", "keyword"]]);
-  assert.deepEqual(p.omitted.map((o) => o.path), ["other.ts"]);
+test("context: mandatory never truncated; optional only if structurally related and capped; rest is a manifest", () => {
+  const { ws } = project({
+    "src/a.ts": 'import { dep } from "./dep";\nexport const a = dep;',
+    "src/dep.ts": "export const dep = 1;",
+    "src/a.unit.test.ts": 'import { a } from "./a";',
+    "src/caller.ts": 'import { a } from "./a";',
+    "src/unrelated-invoice.ts": "invoice total year week date test goal ".repeat(20),
+    "big/caller.ts": 'import { a } from "../src/a";\n' + "x".repeat(20000),
+  });
+  assert.throws(() => compile(ws, ["src/a.ts"], 5), ContextTooLarge);
+  const p = compile(ws, ["src/a.ts"], 8000);
+  assert.deepEqual(p.excerpts.map((e) => [e.path, e.reason]), [["src/a.ts", "mandatory"], ["src/a.unit.test.ts", "related"], ["src/dep.ts", "related"]]);
+  assert.ok(!p.excerpts.some((e) => e.path.includes("unrelated")), "word overlap must not pull files in");
+  assert.ok(p.omitted.some((o) => o.path === "src/caller.ts") && p.omitted.some((o) => o.path === "big/caller.ts"));
   assert.ok(p.excerpts.every((e) => /^[0-9a-f]{64}$/.test(e.hash)));
+  assert.equal(compile(ws, ["src/a.ts"], 8000, { maxOptional: 0 }).excerpts.length, 1);
 });
 
 test("driver blocks (not truncates) when mandatory context cannot fit", async () => {

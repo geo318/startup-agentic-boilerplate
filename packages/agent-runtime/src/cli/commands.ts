@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -81,12 +81,19 @@ function copyProject(src: string, dest: string): void {
   mkdirSync(dest, { recursive: true });
   for (const rel of r.stdout.toString("utf8").split("\0").filter(Boolean)) {
     const from = join(src, rel);
-    if (!existsSync(from) && !lstatExists(from)) continue; // tracked but deleted in the working tree
-    mkdirSync(dirname(join(dest, rel)), { recursive: true });
-    cpSync(from, join(dest, rel), { dereference: false });
+    let st;
+    try {
+      st = lstatSync(from);
+    } catch {
+      continue; // tracked but deleted in the working tree
+    }
+    const to = join(dest, rel);
+    mkdirSync(dirname(to), { recursive: true });
+    if (st.isSymbolicLink()) symlinkSync(readlinkSync(from), to); // links stay links, never followed
+    else if (st.isFile()) copyFileSync(from, to);
+    // anything else (gitlinks/submodule dirs, sockets) is not project content we copy
   }
 }
-const lstatExists = (p: string) => { try { lstatSync(p); return true; } catch { return false; } };
 
 const taskDir = (env: Env, id: string) => join(env.home, "tasks", id);
 const stateOf = (env: Env, id: string) => join(taskDir(env, id), "state");
@@ -212,7 +219,10 @@ export async function taskRun(env: Env, id: string): Promise<number> {
     }
   }
 
-  if (fresh) copyProject(env.project, t.candidate);
+  if (fresh) {
+    rmSync(t.candidate, { recursive: true, force: true }); // a crashed earlier copy must not leak into this one
+    copyProject(env.project, t.candidate);
+  }
   const run = new Run(t.policy(iso), env.dockerUp ? { dockerUp: env.dockerUp } : {});
   env.onRun?.(run);
   try {
@@ -222,7 +232,7 @@ export async function taskRun(env: Env, id: string): Promise<number> {
     } else run.resume();
     if (run.state === "VERIFYING") await run.reverify();
     const planFile = join(t.dir, "plan.json");
-    const ctxText = () => render(compile(t.candidate, t.contract.files, t.contract.goal, t.budget.maxContext));
+    const ctxText = () => render(compile(t.candidate, t.contract.files, t.budget.maxContext));
     const roleCtx = (p: GenerationProvider) => ({ provider: p, ledger: run.ledger, egress: t.pp.egress, maxOut: t.budget.maxOut });
 
     for (let round = 0; round < 4; round++) {

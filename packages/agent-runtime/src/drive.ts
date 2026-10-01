@@ -29,6 +29,7 @@ export async function drive(run: Run, provider: GenerationProvider, workspace: s
   }
   let last = "start";
   let invalid = 0;
+  let inContext = new Set<string>();
   const failed = new Map<string, number>();
   const repeats = new Map<string, number>(); // identical successful no-op requests since the last edit
   let turns = 0;
@@ -36,7 +37,8 @@ export async function drive(run: Run, provider: GenerationProvider, workspace: s
     turns += 1;
     let prompt: string;
     try {
-      const p = compile(workspace, task.files, task.goal, maxContext);
+      const p = compile(workspace, task.files, maxContext);
+      inContext = new Set(p.excerpts.map((e) => e.path));
       prompt = [`GOAL: ${task.goal}`, ...(task.plan ? [`APPROVED PLAN (follow it):\n${task.plan}`] : []), `ACCEPTANCE:\n${task.acceptance.map((a) => `- ${a}`).join("\n")}`, render(p), `LAST: ${last}`].join("\n\n");
     } catch (e) {
       if (e instanceof ContextTooLarge) run.stop("BLOCKED", `insufficient context: ${e.message}`);
@@ -93,6 +95,10 @@ export async function drive(run: Run, provider: GenerationProvider, workspace: s
         last = `${key} is already in the context above and unchanged; reading again gives no new information. Send finish if the acceptance criteria are met, or blocked with the reason.`;
         continue;
       }
+    }
+    if (out.ok && kind === "read" && inContext.has((action as { path?: string }).path ?? "")) {
+      last = `${(action as { path?: string }).path} is already in the context above (current). No need to read it: make your edit, or send finish / blocked.`;
+      continue;
     }
     last = out.ok ? `ok ${JSON.stringify(out.data ?? {})}${(action as { kind?: string })?.kind === "edit" ? " — edit applied; file contents above are current. Send finish to verify, or edit more." : ""}` : `rejected: ${out.reason}${out.data ? ` ${JSON.stringify(out.data)}` : ""}`;
   }

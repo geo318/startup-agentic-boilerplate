@@ -80,6 +80,9 @@ test("project copy follows git: ignored files (.env, build output) are not copie
   writeFileSync(join(project, "tracked.txt"), "t");
   git("add", "-A"); git("-c", "user.email=a@b", "-c", "user.name=n", "commit", "-qm", "init");
   writeFileSync(join(project, "untracked.txt"), "u");
+  mkdirSync(join(project, "realdir"));
+  writeFileSync(join(project, "realdir/f.txt"), "f");
+  (await import("node:fs")).symlinkSync("realdir", join(project, "dirlink")); // a symlink to a directory must not crash the copy
   mkdirSync(join(project, ".agents"));
   writeFileSync(join(project, ".agents/policy.json"), JSON.stringify({ schemaVersion: 1, protectedPaths: [], egress: "local-only", gates: [{ id: "g", argv: ["node", "-e", "console.log('tests 1')"], timeoutMs: 5000, discover: { regex: "tests (\\d+)", min: 1 } }], requiredGates: ["g"], baseline: "off" }));
   writeFileSync(join(project, ".agents/models.json"), JSON.stringify({ schemaVersion: 1, profiles: { w: { kind: "replay", file: join(project, "w.json") } }, roles: { worker: "w" } }));
@@ -93,6 +96,7 @@ test("project copy follows git: ignored files (.env, build output) are not copie
   await c.taskRun(env(), "copy-check");
   const cand = join(home, "tasks/copy-check/candidate");
   assert.ok(existsSync(join(cand, "tracked.txt")) && existsSync(join(cand, "untracked.txt")));
+  assert.equal((await import("node:fs")).lstatSync(join(cand, "dirlink")).isSymbolicLink(), true);
   assert.equal(existsSync(join(cand, ".env")), false);
   assert.equal(existsSync(join(cand, "build")), false);
   assert.equal(existsSync(join(cand, ".git")), false);

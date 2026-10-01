@@ -222,3 +222,10 @@ test("stateDir inside the workspace is refused", () => {
   const { policy } = setup();
   assert.throws(() => new Run({ ...policy, stateDir: join(policy.workspace, "state") }), /outside the workspace/);
 });
+
+test("coloured runner output still counts discovered tests (ANSI stripped, NO_COLOR set)", async () => {
+  const { run } = setup({}, `console.log("\\u001b[2mTests\\u001b[22m  \\u001b[32m1 passed\\u001b[39m\\n"); console.log("tests " + (process.env.NO_COLOR === "1" ? 1 : 0)); `);
+  await run.handle(fix("a1"));
+  const out = await run.handle({ id: "a2", kind: "finish" });
+  assert.equal(out.ok, true);
+});
