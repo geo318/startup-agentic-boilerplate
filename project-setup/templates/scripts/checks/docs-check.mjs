@@ -264,6 +264,9 @@ function main() {
       (strict ? errors : warnings).push(warning);
     }
   }
+  if (files.length === 0) {
+    errors.push(`no Markdown files found under ${root} — wrong --root, or the scan is skipping everything`);
+  }
   checkSkillsIndex(root, errors);
   checkLibraryDocs(root, errors);
   for (const warning of warnings) {
