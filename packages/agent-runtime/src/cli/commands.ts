@@ -1044,6 +1044,60 @@ export async function learnRetire(env: Env, lessonId: string, purgeToo = false):
 
 // Usage statistics from the persisted task history. Default scope: tasks of the current project; --all for every
 // project of this user; --since accepts an ISO date or Nd (e.g. 7d). Spend and outcomes only: no savings claim.
+// One command from a goal to a running task. The contract is derived deterministically: files are the ones you name
+// (or, if you name none, what is already changed in the tree, since scope is never guessed from the goal's words),
+// the tier is the risk floor of those paths, and acceptance is the goal plus "required gates pass".
+export async function doTask(env: Env, goal: string, o: { files?: string[] } = {}): Promise<number> {
+  if (!workflowEnabled(env)) {
+    env.out("The managed workflow is turned off (.agents/policy.json: enabled false). Nothing was run.");
+    return 2;
+  }
+  let files = o.files ?? [];
+  if (files.length === 0) {
+    const st = spawnSync("git", ["status", "--porcelain", "--untracked-files=all"], {
+      cwd: env.project,
+      encoding: "utf8",
+    });
+    files = st.stdout
+      .split("\n")
+      .filter((l) => l.length > 3)
+      .map((l) => l.slice(3).split(" -> ").pop()!);
+  }
+  if (files.length === 0)
+    throw new CliError("no files in scope: pass --files a.ts,b.ts (the controller will not guess scope from the goal)");
+  const tier = riskFloor({ paths: files });
+  const slug = goal
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 24)
+    .replace(/-$/, "");
+  const id = `${slug.length >= 3 ? slug : "task"}-${Date.now().toString(36)}`;
+  const contract = {
+    schemaVersion: 1,
+    id,
+    goal,
+    originalRequest: goal.slice(0, 500),
+    acceptance: [`The change does what was asked: ${goal}`.slice(0, 500), "All required gates pass and discover tests"],
+    files,
+    riskTier: tier,
+    budget: files.length <= 2 ? "narrow" : files.length <= 6 ? "standard" : "complex",
+  };
+  const tmp = join(env.home, `do-${id}.json`);
+  mkdirSync(env.home, { recursive: true });
+  writeFileSync(tmp, JSON.stringify(contract, null, 2));
+  try {
+    await taskCreate(env, tmp);
+  } finally {
+    rmSync(tmp, { force: true });
+  }
+  const code = await taskRun(env, id);
+  env.out(
+    `next: node scripts/agentic.mjs status ${id}${tier === "R2" || tier === "R3" ? ` (a plan needs your approval: approve ${id})` : ""} · when verified: accept ${id} (needs a terminal)`,
+  );
+  return code;
+}
+
 // Called by the project's Stop hook. Exit 2 = the gates failed on the current working tree (diagnostic on stdout).
 export async function sessionCheckCmd(env: Env): Promise<number> {
   const f = projectFile(env, "policy.json");

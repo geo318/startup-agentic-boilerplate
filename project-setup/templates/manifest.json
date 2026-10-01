@@ -104,6 +104,10 @@
       "flag": "AGENTIC_RUNTIME"
     },
     {
+      "path": ".agents/models.json",
+      "flag": "AGENTIC_RUNTIME"
+    },
+    {
       "path": ".agents/models.example.json",
       "flag": "AGENTIC_RUNTIME"
     },

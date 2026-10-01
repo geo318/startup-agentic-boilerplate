@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "profiles": {
+    "claude-haiku": { "kind": "claude-cli", "model": "claude-haiku-4-5-20251001", "maxBudgetUsd": 0.05 },
+    "claude-sonnet": { "kind": "claude-cli", "model": "claude-sonnet-5-5", "maxBudgetUsd": 0.25 }
+  },
+  "roles": { "worker": "claude-haiku", "workerStrong": "claude-sonnet", "architect": "claude-sonnet", "reviewer": "claude-sonnet" }
+}

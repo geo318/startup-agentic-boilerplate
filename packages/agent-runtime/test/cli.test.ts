@@ -526,3 +526,15 @@ test("process level: an unknown subcommand prints usage and runs NOTHING (regres
   }
   assert.equal(existsSync(join(home, "tasks")), false);
 });
+
+test("do: derives the contract from --files or the changed tree, refuses to guess scope, runs the task", async () => {
+  const w = world();
+  w.qualifyAll();
+  w.answers.push("no"); // isolation: no docker
+  await assert.rejects(c.doTask(w.env(), "make value.txt say good"), /no files in scope/); // not a git repo → nothing changed
+  assert.equal(await c.doTask(w.env(), "make value.txt say good", { files: ["value.txt"] }), 0);
+  const id = w.out.join("\n").match(/created task (make-value-txt-say-[a-z0-9-]+)/)![1]!;
+  assert.equal(c.statusOf(w.env(), id).state, "AWAITING_ACCEPTANCE");
+  assert.match(w.out.join("\n"), new RegExp(`next: node scripts/agentic.mjs status ${id}`));
+  assert.match(w.out.join("\n"), /\(R1, budget narrow\)/);
+});

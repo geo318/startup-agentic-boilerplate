@@ -167,7 +167,7 @@ Off by default; documentation mode needs no model keys, GPU, Docker, or runtime.
 wants managed execution (a controller that runs models, tools, and checks and records evidence). It is a
 development-workflow choice, separate from `HAS_AI` (a product feature) and from `CLAUDE_CODE` (a host).
 
-When `AGENTIC_RUNTIME` is true the renderer adds `.agents/policy.json`, `.agents/models.example.json`,
+When `AGENTIC_RUNTIME` is true the renderer adds `.agents/policy.json`, `.agents/models.json` (Haiku worker, Sonnet strong worker), `.agents/models.example.json`,
 and `scripts/agentic.mjs`, and the skills gain a short "Managed mode" section. It also needs:
 
 - `CMD_TEST` (already required): split on whitespace into the gate's argv. No shell, so no pipes or `&&`.

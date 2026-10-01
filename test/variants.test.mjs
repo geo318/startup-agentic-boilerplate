@@ -203,7 +203,7 @@ const schemasDir = join(root, "schemas");
 
 test("runtime disabled: no runtime files, skills carry no managed section", () => {
   const { t } = render({});
-  for (const f of [".agents/policy.json", ".agents/models.example.json", "scripts/agentic.mjs", ".agents/skills/stats"])
+  for (const f of [".agents/policy.json", ".agents/models.json", ".agents/models.example.json", "scripts/agentic.mjs", ".agents/skills/stats"])
     assert.ok(!existsSync(join(t, f)), f);
   assert.doesNotMatch(readFileSync(join(t, "AGENTS.md"), "utf8"), /Managed workflow/);
   assert.doesNotMatch(readFileSync(join(t, ".agents/skills/architect/SKILL.md"), "utf8"), /Managed mode/);
