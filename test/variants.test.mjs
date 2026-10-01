@@ -149,7 +149,8 @@ const schemasDir = join(root, "schemas");
 
 test("runtime disabled: no runtime files, skills carry no managed section", () => {
   const { t } = render({});
-  for (const f of [".agents/policy.json", ".agents/models.example.json", "scripts/agentic.mjs"]) assert.ok(!existsSync(join(t, f)), f);
+  for (const f of [".agents/policy.json", ".agents/models.example.json", "scripts/agentic.mjs", ".agents/skills/stats"]) assert.ok(!existsSync(join(t, f)), f);
+  assert.doesNotMatch(readFileSync(join(t, "AGENTS.md"), "utf8"), /Managed workflow/);
   assert.doesNotMatch(readFileSync(join(t, ".agents/skills/architect/SKILL.md"), "utf8"), /Managed mode/);
 });
 
@@ -164,6 +165,10 @@ test("runtime enabled: policy.json validates against the schema; launcher execut
   assert.ok(policy.protectedPaths.includes(".agents") && policy.protectedPaths.includes("package.json"));
   assert.ok((lstatSync(join(t, "scripts/agentic.mjs")).mode & 0o111) !== 0);
   assert.match(readFileSync(join(t, ".agents/skills/architect/SKILL.md"), "utf8"), /Managed mode/);
+  assert.equal(policy.enabled, true); // the managed workflow is ON by default
+  assert.match(readFileSync(join(t, "AGENTS.md"), "utf8"), /## Managed workflow[\s\S]*"enabled": true/);
+  assert.ok(existsSync(join(t, ".agents/skills/stats/SKILL.md")));
+  assert.match(readFileSync(join(t, ".agents/skills-index.md"), "utf8"), /stats/);
   noLeftovers(t);
 });
 

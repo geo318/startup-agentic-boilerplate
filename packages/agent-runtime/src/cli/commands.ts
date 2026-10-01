@@ -25,6 +25,7 @@ import { calibrate } from "../jev/calibrate.ts";
 import { type Family, Fabric, type Item, loadCalibrations, type Mode, readTelemetry, saveCalibrations } from "../jev/fabric.ts";
 import { readdirSync } from "node:fs";
 import * as learn from "../learning/store.ts";
+import { allTasks, formatStats, summarizeTasks } from "../stats.ts";
 import { activeLessons, type Lesson } from "../learning/store.ts";
 
 export type Env = {
@@ -76,9 +77,10 @@ type Contract = {
   family?: string; budget: "narrow" | "standard" | "complex"; recipe?: { path: string; find: string; replace: string }; unresolvedQuestions?: string[];
 };
 type ProjectPolicy = {
+  enabled?: boolean; // the managed-workflow switch; absent = on
   protectedPaths: string[]; gates: Policy["gates"]; requiredGates: string[]; egress: Policy["egress"]; dockerImage?: string;
   bootstrap?: { argv: string[]; timeoutMs: number; env?: Record<string, string> }; baseline?: "require-pass" | "record" | "off";
-  jev?: { modes?: Partial<Record<Family, Mode>>; allowSource?: boolean; model?: string; pinnedModel?: string; timeoutMs?: number };
+  jev?: { auto?: boolean; modes?: Partial<Record<Family, Mode>>; allowSource?: boolean; model?: string; pinnedModel?: string; timeoutMs?: number };
 };
 type Models = { profiles: Record<string, Record<string, any>>; roles: { worker: string; architect?: string; reviewer?: string } };
 
@@ -129,13 +131,26 @@ function makeProvider(env: Env, name: string, models: Models): GenerationProvide
 const telemetryFile = (env: Env) => join(env.home, "telemetry", "jev.jsonl");
 const calibrationFile = (env: Env) => join(env.home, "calibration.json");
 
+// Jev is used automatically when the user has a key in the user-level store, unless the project opts out (jev.auto false)
+// or sets its own modes. The automatic defaults cannot change what a run does today: the route decision is "enabled" but a
+// decision acts only with a calibration (none exists until labelled data does), and skill selection is shadow-only.
+// The project's egress policy still decides whether anything may be sent at all.
+export function effectiveJev(env: Env, pp: ProjectPolicy): { modes: Partial<Record<Family, Mode>>; why: string } {
+  const j = pp.jev;
+  if (j?.modes && Object.keys(j.modes).length) return { modes: j.modes, why: "modes set in .agents/policy.json" };
+  if (j?.auto === false) return { modes: {}, why: "jev.auto is false" };
+  if (!env.secrets?.JEV_API_KEY) return { modes: {}, why: "no JEV_API_KEY in the user-level secrets store" };
+  return { modes: { "workflow-select": "enabled", "skill-select": "shadow" }, why: "auto: key present" };
+}
+
 function makeFabric(env: Env, pp: ProjectPolicy): Fabric | undefined {
   const j = pp.jev;
-  if (!j?.modes || Object.values(j.modes).every((m) => !m || m === "disabled")) return undefined; // off unless configured
-  const transport = env.jevTransport ?? new JevClient({ apiKey: env.secrets?.JEV_API_KEY, ...(j.model ? { model: j.model } : {}), ...(j.timeoutMs ? { timeoutMs: j.timeoutMs } : {}) });
+  const { modes } = effectiveJev(env, pp);
+  if (Object.values(modes).every((m) => !m || m === "disabled")) return undefined; // off unless configured or auto
+  const transport = env.jevTransport ?? new JevClient({ apiKey: env.secrets?.JEV_API_KEY, ...(j?.model ? { model: j.model } : {}), ...(j?.timeoutMs ? { timeoutMs: j.timeoutMs } : {}) });
   return new Fabric({
     transport, telemetryFile: telemetryFile(env), calibrations: loadCalibrations(calibrationFile(env)),
-    policy: { egress: pp.egress, allowSource: j.allowSource ?? false, modes: j.modes, ...(j.pinnedModel ? { pinnedModel: j.pinnedModel } : {}) },
+    policy: { egress: pp.egress, allowSource: j?.allowSource ?? false, modes, ...(j?.pinnedModel ? { pinnedModel: j.pinnedModel } : {}) },
   });
 }
 
@@ -194,10 +209,19 @@ export async function doctor(env: Env): Promise<number> {
     ["git", spawnSync("git", ["--version"], { encoding: "utf8" }).status === 0 ? "ok" : "missing"],
     ["docker (optional)", (env.dockerUp ?? (() => spawnSync("docker", ["info"], { stdio: "ignore", timeout: 10_000 }).status === 0))() ? "daemon reachable" : "not available (only needed if you choose Docker isolation)"],
   ];
+  rows.push(["workflow", existsSync(projectFile(env, "policy.json")) ? (workflowEnabled(env) ? "ON (default): tasks are verified by the controller" : "OFF: nothing model-driven runs; enable with `agentic enable`") : "not installed in this project"]);
   for (const [file, schema] of [["policy.json", "policy"], ["models.json", "models"]] as const) {
     const f = projectFile(env, file);
     if (!existsSync(f)) { rows.push([file, "absent"]); continue; }
     try { loadValidated(f, schema); rows.push([file, "valid"]); } catch (e) { rows.push([file, `INVALID ${(e as Error).message.split("\n")[1]?.trim() ?? ""}`]); }
+  }
+  if (existsSync(projectFile(env, "policy.json"))) {
+    try {
+      const pp = loadValidated<ProjectPolicy>(projectFile(env, "policy.json"), "policy");
+      const { modes, why } = effectiveJev(env, pp);
+      const active = Object.entries(modes).filter(([, m]) => m && m !== "disabled").map(([f, m]) => `${f}=${m}`);
+      rows.push(["jev", !active.length ? `off (${why})` : pp.egress !== "hosted-allowed" ? `key/config present but NOT used: policy egress is local-only (set "egress": "hosted-allowed" to allow sending the task goal and file names)` : `on (${why}): ${active.join(", ")}`]);
+    } catch { /* an invalid policy is reported above */ }
   }
   rows.push(["qualifications", `${new QualStore(join(env.home, "qualifications.json")).all().filter((q) => q.passed).length} passed`]);
   for (const [k, v] of rows) env.out(`${k.padEnd(20)} ${v}`);
@@ -221,7 +245,7 @@ export async function taskCreate(env: Env, file: string): Promise<number> {
   if (existsSync(dir)) throw new CliError(`task already exists: ${c.id}`);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "contract.json"), JSON.stringify(c, null, 2));
-  writeFileSync(join(dir, "meta.json"), JSON.stringify({ project: env.project }, null, 2));
+  writeFileSync(join(dir, "meta.json"), JSON.stringify({ project: env.project, createdAt: new Date().toISOString() }, null, 2));
   env.out(`created task ${c.id} (${c.riskTier}, budget ${c.budget})`);
   return 0;
 }
@@ -258,7 +282,17 @@ export function statusOf(env: Env, id: string) {
 
 const EXIT: Record<string, number> = { AWAITING_ACCEPTANCE: 0, ACCEPTED: 0, NEEDS_INPUT: 2, AWAITING_PLAN_APPROVAL: 2 };
 
+// The managed-workflow switch lives in .agents/policy.json ("enabled", default on). Off = nothing model-driven runs.
+export const workflowEnabled = (env: Env): boolean => {
+  const f = projectFile(env, "policy.json");
+  return !existsSync(f) || loadValidated<ProjectPolicy>(f, "policy").enabled !== false;
+};
+
 export async function taskRun(env: Env, id: string): Promise<number> {
+  if (!workflowEnabled(env)) {
+    env.out("The managed workflow is turned off (.agents/policy.json: enabled false). Nothing was run. Turn it on: node scripts/agentic.mjs enable");
+    return 2;
+  }
   const t = load(env, id);
   if (t.contract.unresolvedQuestions?.length) throw new CliError(`unresolved design decision: ${t.contract.unresolvedQuestions.join("; ")}`);
   const fresh = !existsSync(join(t.stateDir, "events.jsonl"));
@@ -480,6 +514,7 @@ export async function exportPatch(env: Env, id: string): Promise<number> {
 
 // Records a qualification for a configured profile. The probe spends tokens on that profile.
 export async function qualify(env: Env, profileName: string, ownerDeclare?: "architecture" | "review" | "action-protocol"): Promise<number> {
+  if (!ownerDeclare && !workflowEnabled(env)) throw new CliError("the managed workflow is turned off (.agents/policy.json: enabled false); probes spend money, so they are not run");
   const mf = projectFile(env, "models.json");
   const models = loadValidated<Models>(mf, "models");
   const provider = makeProvider(env, profileName, models);
@@ -507,7 +542,7 @@ export async function jevStatus(env: Env): Promise<number> {
   env.out(`credential: ${env.secrets?.JEV_API_KEY ? "present (user-level store)" : "absent"}   egress: ${pp.egress}   allowSource: ${j?.allowSource ?? false}`);
   for (const f of ["workflow-select", "skill-select", "retrieval-rerank"] as const) {
     const cal = loadCalibrations(calibrationFile(env)).find((c) => c.family === f);
-    env.out(`${f.padEnd(17)} mode ${j?.modes?.[f] ?? "disabled"}   calibration ${cal ? `${cal.id} n=${cal.n} threshold=${cal.threshold ?? "none (unusable)"}` : "none"}`);
+    env.out(`${f.padEnd(17)} mode ${effectiveJev(env, pp).modes[f] ?? "disabled"}   calibration ${cal ? `${cal.id} n=${cal.n} threshold=${cal.threshold ?? "none (unusable)"}` : "none"}`);
   }
   return 0;
 }
@@ -591,5 +626,41 @@ export async function learnRetire(env: Env, lessonId: string, purgeToo = false):
   if (purgeToo) learn.purge(env.home, lessonId, `operator:${env.user}`);
   else learn.retire(env.home, lessonId, `operator:${env.user}`);
   env.out(`${purgeToo ? "purged" : "retired"} ${lessonId}`);
+  return 0;
+}
+
+// Usage statistics from the persisted task history. Default scope: tasks of the current project; --all for every
+// project of this user; --since accepts an ISO date or Nd (e.g. 7d). Spend and outcomes only: no savings claim.
+export async function stats(env: Env, o: { all?: boolean; since?: string; json?: boolean } = {}): Promise<number> {
+  let tasks = allTasks(env.home);
+  if (!o.all) tasks = tasks.filter((t) => t.project === env.project);
+  if (o.since) {
+    const m = /^(\d+)d$/.exec(o.since);
+    const from = m ? Date.now() - Number(m[1]) * 86_400_000 : Date.parse(o.since);
+    if (!Number.isFinite(from)) throw new CliError(`--since must be an ISO date or Nd, got ${o.since}`);
+    tasks = tasks.filter((t) => t.createdAt && Date.parse(t.createdAt) >= from); // tasks without a date are excluded, not guessed
+  }
+  const act = learn.activeLessons(env.home, {});
+  const s = summarizeTasks(tasks, o.all ? "all projects" : env.project, readTelemetry(telemetryFile(env)), { release: act.releaseId, count: act.lessons.length });
+  env.out(o.json ? JSON.stringify(s, null, 2) : formatStats(s));
+  return 0;
+}
+
+// Turning it on can come from anywhere. Turning it OFF removes the controls, so it is an operator decision at a terminal.
+function setEnabled(env: Env, on: boolean): void {
+  const f = projectFile(env, "policy.json");
+  const policy = loadValidated<ProjectPolicy>(f, "policy");
+  writeFileSync(f, `${JSON.stringify({ ...policy, enabled: on }, null, 2)}\n`);
+}
+export async function enableWorkflow(env: Env): Promise<number> {
+  setEnabled(env, true);
+  env.out("managed workflow: ON");
+  return 0;
+}
+export async function disableWorkflow(env: Env): Promise<number> {
+  requireOperator(env, "turning the managed workflow off");
+  if ((await env.ask("Turn the managed workflow OFF for this project? Agents will no longer have verified, evidence-backed runs. (yes/no): ")).trim().toLowerCase() !== "yes") return 1;
+  setEnabled(env, false);
+  env.out("managed workflow: OFF (commit .agents/policy.json to share this; re-enable with `agentic enable`)");
   return 0;
 }

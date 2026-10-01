@@ -296,3 +296,88 @@ test("jev calibrate from labels writes a per-family calibration; too few labels 
   assert.match(w.out.join("\n"), /credential: present \(user-level store\)/);
   assert.ok(!w.out.join("\n").includes('"x"'));
 });
+
+// ---------- on/off switch ----------
+test("workflow switch: default ON; OFF runs nothing and spends nothing; disable needs a terminal and a literal yes; enable works anywhere", async () => {
+  const w = world();
+  w.qualifyAll();
+  await c.taskCreate(w.env(), w.contract());
+  assert.equal(c.workflowEnabled(w.env()), true); // no "enabled" key in the policy = on
+  await c.doctor(w.env());
+  assert.match(w.out.join("\n"), /workflow\s+ON/);
+  await assert.rejects(c.disableWorkflow(w.env({ operatorTty: false })), (e: any) => e.code === 3);
+  assert.equal(c.workflowEnabled(w.env()), true);
+  w.answers.push("maybe");
+  assert.equal(await c.disableWorkflow(w.env()), 1);
+  assert.equal(c.workflowEnabled(w.env()), true);
+  w.answers.push("yes");
+  assert.equal(await c.disableWorkflow(w.env()), 0);
+  assert.equal(c.workflowEnabled(w.env()), false);
+  assert.equal(JSON.parse(readFileSync(join(w.project, ".agents/policy.json"), "utf8")).enabled, false);
+  w.answers.push("no");
+  assert.equal(await c.taskRun(w.env(), "fix-value"), 2); // refused: no state, no candidate, no model call
+  assert.equal(existsSync(join(w.home, "tasks/fix-value/candidate")), false);
+  assert.equal(c.statusOf(w.env(), "fix-value").state, "NOT_STARTED");
+  await assert.rejects(c.qualify(w.env(), "worker"), /turned off/);
+  await c.doctor(w.env());
+  assert.match(w.out.join("\n"), /workflow\s+OFF/);
+  assert.equal(await c.enableWorkflow(w.env({ operatorTty: false })), 0); // turning ON never needs a terminal
+  assert.equal(c.workflowEnabled(w.env()), true);
+  w.answers.push("no");
+  assert.equal(await c.taskRun(w.env(), "fix-value"), 0);
+});
+
+test("an agent cannot flip the switch from inside a task: .agents/ is a protected path", async () => {
+  const w = world();
+  w.qualifyAll();
+  await c.taskCreate(w.env(), w.contract());
+  w.answers.push("no");
+  await c.taskRun(w.env(), "fix-value");
+  const cand = join(w.home, "tasks/fix-value/candidate/.agents/policy.json");
+  // the policy copy inside the candidate is protected, and the real policy lives in the project (never edited by tasks)
+  const { applyEdits } = await import("../src/edits.ts");
+  assert.throws(() => applyEdits(join(w.home, "tasks/fix-value/candidate"), [{ kind: "replace_file", path: ".agents/policy.json", expectHash: "x", content: "{}" }], ["check.mjs", ".agents"]), /protected path/);
+  assert.ok(existsSync(cand));
+});
+
+// ---------- Jev auto-use when a key exists ----------
+test("jev auto: a key in the user-level store turns it on with no jev section in the policy; no key → untouched", async () => {
+  const calls = { n: 0 };
+  const w = world({ policy: { egress: "hosted-allowed" } }); // note: no "jev" key at all
+  w.qualifyAll();
+  await c.taskCreate(w.env(), w.contract());
+  w.answers.push("no");
+  assert.equal(await c.taskRun(w.env({ secrets: { JEV_API_KEY: "k" }, jevTransport: jevFake(() => "ask-clarification", 0.99, calls) }), "fix-value"), 0);
+  assert.ok(calls.n >= 1);
+  assert.match(readFileSync(join(w.home, "telemetry/jev.jsonl"), "utf8"), /workflow-select/);
+  // the run itself was unaffected: Jev said "ask" at 0.99 but nothing is calibrated, so the rules decided
+  assert.equal(c.statusOf(w.env(), "fix-value").state, "AWAITING_ACCEPTANCE");
+  const none = world({ policy: { egress: "hosted-allowed" } });
+  none.qualifyAll();
+  await c.taskCreate(none.env(), none.contract());
+  none.answers.push("no");
+  const calls2 = { n: 0 };
+  await c.taskRun(none.env({ jevTransport: jevFake(() => "ask-clarification", 0.99, calls2) }), "fix-value"); // no secrets
+  assert.equal(calls2.n, 0);
+  assert.equal(existsSync(join(none.home, "telemetry/jev.jsonl")), false);
+});
+
+test("jev auto: opt-out and explicit modes win; local-only egress means key present but not used, and doctor says why", async () => {
+  const optOut = world({ policy: { egress: "hosted-allowed", jev: { auto: false } } });
+  optOut.qualifyAll();
+  await c.taskCreate(optOut.env(), optOut.contract());
+  optOut.answers.push("no");
+  const calls = { n: 0 };
+  await c.taskRun(optOut.env({ secrets: { JEV_API_KEY: "k" }, jevTransport: jevFake(() => "x", 0.9, calls) }), "fix-value");
+  assert.equal(calls.n, 0);
+  const local = world(); // default policy: egress local-only
+  await c.doctor(local.env({ secrets: { JEV_API_KEY: "k" } }));
+  assert.match(local.out.join("\n"), /jev\s+key\/config present but NOT used: policy egress is local-only/);
+  const hosted = world({ policy: { egress: "hosted-allowed" } });
+  await c.doctor(hosted.env({ secrets: { JEV_API_KEY: "k" } }));
+  assert.match(hosted.out.join("\n"), /jev\s+on \(auto: key present\)/);
+  assert.doesNotMatch(hosted.out.join("\n"), /"k"/);
+  const nokey = world({ policy: { egress: "hosted-allowed" } });
+  await c.doctor(nokey.env());
+  assert.match(nokey.out.join("\n"), /jev\s+off \(no JEV_API_KEY/);
+});

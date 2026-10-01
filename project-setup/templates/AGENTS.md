@@ -72,6 +72,15 @@ A passing typecheck is not verification. Run every check relevant to the diff an
 {{/if}}
 
 {{#if GITHUB}}
+{{#if AGENTIC_RUNTIME}}
+## Managed workflow
+
+On by default (`"enabled": true` in `.agents/policy.json`). When on, non-trivial changes go through `node scripts/agentic.mjs task …` so the
+controller runs the checks, grounds context in real source, and records evidence, instead of trusting a model's own claim that it works.
+Never turn it off, edit `.agents/`, or work around a refused task to get a change through; ask the person. Check state with
+`node scripts/agentic.mjs doctor`. Only a person at a terminal can disable it (`node scripts/agentic.mjs disable`).
+
+{{/if}}
 ## Pull requests
 
 1. **Before opening:** run the checks above and list each one with its result in the PR body,

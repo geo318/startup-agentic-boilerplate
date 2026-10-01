@@ -14,6 +14,12 @@ agentic report <id>
 Project files: `.agents/policy.json` (gates, protected paths, egress) and `.agents/models.json` (provider profiles per role).
 Schemas: [/schemas](../../schemas). Controller state (tasks, events, qualifications) lives under `$AGENTIC_HOME` (default `~/.agentic`), outside the project.
 
+## Switch, stats, Jev
+
+- **Switch:** `"enabled"` in `.agents/policy.json` (absent = **on**). `agentic enable` / `agentic disable`; turning it off needs a person at a terminal. Off = `task run` and probes refuse, nothing model-driven runs. `agentic doctor` shows the state.
+- **Stats:** `agentic stats [--all] [--since 30d] [--json]` summarises your task history for this repo (outcomes, verified candidates, first-attempt, tokens, cost per verified candidate, wall time, Jev, lessons). Measured spend and outcomes only: **savings are not measured** (no baseline). Timing exists for tasks run since timestamps were added. The `stats` skill (installed with the runtime) tells an agent how to run and read it.
+- **Jev:** used automatically when `JEV_API_KEY` is in `$AGENTIC_HOME/secrets.env` (default `~/.agentic/secrets.env`, mode 0600, never in a repo) unless the policy sets `jev.auto: false` or its own `jev.modes`. The automatic defaults cannot change a run (route decision acts only once calibrated; skill selection is shadow). Nothing is sent unless the policy's `egress` is `hosted-allowed`; `agentic doctor` says when a key is present but unused for that reason.
+
 ## Trust model
 
 - A task runs on a **copy** of the project. Nothing touches your tree; `export` gives a patch you apply yourself. No commit, push, merge, or deploy.

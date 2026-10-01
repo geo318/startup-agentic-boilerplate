@@ -45,6 +45,6 @@ can be learned.{{#if AGENTIC_RUNTIME}}
 
 ## Managed mode
 
-With the runtime enabled (`node scripts/agentic.mjs doctor` passes), repairs are bounded by the task
+With the workflow ON (`node scripts/agentic.mjs doctor` passes and says so), repairs are bounded by the task
 budget: one semantic repair, and an identical repeated failure stops the run. Report it with
 `node scripts/agentic.mjs report <task-id>` instead of retrying by hand.{{/if}}

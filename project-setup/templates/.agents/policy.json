@@ -1,5 +1,6 @@
 {
   "schemaVersion": 1,
+  "enabled": true,
   "protectedPaths": [
     ".agents", ".github", ".githooks", "scripts/checks", "scripts/git", "scripts/skills", "scripts/agentic.mjs",
     "biome.json", ".fallowrc.json", "tsconfig.base.json", "package.json",

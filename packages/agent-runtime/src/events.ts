@@ -1,7 +1,7 @@
 import { closeSync, existsSync, openSync, readFileSync, appendFileSync, unlinkSync, writeSync } from "node:fs";
 import { canonical, sha256 } from "./hash.ts";
 
-export type LoggedEvent = { seq: number; prev: string; type: string; data: unknown; hash: string };
+export type LoggedEvent = { seq: number; prev: string; type: string; data: unknown; hash: string; ts?: string }; // ts: ISO time; hashed when present, so older logs without it still verify
 
 // Append-only hash-chained JSONL. Lives in controller state, outside any worker-writable tree.
 // Single writer: an exclusive lockfile; a stale lock blocks (a human must remove it) rather than being stolen.
@@ -35,7 +35,7 @@ export class EventLog {
   verify(): void {
     let prev = "";
     this.read().forEach((e, i) => {
-      const body = canonical({ seq: e.seq, prev: e.prev, type: e.type, data: e.data });
+      const body = canonical({ seq: e.seq, prev: e.prev, type: e.type, data: e.data, ...(e.ts ? { ts: e.ts } : {}) });
       if (e.seq !== i || e.prev !== prev || e.hash !== sha256(body)) {
         throw new Error(`event log corrupt at seq ${i}`);
       }
@@ -48,8 +48,9 @@ export class EventLog {
     const events = this.read();
     const prev = events.at(-1)?.hash ?? "";
     const seq = events.length;
-    const hash = sha256(canonical({ seq, prev, type, data }));
-    const event = { seq, prev, type, data, hash };
+    const ts = new Date().toISOString();
+    const hash = sha256(canonical({ seq, prev, type, data, ts }));
+    const event = { seq, prev, type, data, ts, hash };
     appendFileSync(this.#path, `${JSON.stringify(event)}\n`);
     return event;
   }

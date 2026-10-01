@@ -35,6 +35,7 @@ const OWN_SKILLS = new Set([
   "remember",
   "imprint",
   "add-library-skill",
+  "stats",
 ]);
 const LINE_BUDGETS = {
   "AGENTS.md": 200,

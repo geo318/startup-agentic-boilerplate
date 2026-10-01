@@ -118,6 +118,10 @@
     {
       "path": ".github/workflows/agentic-verify.yml",
       "flag": "AGENTIC_RUNTIME"
+    },
+    {
+      "path": ".agents/skills/stats",
+      "flag": "AGENTIC_RUNTIME"
     }
   ]
 }

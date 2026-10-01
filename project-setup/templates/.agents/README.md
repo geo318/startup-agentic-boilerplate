@@ -36,6 +36,8 @@ For skills outside these common workflows, use the [complete skill catalog](skil
 
 ## Managed runtime (optional)
 
+- `stats`: how the managed workflow has been used here (measured spend and outcomes, no savings claims).
+
 `node scripts/agentic.mjs doctor` checks the pinned runtime. Gates and protected paths live in
 `policy.json`; model profiles in `models.json` (copy `models.example.json`; never put keys in either).
 Plan approval, acceptance, and the Docker yes/no are given by the person at their own terminal.

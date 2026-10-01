@@ -69,6 +69,6 @@ fix anything unless the developer asks.
 
 ## Managed mode
 
-When `node scripts/agentic.mjs doctor` passes, R2/R3 tasks get an independent review inside the run:
+When `node scripts/agentic.mjs doctor` passes and reports the workflow ON, R2/R3 tasks get an independent review inside the run:
 the reviewer sees the original goal, the changed files and the controller-run check results. Use this
 skill for the human-facing review of the exported patch (`task export <id>`).{{/if}}

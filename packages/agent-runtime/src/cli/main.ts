@@ -14,6 +14,8 @@ const USAGE = `agentic <command>
   qualify <profile> [--owner-declare architecture|review|action-protocol]
   task create <contract.json> | run <id> | status <id> | approve <id> | accept <id> | cancel <id> | verify <id> | export <id>
   learn capture <task> | propose <file> | list | promote <proposal> | rollback [release] | retire <lesson> | purge <lesson>   (promote/rollback/retire/purge need a terminal)
+  enable | disable   (switch the managed workflow; default on; disable needs a terminal)
+  stats [--all] [--since 7d|<date>] [--json]
   jev status | report | calibrate --family <f> --labels <file>
   report <id>
 Options: --project <dir> (default: cwd). Controller state: $AGENTIC_HOME (default ~/.agentic).`;
@@ -46,6 +48,9 @@ async function main(): Promise<number> {
     case "validate": return c.validateFiles(env, argv.slice(1).filter((a) => !a.startsWith("--") && a !== env.project));
     case "qualify": return c.qualify(env, sub ?? "", flag("--owner-declare") as any);
     case "report": return c.report(env, sub ?? "");
+    case "enable": return c.enableWorkflow(env);
+    case "disable": return c.disableWorkflow(env);
+    case "stats": return c.stats(env, { all: argv.includes("--all"), json: argv.includes("--json"), ...(flag("--since") ? { since: flag("--since")! } : {}) });
     case "learn":
       if (sub === "capture") return c.learnCapture(env, arg ?? "");
       if (sub === "propose") return c.learnPropose(env, resolve(arg ?? ""));

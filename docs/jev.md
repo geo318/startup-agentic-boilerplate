@@ -7,6 +7,13 @@ waives gates, lowers risk, changes budgets, permits egress, approves code, or pr
 deterministic filter → allowed candidates → [Jev Choice] → deterministic resolver
 ```
 
+## Automatic use when a key exists
+
+With `JEV_API_KEY` in the user-level secrets store and no `jev.modes` in the policy, Jev turns on with: `workflow-select` = `enabled`, `skill-select` = `shadow`.
+These defaults cannot change what a run does today: an enabled decision acts only when a calibration exists for that family (none does until labelled data does), and shadow never acts.
+`jev.auto: false` opts out; explicit `jev.modes` always wins. The project's `egress` still gates sending: with `local-only`, `agentic doctor` reports "key present but NOT used".
+What would be sent: the task goal, acceptance criteria, file names, risk tier and skill descriptions, never source.
+
 ## Behaviour
 
 | Mode | What happens |
