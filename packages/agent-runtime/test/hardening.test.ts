@@ -276,3 +276,14 @@ test("an Ollama endpoint off loopback is hosted and needs egress consent", async
   assert.equal(mk("http://192.168.1.5:11434").hosted, true);
   assert.equal(mk("https://example.com").hosted, true);
 });
+
+test("docker bootstrap alone gets network and the host user; gates stay offline and unprivileged", async () => {
+  const { dockerArgv } = await import("../src/gates.ts");
+  const spec = { id: "g", argv: ["npm", "ci"], timeoutMs: 1, discover: { regex: "", min: 0 } };
+  const gate = dockerArgv(spec, "/w", "node:22", "n").join(" ");
+  const install = dockerArgv(spec, "/w", "node:22", "n", true).join(" ");
+  assert.match(gate, /--network none/);
+  assert.match(install, /--network bridge/);
+  assert.match(install, /--cap-drop ALL/);
+  assert.doesNotMatch(install, /65534|docker\.sock|privileged/);
+});

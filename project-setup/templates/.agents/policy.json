@@ -16,9 +16,7 @@
     }
   ],
   "requiredGates": ["tests"],
-{{#unless AGENTIC_DOCKER_IMAGE_SET}}
   "bootstrap": { "argv": {{AGENTIC_INSTALL_ARGV_JSON}}, "timeoutMs": 600000 },
-{{/unless}}
   "baseline": "require-pass",
   "egress": {{#if AGENTIC_HOSTED_OK}}"hosted-allowed"{{else}}"local-only"{{/if}}{{#if AGENTIC_DOCKER_IMAGE_SET}},
   "dockerImage": "{{AGENTIC_DOCKER_IMAGE}}"{{/if}}

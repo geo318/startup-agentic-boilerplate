@@ -59,7 +59,7 @@ export type Policy = {
   isolation: Isolation;
   egress: "local-only" | "hosted-allowed"; // hosted providers receive source: needs explicit consent
   dockerImage?: string; // required when isolation is "docker"; no default image
-  bootstrap?: GateSpec; // trusted dependency setup (e.g. install from the lockfile); not applied under docker yet
+  bootstrap?: GateSpec; // trusted dependency setup (e.g. install from the lockfile); under docker it alone gets network
   baseline?: "require-pass" | "record" | "off"; // run required gates on the untouched candidate first
   riskTier: RiskTier;
   riskTags?: string[]; // sensitive-operation tags from the approved contract (auth, tenancy, financial, ...)
@@ -134,8 +134,6 @@ export class Run {
     if (isolation === "docker" && (!dockerImage || !this.#dockerUp())) {
       return { to: "BLOCKED", why: "environment failure: docker chosen but image unset or daemon unreachable" };
     }
-    if (isolation === "docker" && this.#policy.bootstrap)
-      return { to: "BLOCKED", why: "unsupported capability: dependency bootstrap under docker isolation" };
     return undefined;
   }
 
@@ -145,7 +143,7 @@ export class Run {
     if (this.state !== "RECEIVED" || this.#preflightProblem()) return;
     const { workspace, bootstrap, baseline, requiredGates, gates } = this.#policy;
     if (bootstrap) {
-      const b = await runGate(bootstrap, workspace, "bootstrap");
+      const b = await runGate(bootstrap, workspace, "bootstrap", this.#sandbox(true));
       this.#log.append("bootstrap", {
         argv: b.argv,
         status: b.status,
@@ -379,8 +377,10 @@ export class Run {
     }
   }
 
-  #sandbox() {
-    return this.#policy.isolation === "docker" ? { image: this.#policy.dockerImage! } : undefined;
+  #sandbox(install = false) {
+    return this.#policy.isolation === "docker"
+      ? { image: this.#policy.dockerImage!, ...(install ? { install } : {}) }
+      : undefined;
   }
 
   async #verify(): Promise<Outcome> {
