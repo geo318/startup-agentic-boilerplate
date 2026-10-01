@@ -1,3 +1,4 @@
+import { canonical, sha256 } from "./hash.ts";
 import type { GenerateRequest, GenerateResult, GenerationProvider } from "./provider.ts";
 
 export type OllamaProfile = {
@@ -25,7 +26,7 @@ export class OllamaProvider implements GenerationProvider {
   constructor(profile: OllamaProfile) {
     this.#p = profile;
     this.hosted = !isLoopback(profile.baseUrl);
-    this.id = `ollama/${profile.model}@ctx${profile.numCtx}`;
+    this.id = `ollama/${profile.model}@ctx${profile.numCtx}/${sha256(canonical(profile))}`;
   }
 
   // Cheap doctor probe: server reachable and the exact model is pulled. Never pulls anything.

@@ -30,9 +30,12 @@ jobs:
       # Before any candidate-controlled install script runs: pin the base commit by SHA (a branch ref can be
       # rewritten by a lifecycle script) and extract the verifier from it. The PR's own copy is never executed.
       - name: Extract base-branch verifier
+        id: verifier
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: git show "$BASE_SHA:scripts/checks/trusted-gates.mjs" > "$RUNNER_TEMP/trusted-gates.mjs"
+        run: |
+          git show "$BASE_SHA:scripts/checks/trusted-gates.mjs" > "$RUNNER_TEMP/trusted-gates.mjs"
+          echo "sha256=$(/usr/bin/sha256sum "$RUNNER_TEMP/trusted-gates.mjs" | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
 {{#if BUN}}
       - uses: oven-sh/setup-bun@v2
         with:
@@ -51,5 +54,7 @@ jobs:
           MAINTENANCE: ${{ contains(github.event.pull_request.labels.*.name, 'maintenance') }}
         run: |
           if [ "$MAINTENANCE" = "true" ]; then EXTRA="--allow-protected-changes"; fi
+          # The expected digest is a completed step output, not a file install scripts can overwrite.
+          echo '${{ steps.verifier.outputs.sha256 }}'"  $RUNNER_TEMP/trusted-gates.mjs" | /usr/bin/sha256sum --check --status
           # The verifier itself comes from the base branch too: the PR's copy is never executed.
           {{RUNTIME}} "$RUNNER_TEMP/trusted-gates.mjs" --base "$BASE_SHA" $EXTRA

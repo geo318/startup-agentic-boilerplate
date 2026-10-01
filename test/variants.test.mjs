@@ -470,7 +470,13 @@ test("runtime workflow: positive required check present, runs base policy, no se
   assert.doesNotMatch(wf, /pull_request_target/);
   assert.match(wf, /trusted-gates\.mjs" --base "\$BASE_SHA"/);
   assert.match(wf, /git show "\$BASE_SHA:scripts\/checks\/trusted-gates\.mjs"/);
-  assert.ok(wf.indexOf("Extract base-branch verifier") < wf.indexOf("Install dependencies"), "verifier extracted before install"); // verifier itself comes from base
+  assert.ok(
+    wf.indexOf("Extract base-branch verifier") < wf.indexOf("Install dependencies"),
+    "verifier extracted before install",
+  ); // verifier itself comes from base
+  assert.ok(wf.indexOf("Install dependencies") < wf.indexOf("sha256sum --check --status"));
+  assert.ok(wf.indexOf("sha256sum --check --status") < wf.indexOf('"$RUNNER_TEMP/trusted-gates.mjs" --base'));
+  assert.match(wf, /steps\.verifier\.outputs\.sha256/);
   assert.ok(existsSync(join(t, ".github/workflows/merge-gate.yml")));
   assert.match(readFileSync(join(t, ".github/workflows/merge-gate.yml"), "utf8"), /do-not-merge/);
   const off = render({}).t;
@@ -478,4 +484,18 @@ test("runtime workflow: positive required check present, runs base policy, no se
     !existsSync(join(off, ".github/workflows/agentic-verify.yml")) &&
       !existsSync(join(off, "scripts/checks/trusted-gates.mjs")),
   );
+});
+
+test("workflow verifier integrity check rejects a lifecycle-script replacement", () => {
+  const verifier = join(tmp(), "trusted-gates.mjs");
+  writeFileSync(verifier, "trusted verifier");
+  const expected = sha(readFileSync(verifier));
+  const check = () =>
+    spawnSync("shasum", ["-a", "256", "--check", "--status"], {
+      input: `${expected}  ${verifier}\n`,
+      encoding: "utf8",
+    }).status;
+  assert.equal(check(), 0);
+  writeFileSync(verifier, "process.exit(0)"); // candidate-controlled install script
+  assert.notEqual(check(), 0);
 });

@@ -23,6 +23,7 @@ export type RoleCtx = {
   ledger: Ledger;
   egress: "local-only" | "hosted-allowed";
   maxOut?: number;
+  beginCall?: (reserved: number) => void;
 };
 
 export class RoleFailed extends Error {
@@ -81,6 +82,7 @@ async function callJson(ctx: RoleCtx, system: string, prompt: string, schema: ob
   }
   const maxOut = ctx.maxOut ?? 1500;
   const reserved = ctx.ledger.reserve(approx(system + prompt) + maxOut); // throws BudgetExceeded
+  ctx.beginCall?.(reserved);
   const res = await ctx.provider.generate({ system, prompt, maxOutputTokens: maxOut, schema });
   if (res.costUsd !== undefined) ctx.ledger.costUsd += res.costUsd;
   ctx.ledger.settle(reserved, res.usage ? res.usage.input + res.usage.output : null);

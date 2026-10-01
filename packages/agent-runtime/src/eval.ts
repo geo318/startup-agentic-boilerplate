@@ -44,8 +44,8 @@ export const GATE = {
   id: "tests",
   argv: ["node", "--test"],
   timeoutMs: 60_000,
-  discover: { regex: "# tests (\\d+)", min: 1 },
-}; // node --test prints TAP when not on a terminal
+  discover: { regex: "(?:#|ℹ) tests (\\d+)", min: 1 },
+}; // Node 22 TAP and Node 24 spec reporter summaries
 
 export function loadSuite(evalsRoot: string, suiteId: string): EvalCase[] {
   const m = JSON.parse(readFileSync(join(evalsRoot, "manifests", `${suiteId}.json`), "utf8")) as {

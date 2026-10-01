@@ -214,3 +214,28 @@ test("ollama worker through the driver: fake server replies drive a real run to 
   assert.equal(f.seen[0].format.additionalProperties, false); // constrained output was requested, and it is closed
   assert.deepEqual(f.seen[0].format.properties.kind.enum, ["read", "edit", "run_gate", "finish", "blocked"]);
 });
+
+test("Ollama identity binds every profile field and is stable across key order", () => {
+  const base = profile("http://127.0.0.1:11434");
+  const id = new OllamaProvider(base).id;
+  assert.equal(new OllamaProvider({ ...base }).id, id);
+  assert.equal(
+    new OllamaProvider({
+      timeoutMs: base.timeoutMs,
+      temperature: base.temperature,
+      numCtx: base.numCtx,
+      model: base.model,
+      baseUrl: base.baseUrl,
+    }).id,
+    id,
+  );
+  for (const changed of [
+    { baseUrl: "http://127.0.0.1:11435" },
+    { model: "other" },
+    { numCtx: 8192 },
+    { temperature: 0.5 },
+    { timeoutMs: 5000 },
+  ]) {
+    assert.notEqual(new OllamaProvider({ ...base, ...changed }).id, id);
+  }
+});

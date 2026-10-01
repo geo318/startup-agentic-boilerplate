@@ -588,12 +588,12 @@ export async function taskRun(env: Env, id: string): Promise<number> {
       ledger: run.ledger,
       egress: t.pp.egress,
       maxOut: t.budget.maxOut,
+      beginCall: (reserved: number) => run.beginCall(reserved),
     });
 
     for (let round = 0; round < 4; round++) {
       if (run.state === "AWAITING_PLAN_APPROVAL") {
         if (!existsSync(planFile)) {
-          run.beginCall(0);
           const plan = await architect(roleCtx(providers.architect!), {
             goal: t.contract.goal,
             acceptance: t.contract.acceptance,
@@ -634,7 +634,6 @@ export async function taskRun(env: Env, id: string): Promise<number> {
         continue;
       }
       if (run.state === "REVIEWING") {
-        run.beginCall(0);
         const findings = await review(roleCtx(providers.reviewer!), {
           goal: t.contract.goal,
           acceptance: t.contract.acceptance,

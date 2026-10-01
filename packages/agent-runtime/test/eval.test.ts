@@ -118,3 +118,12 @@ test("the eval gate's discovery regex matches real `node --test` output for ever
     }
   }
 });
+
+test("eval discovery accepts Node 22 TAP and Node 24 spec summaries, including zero tests", () => {
+  for (const prefix of ["#", "ℹ"]) {
+    for (const count of [0, 1, 12]) {
+      const match = new RegExp(GATE.discover.regex).exec(`${prefix} tests ${count}\n`);
+      assert.equal(Number(match?.[1]), count);
+    }
+  }
+});

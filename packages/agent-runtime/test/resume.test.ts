@@ -94,6 +94,7 @@ test("resume: in-flight billable call is charged at its reservation and flagged 
   crash(a); // died before the provider answered
   const b = new Run(policy);
   b.resume();
+  assert.equal(b.state, "BLOCKED");
   assert.equal(b.uncertainBilling, true);
   assert.equal(b.ledger.tokens, 2000);
   assert.equal(b.ledger.unknownUsageCalls, 1);
@@ -174,4 +175,51 @@ test("cancel aborts an in-flight provider call and stops the driver", async () =
   await d;
   assert.equal(aborted, true);
   assert.equal(run.state, "CANCELLED");
+});
+
+test("interrupted worker, architect and reviewer calls stop on every resume without losing reservations", async () => {
+  const { architect, review } = await import("../src/roles.ts");
+  for (const role of ["worker", "architect", "reviewer"]) {
+    const { policy, ws } = setup({ riskTier: role === "worker" ? "R1" : "R2", egress: "hosted-allowed" });
+    const a = new Run(policy);
+    a.start();
+    if (role === "reviewer") {
+      a.approvePlan("owner", "plan");
+      await a.handle(fix("fix"));
+      await a.handle({ id: "finish", kind: "finish" });
+      assert.equal(a.state, "REVIEWING");
+    }
+    let calls = 0;
+    const provider = {
+      id: "interrupted",
+      hosted: true,
+      generate: async () => {
+        calls++;
+        throw new Error("process died");
+      },
+    };
+    const ctx = { provider, ledger: a.ledger, egress: policy.egress, beginCall: (n: number) => a.beginCall(n) };
+    await assert.rejects(
+      role === "worker"
+        ? drive(a, provider, ws, { goal: "g", acceptance: [], files: ["value.txt"] })
+        : role === "architect"
+          ? architect(ctx, { goal: "g", acceptance: [], context: "source" })
+          : review(ctx, { goal: "g", acceptance: [], changed: a.changed(), gates: [] }),
+      /process died/,
+    );
+    const reserved = a.ledger.tokens;
+    assert.ok(reserved > 0);
+    crash(a);
+    for (let retry = 0; retry < 2; retry++) {
+      const b = new Run(policy);
+      b.resume();
+      assert.equal(b.state, "BLOCKED", role);
+      assert.equal(b.uncertainBilling, true);
+      assert.equal(b.ledger.tokens, reserved);
+      assert.equal(b.ledger.unknownUsageCalls, 1);
+      assert.equal(await drive(b, provider, ws, { goal: "g", acceptance: [], files: ["value.txt"] }), 0);
+      b.close();
+    }
+    assert.equal(calls, 1);
+  }
 });

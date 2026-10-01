@@ -121,7 +121,13 @@ export class Run {
 
   #go(to: State, why?: string) {
     if (!canMove(this.state, to)) throw new Error(`illegal transition ${this.state} → ${to}`);
-    this.#log.append("state", { from: this.state, to, why, ledger: this.ledger.snapshot() });
+    this.#log.append("state", {
+      from: this.state,
+      to,
+      why,
+      ledger: this.ledger.snapshot(),
+      uncertainBilling: this.uncertainBilling,
+    });
     this.state = to;
   }
 
@@ -229,6 +235,7 @@ export class Run {
       const d = e.data as Record<string, any>;
       if (e.type === "state") {
         this.state = d.to;
+        this.uncertainBilling = d.uncertainBilling ?? false;
         if (d.ledger) this.ledger.restore(d.ledger);
       } else if (e.type === "action") this.#seen.add(d.id);
       else if (e.type === "started") {
@@ -249,7 +256,10 @@ export class Run {
     if (events.at(-1)!.type === "inflight") {
       this.uncertainBilling = true;
       this.ledger.unknownUsageCalls += 1; // the reservation stays charged: worst case, never zero
-      log.append("resumed", { uncertainBilling: true });
+      this.#go(
+        "BLOCKED",
+        "uncertain provider call: inspect billing and start a new task; the request will not be replayed",
+      );
     }
     const dir = this.#policy.stateDir;
     const saved = JSON.parse(readFileSync(join(dir, "base.json"), "utf8"));
