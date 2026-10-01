@@ -107,7 +107,8 @@ export class Run {
 
   constructor(policy: Policy, opts: { ledger?: Ledger; dockerUp?: () => boolean } = {}) {
     const ledger = opts.ledger;
-    this.#dockerUp = opts.dockerUp ?? (() => spawnSync("docker", ["info"], { stdio: "ignore", timeout: 10_000 }).status === 0);
+    this.#dockerUp =
+      opts.dockerUp ?? (() => spawnSync("docker", ["info"], { stdio: "ignore", timeout: 10_000 }).status === 0);
     if (policy.stateDir === policy.workspace || policy.stateDir.startsWith(policy.workspace + sep)) {
       throw new Error("stateDir must be outside the workspace");
     }
@@ -127,11 +128,13 @@ export class Run {
   #preflightProblem(): { to: "NEEDS_INPUT" | "BLOCKED"; why: string } | undefined {
     const { isolation, riskTier, dockerImage } = this.#policy;
     if (isolation === "unset") return { to: "NEEDS_INPUT", why: "isolation not chosen: ask the user (docker yes/no)" };
-    if (isolation === "none" && riskTier === "R3") return { to: "BLOCKED", why: "policy violation: R3 work requires isolation or human-run checks" };
+    if (isolation === "none" && riskTier === "R3")
+      return { to: "BLOCKED", why: "policy violation: R3 work requires isolation or human-run checks" };
     if (isolation === "docker" && (!dockerImage || !this.#dockerUp())) {
       return { to: "BLOCKED", why: "environment failure: docker chosen but image unset or daemon unreachable" };
     }
-    if (isolation === "docker" && this.#policy.bootstrap) return { to: "BLOCKED", why: "unsupported capability: dependency bootstrap under docker isolation" };
+    if (isolation === "docker" && this.#policy.bootstrap)
+      return { to: "BLOCKED", why: "unsupported capability: dependency bootstrap under docker isolation" };
     return undefined;
   }
 
@@ -142,7 +145,13 @@ export class Run {
     const { workspace, bootstrap, baseline, requiredGates, gates } = this.#policy;
     if (bootstrap) {
       const b = await runGate(bootstrap, workspace, "bootstrap");
-      this.#log.append("bootstrap", { argv: b.argv, status: b.status, exitCode: b.exitCode, durationMs: b.durationMs, tail: b.outputTail.slice(-2000) });
+      this.#log.append("bootstrap", {
+        argv: b.argv,
+        status: b.status,
+        exitCode: b.exitCode,
+        durationMs: b.durationMs,
+        tail: b.outputTail.slice(-2000),
+      });
       if (b.status !== "pass") {
         this.#prepStop = { to: "BLOCKED", why: `environment failure: bootstrap ${b.status}` };
         return;
@@ -154,14 +163,22 @@ export class Run {
       const spec = gates.find((g) => g.id === id);
       if (!spec) throw new Error(`required gate not defined: ${id}`);
       const r = await runGate(spec, workspace, "baseline", this.#sandbox());
-      this.#log.append("baseline", { gateId: id, status: r.status, discovered: r.discovered, tail: r.status === "pass" ? "" : r.outputTail.slice(-1500) });
+      this.#log.append("baseline", {
+        gateId: id,
+        status: r.status,
+        discovered: r.discovered,
+        tail: r.status === "pass" ? "" : r.outputTail.slice(-1500),
+      });
       results.push({ gateId: id, status: r.status });
       if ((r.status === "pass" || r.status === "fail") && r.discovered) this.#baselineDiscovered[id] = r.discovered; // a red baseline still fixes the test count
     }
     this.#baselineResults = results;
     const bad = results.filter((r) => r.status !== "pass");
     if (baseline === "require-pass" && bad.length) {
-      this.#prepStop = { to: "NEEDS_INPUT", why: `pre-existing failures: ${bad.map((r) => `${r.gateId}=${r.status}`).join(", ")} — fix or provide a reviewed baseline` };
+      this.#prepStop = {
+        to: "NEEDS_INPUT",
+        why: `pre-existing failures: ${bad.map((r) => `${r.gateId}=${r.status}`).join(", ")} — fix or provide a reviewed baseline`,
+      };
     }
   }
 
@@ -176,7 +193,10 @@ export class Run {
     this.#base = snapshot(workspace);
     this.#protectedBase = snapshot(workspace, protectedPaths);
     for (const rel of listFiles(workspace)) this.#baseFiles.set(rel, readText(workspace, rel));
-    writeFileSync(join(this.#policy.stateDir, "base.json"), JSON.stringify({ base: this.#base, protectedBase: this.#protectedBase, files: [...this.#baseFiles] }));
+    writeFileSync(
+      join(this.#policy.stateDir, "base.json"),
+      JSON.stringify({ base: this.#base, protectedBase: this.#protectedBase, files: [...this.#baseFiles] }),
+    );
     this.#log.append("started", { policyHash: sha256(canonical(this.#policy)), candidate: this.#base });
     this.#go("CONTRACT_READY");
     if (riskTier === "R2" || riskTier === "R3") {
@@ -219,7 +239,13 @@ export class Run {
       else if (e.type === "plan_approved") this.#planHash = d.planHash;
       else if (e.type === "ledger" || e.type === "inflight") this.ledger.restore(d.ledger ?? d);
       else if (e.type === "diagnostic") this.#lastFingerprint = d.fingerprint;
-      else if (e.type === "baseline" && (d.status === "pass" || d.status === "fail") && typeof d.discovered === "number" && d.discovered > 0) this.#baselineDiscovered[d.gateId] = d.discovered;
+      else if (
+        e.type === "baseline" &&
+        (d.status === "pass" || d.status === "fail") &&
+        typeof d.discovered === "number" &&
+        d.discovered > 0
+      )
+        this.#baselineDiscovered[d.gateId] = d.discovered;
     }
     if (events.at(-1)!.type === "inflight") {
       this.uncertainBilling = true;
@@ -232,7 +258,8 @@ export class Run {
     this.#protectedBase = saved.protectedBase;
     this.#baseFiles = new Map(saved.files);
     if (existsSync(join(dir, "draft.json"))) this.#draft = JSON.parse(readFileSync(join(dir, "draft.json"), "utf8"));
-    if (existsSync(join(dir, "evidence.json")) && (this.state === "AWAITING_ACCEPTANCE" || this.state === "ACCEPTED")) this.evidence = JSON.parse(readFileSync(join(dir, "evidence.json"), "utf8"));
+    if (existsSync(join(dir, "evidence.json")) && (this.state === "AWAITING_ACCEPTANCE" || this.state === "ACCEPTED"))
+      this.evidence = JSON.parse(readFileSync(join(dir, "evidence.json"), "utf8"));
     const live = !["ACCEPTED", "BLOCKED", "ESCALATED", "CANCELLED", "NEEDS_INPUT"].includes(this.state);
     if (live && policyHash !== sha256(canonical(this.#policy))) {
       this.#go("BLOCKED", "stale evidence: policy changed since the run started");
@@ -256,7 +283,10 @@ export class Run {
   approvePlan(approver: string, plan: string): void {
     if (this.state !== "AWAITING_PLAN_APPROVAL") throw new Error("no plan awaiting approval");
     this.#planHash = sha256(plan);
-    writeFileSync(join(this.#policy.stateDir, "plan.json"), JSON.stringify({ approver, planHash: this.#planHash, plan }, null, 2));
+    writeFileSync(
+      join(this.#policy.stateDir, "plan.json"),
+      JSON.stringify({ approver, planHash: this.#planHash, plan }, null, 2),
+    );
     this.#log.append("plan_approved", { approver, planHash: this.#planHash });
     this.#go("CONTEXT_READY");
     this.#go("IMPLEMENTING");
@@ -363,8 +393,12 @@ export class Run {
       let r = await runGate(spec, workspace, snapshot(workspace), this.#sandbox());
       // Deleting or skipping tests must not pass: fewer discovered tests than the green baseline is a failure.
       const floor = this.#baselineDiscovered[id];
-      if ((r.status === "pass") && floor !== undefined && (r.discovered ?? 0) < floor) {
-        r = { ...r, status: "fail", note: `discovery regression: ${floor} → ${r.discovered ?? 0} (tests removed or skipped)` };
+      if (r.status === "pass" && floor !== undefined && (r.discovered ?? 0) < floor) {
+        r = {
+          ...r,
+          status: "fail",
+          note: `discovery regression: ${floor} → ${r.discovered ?? 0} (tests removed or skipped)`,
+        };
       }
       this.#log.append("gate", r);
       results.push(r);
@@ -400,19 +434,31 @@ export class Run {
     }
     const candidate = snapshot(workspace);
     const paths = this.changed().map((c) => c.path);
-    const floor = paths.length ? riskFloor({ paths, tags: this.#policy.riskTags, recipe: this.#viaRecipe }) : this.#policy.riskTier;
+    const floor = paths.length
+      ? riskFloor({ paths, tags: this.#policy.riskTags, recipe: this.#viaRecipe })
+      : this.#policy.riskTier;
     const tier = maxTier(this.#policy.riskTier, floor);
     if (tier !== this.#policy.riskTier) {
       // the diff is riskier than what was approved: stop for a new contract/approval, never proceed quietly
-      this.#go("NEEDS_INPUT", `risk floor ${floor} exceeds approved ${this.#policy.riskTier}: re-approve under the higher tier`);
+      this.#go(
+        "NEEDS_INPUT",
+        `risk floor ${floor} exceeds approved ${this.#policy.riskTier}: re-approve under the higher tier`,
+      );
       return { ok: false, reason: `risk floor ${floor} exceeds approved ${this.#policy.riskTier}` };
     }
     this.#draft = {
-      base: this.#base, candidate, policyHash: sha256(canonical(this.#policy)),
-      isolation: this.#policy.isolation, gates: results, tier,
+      base: this.#base,
+      candidate,
+      policyHash: sha256(canonical(this.#policy)),
+      isolation: this.#policy.isolation,
+      gates: results,
+      tier,
       ...(this.#baselineResults ? { baseline: this.#baselineResults } : {}),
       ...(this.#planHash ? { planHash: this.#planHash } : {}),
-      limitations: this.#policy.isolation === "none" ? ["user declined docker: candidate code ran on the host with the user's permissions"] : [],
+      limitations:
+        this.#policy.isolation === "none"
+          ? ["user declined docker: candidate code ran on the host with the user's permissions"]
+          : [],
     };
     if (tier === "R2" || tier === "R3") {
       writeFileSync(join(this.#policy.stateDir, "draft.json"), JSON.stringify(this.#draft));
@@ -458,7 +504,9 @@ export class Run {
     if (snapshot(this.#policy.workspace) !== this.evidence.candidate) {
       this.evidence = undefined;
       this.#go("IMPLEMENTING", "stale evidence: workspace changed after verification");
-      throw Object.assign(new Error("stale evidence: candidate changed after verification"), { reason: "stale evidence" });
+      throw Object.assign(new Error("stale evidence: candidate changed after verification"), {
+        reason: "stale evidence",
+      });
     }
     this.#log.append("accepted", { approver, candidate: this.evidence.candidate });
     this.#go("ACCEPTED");
@@ -470,7 +518,8 @@ export class Run {
     this.#viaRecipe = true;
     const current = readFileSync(resolveSafe(this.#policy.workspace, r.path), "utf8");
     const edit = await this.handle({
-      id: `recipe-edit-${this.#seen.size}`, kind: "edit",
+      id: `recipe-edit-${this.#seen.size}`,
+      kind: "edit",
       edits: [{ kind: "replace", path: r.path, expectHash: sha256(current), find: r.find, replace: r.replace }],
     });
     return edit.ok ? this.handle({ id: `recipe-finish-${this.#seen.size}`, kind: "finish" }) : edit;

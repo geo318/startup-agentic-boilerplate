@@ -29,7 +29,10 @@ export class EventLog {
   }
   read(): LoggedEvent[] {
     if (!existsSync(this.#path)) return [];
-    return readFileSync(this.#path, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
+    return readFileSync(this.#path, "utf8")
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => JSON.parse(l));
   }
   // Throws if any record was altered, removed, or reordered.
   verify(): void {

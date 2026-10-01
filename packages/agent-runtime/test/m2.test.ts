@@ -23,17 +23,28 @@ async function fakeOllama(reply: (body: any) => any, tags: string[] = ["tiny:1b"
       const r = reply(body);
       if (r === "hang") return;
       res.statusCode = r.status ?? 200;
-      res.end(JSON.stringify(r.body ?? r));
+      return res.end(JSON.stringify(r.body ?? r));
     });
   });
   await new Promise<void>((ok) => srv.listen(0, "127.0.0.1", ok));
   const baseUrl = `http://127.0.0.1:${(srv.address() as any).port}`;
   return { baseUrl, seen, close: () => srv.close() };
 }
-const profile = (baseUrl: string, timeoutMs = 3000) => ({ baseUrl, model: "tiny:1b", numCtx: 4096, temperature: 0, timeoutMs });
+const profile = (baseUrl: string, timeoutMs = 3000) => ({
+  baseUrl,
+  model: "tiny:1b",
+  numCtx: 4096,
+  temperature: 0,
+  timeoutMs,
+});
 
 test("ollama: request carries schema, limits, ctx; usage read from server counters", async () => {
-  const f = await fakeOllama(() => ({ message: { content: "{}" }, done_reason: "stop", prompt_eval_count: 11, eval_count: 5 }));
+  const f = await fakeOllama(() => ({
+    message: { content: "{}" },
+    done_reason: "stop",
+    prompt_eval_count: 11,
+    eval_count: 5,
+  }));
   const p = new OllamaProvider(profile(f.baseUrl));
   const r = await p.generate({ system: "s", prompt: "u", maxOutputTokens: 123, schema: { type: "object" } });
   assert.deepEqual(r.usage, { input: 11, output: 5 });
@@ -53,12 +64,19 @@ test("ollama: length/error/http failure/timeout are non-executable; missing coun
   ];
   for (const [reply, expected] of cases) {
     const f = await fakeOllama(() => reply);
-    const r = await new OllamaProvider(profile(f.baseUrl, 300)).generate({ system: "", prompt: "", maxOutputTokens: 5 });
+    const r = await new OllamaProvider(profile(f.baseUrl, 300)).generate({
+      system: "",
+      prompt: "",
+      maxOutputTokens: 5,
+    });
     assert.equal(r.finishReason, expected);
     f.close();
   }
   const f = await fakeOllama(() => ({ message: { content: "{}" }, done_reason: "stop" }));
-  assert.equal((await new OllamaProvider(profile(f.baseUrl)).generate({ system: "", prompt: "", maxOutputTokens: 5 })).usage, null);
+  assert.equal(
+    (await new OllamaProvider(profile(f.baseUrl)).generate({ system: "", prompt: "", maxOutputTokens: 5 })).usage,
+    null,
+  );
   f.close();
 });
 
@@ -92,7 +110,14 @@ test("context: mandatory never truncated; optional only if structurally related 
   });
   assert.throws(() => compile(ws, ["src/a.ts"], 5), ContextTooLarge);
   const p = compile(ws, ["src/a.ts"], 8000);
-  assert.deepEqual(p.excerpts.map((e) => [e.path, e.reason]), [["src/a.ts", "mandatory"], ["src/a.unit.test.ts", "related"], ["src/dep.ts", "related"]]);
+  assert.deepEqual(
+    p.excerpts.map((e) => [e.path, e.reason]),
+    [
+      ["src/a.ts", "mandatory"],
+      ["src/a.unit.test.ts", "related"],
+      ["src/dep.ts", "related"],
+    ],
+  );
   assert.ok(!p.excerpts.some((e) => e.path.includes("unrelated")), "word overlap must not pull files in");
   assert.ok(p.omitted.some((o) => o.path === "src/caller.ts") && p.omitted.some((o) => o.path === "big/caller.ts"));
   assert.ok(p.excerpts.every((e) => /^[0-9a-f]{64}$/.test(e.hash)));
@@ -110,9 +135,16 @@ test("driver blocks (not truncates) when mandatory context cannot fit", async ()
 function mkRun(base: string, ws: string, check: string, over: Partial<Policy> = {}) {
   writeFileSync(join(ws, "check.mjs"), check);
   const run = new Run({
-    workspace: ws, stateDir: join(base, "state"), protectedPaths: ["check.mjs"], riskTier: "R1", egress: "local-only", isolation: "none",
+    workspace: ws,
+    stateDir: join(base, "state"),
+    protectedPaths: ["check.mjs"],
+    riskTier: "R1",
+    egress: "local-only",
+    isolation: "none",
     gates: [{ id: "unit", argv: ["node", "check.mjs"], timeoutMs: 5000, discover: { regex: "tests (\\d+)", min: 1 } }],
-    requiredGates: ["unit"], limits: { aggregateTokens: 40_000, toolActions: 12, semanticRepairs: 1 }, ...over,
+    requiredGates: ["unit"],
+    limits: { aggregateTokens: 40_000, toolActions: 12, semanticRepairs: 1 },
+    ...over,
   });
   run.start();
   return run;
@@ -120,7 +152,11 @@ function mkRun(base: string, ws: string, check: string, over: Partial<Policy> = 
 
 test("R0 recipe: zero model calls, accepted after trusted checks", async () => {
   const { base, ws } = project({ "value.txt": "bad" });
-  const run = mkRun(base, ws, `import {readFileSync} from "node:fs"; console.log("tests 1"); process.exit(readFileSync("value.txt","utf8")==="good"?0:1)`);
+  const run = mkRun(
+    base,
+    ws,
+    `import {readFileSync} from "node:fs"; console.log("tests 1"); process.exit(readFileSync("value.txt","utf8")==="good"?0:1)`,
+  );
   const out = await run.recipe({ path: "value.txt", find: "bad", replace: "good" });
   assert.equal(out.ok, true);
   assert.equal(run.ledger.tokens, 0);
@@ -130,10 +166,14 @@ test("R0 recipe: zero model calls, accepted after trusted checks", async () => {
 
 test("diagnostics are compact and a repeated identical failure stops after no new information", async () => {
   const { base, ws } = project({ "value.txt": "bad" });
-  const run = mkRun(base, ws, `console.log("tests 1\\nline ".repeat(1)); for (let i=0;i<50;i++) console.log("noise "+i); console.error("AssertionError: expected good"); process.exit(1)`);
+  const run = mkRun(
+    base,
+    ws,
+    `console.log("tests 1\\nline ".repeat(1)); for (let i=0;i<50;i++) console.log("noise "+i); console.error("AssertionError: expected good"); process.exit(1)`,
+  );
   const first = await run.handle({ id: "f1", kind: "finish" });
   assert.equal(run.state, "BOUNDED_REPAIR");
-  const d = (first.data as any);
+  const d = first.data as any;
   assert.equal(d.tail.split("\n").length <= 15, true);
   assert.match(d.tail, /AssertionError/);
   await run.handle({ id: "f2", kind: "finish" }); // same failure, nothing changed
@@ -142,15 +182,32 @@ test("diagnostics are compact and a repeated identical failure stops after no ne
 
 test("ollama worker through the driver: fake server replies drive a real run to AWAITING_ACCEPTANCE", async () => {
   const { base, ws } = project({ "value.txt": "bad" });
-  const run = mkRun(base, ws, `import {readFileSync} from "node:fs"; console.log("tests 1"); process.exit(readFileSync("value.txt","utf8")==="good"?0:1)`);
+  const run = mkRun(
+    base,
+    ws,
+    `import {readFileSync} from "node:fs"; console.log("tests 1"); process.exit(readFileSync("value.txt","utf8")==="good"?0:1)`,
+  );
   const { createHash } = await import("node:crypto");
   const h = createHash("sha256").update("bad").digest("hex");
   const replies = [
-    { id: "1", kind: "edit", edits: [{ kind: "replace", path: "value.txt", expectHash: h, find: "bad", replace: "good" }] },
+    {
+      id: "1",
+      kind: "edit",
+      edits: [{ kind: "replace", path: "value.txt", expectHash: h, find: "bad", replace: "good" }],
+    },
     { id: "2", kind: "finish" },
   ];
-  const f = await fakeOllama(() => ({ message: { content: JSON.stringify(replies.shift()) }, done_reason: "stop", prompt_eval_count: 200, eval_count: 40 }));
-  await drive(run, new OllamaProvider(profile(f.baseUrl)), ws, { goal: "make value.txt say good", acceptance: ["check passes"], files: ["value.txt"] });
+  const f = await fakeOllama(() => ({
+    message: { content: JSON.stringify(replies.shift()) },
+    done_reason: "stop",
+    prompt_eval_count: 200,
+    eval_count: 40,
+  }));
+  await drive(run, new OllamaProvider(profile(f.baseUrl)), ws, {
+    goal: "make value.txt say good",
+    acceptance: ["check passes"],
+    files: ["value.txt"],
+  });
   assert.equal(run.state, "AWAITING_ACCEPTANCE");
   assert.equal(run.ledger.tokens, 480);
   f.close(); // close first: a failing assertion must not leave the server holding the process open

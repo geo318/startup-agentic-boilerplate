@@ -26,18 +26,41 @@ export class ClaudeCliProvider implements GenerationProvider {
   generate(req: GenerateRequest): Promise<GenerateResult> {
     const started = Date.now();
     const args = [
-      "-p", "--output-format", "json", "--tools", "", "--no-session-persistence", "--disable-slash-commands",
-      "--setting-sources", "", "--strict-mcp-config", "--model", this.#p.model,
-      "--max-budget-usd", String(this.#p.maxBudgetUsd), "--system-prompt", req.system,
+      "-p",
+      "--output-format",
+      "json",
+      "--tools",
+      "",
+      "--no-session-persistence",
+      "--disable-slash-commands",
+      "--setting-sources",
+      "",
+      "--strict-mcp-config",
+      "--model",
+      this.#p.model,
+      "--max-budget-usd",
+      String(this.#p.maxBudgetUsd),
+      "--system-prompt",
+      req.system,
       ...(req.schema ? ["--json-schema", JSON.stringify(req.schema)] : []),
     ];
-    const fail = (): GenerateResult => ({ content: "", finishReason: "error", usage: null, latencyMs: Date.now() - started });
+    const fail = (): GenerateResult => ({
+      content: "",
+      finishReason: "error",
+      usage: null,
+      latencyMs: Date.now() - started,
+    });
     return new Promise((resolve) => {
       let out = "";
       const child = spawn(this.#p.bin ?? "claude", args, {
         cwd: mkdtempSync(join(tmpdir(), "claude-gen-")),
-        env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", USER: process.env.USER ?? "", ...( // USER: macOS keychain lookup needs it
-          process.env.ANTHROPIC_API_KEY ? { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } : {}) },
+        env: {
+          PATH: process.env.PATH ?? "",
+          HOME: process.env.HOME ?? "",
+          USER: process.env.USER ?? "",
+          ...// USER: macOS keychain lookup needs it
+          (process.env.ANTHROPIC_API_KEY ? { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } : {}),
+        },
         stdio: ["pipe", "pipe", "ignore"],
       });
       const timer = setTimeout(() => child.kill("SIGKILL"), this.#p.timeoutMs);
@@ -50,12 +73,20 @@ export class ClaudeCliProvider implements GenerationProvider {
           const j = JSON.parse(out);
           if (j.is_error || j.subtype !== "success") return resolve(fail());
           const u = j.usage;
-          const usage = u && typeof u.input_tokens === "number" && typeof u.output_tokens === "number"
-            ? { input: u.input_tokens + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0), output: u.output_tokens }
-            : null;
-          const content = j.structured_output !== undefined ? JSON.stringify(j.structured_output) : String(j.result ?? "");
+          const usage =
+            u && typeof u.input_tokens === "number" && typeof u.output_tokens === "number"
+              ? {
+                  input: u.input_tokens + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0),
+                  output: u.output_tokens,
+                }
+              : null;
+          const content =
+            j.structured_output !== undefined ? JSON.stringify(j.structured_output) : String(j.result ?? "");
           resolve({
-            content, finishReason: j.terminal_reason === "completed" ? "stop" : "error", usage, latencyMs: Date.now() - started,
+            content,
+            finishReason: j.terminal_reason === "completed" ? "stop" : "error",
+            usage,
+            latencyMs: Date.now() - started,
             ...(typeof j.total_cost_usd === "number" ? { costUsd: j.total_cost_usd } : {}),
           });
         } catch {

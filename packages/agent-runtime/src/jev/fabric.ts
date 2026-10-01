@@ -13,12 +13,28 @@ export const FAMILIES: Record<Family, { sendsSource: boolean; failure: "open" | 
   "skill-select": { sendsSource: false, failure: "open", consumer: false },
   "retrieval-rerank": { sendsSource: true, failure: "open", consumer: false },
 };
-export const ESCAPES = { other: "None of the listed options fits.", unknown: "Not enough information to decide.", need_more_context: "More context is required before deciding." } as const;
+export const ESCAPES = {
+  other: "None of the listed options fits.",
+  unknown: "Not enough information to decide.",
+  need_more_context: "More context is required before deciding.",
+} as const;
 
 export type Calibration = { id: string; family: Family; threshold: number | null; n: number; target: number };
 export type Item = { id: string; instructions: string; options: Record<string, string>; rulesDefault: string };
-export type Resolved = { id: string; chosen: string; source: "rules" | "jev"; fallbackReason?: string; jevChoice?: string; confidence?: number };
-export type FabricPolicy = { egress: "local-only" | "hosted-allowed"; allowSource: boolean; modes: Partial<Record<Family, Mode>>; pinnedModel?: string };
+export type Resolved = {
+  id: string;
+  chosen: string;
+  source: "rules" | "jev";
+  fallbackReason?: string;
+  jevChoice?: string;
+  confidence?: number;
+};
+export type FabricPolicy = {
+  egress: "local-only" | "hosted-allowed";
+  allowSource: boolean;
+  modes: Partial<Record<Family, Mode>>;
+  pinnedModel?: string;
+};
 
 export class Fabric {
   #t: DecisionTransport | undefined;
@@ -27,13 +43,21 @@ export class Fabric {
   #cal: Map<Family, Calibration>;
   #cache = new Map<string, JevResult>();
   calls = 0;
-  constructor(o: { transport?: DecisionTransport; policy: FabricPolicy; telemetryFile: string; calibrations?: Calibration[] }) {
+  constructor(o: {
+    transport?: DecisionTransport;
+    policy: FabricPolicy;
+    telemetryFile: string;
+    calibrations?: Calibration[];
+  }) {
     this.#t = o.transport;
     this.#p = o.policy;
     this.#telemetry = o.telemetryFile;
     this.#cal = new Map((o.calibrations ?? []).map((c) => [c.family, c]));
     for (const [f, m] of Object.entries(o.policy.modes)) {
-      if (m === "enabled" && !FAMILIES[f as Family]?.consumer) throw new Error(`family ${f} cannot be enabled: nothing in the runtime consumes its decisions yet (shadow only)`);
+      if (m === "enabled" && !FAMILIES[f as Family]?.consumer)
+        throw new Error(
+          `family ${f} cannot be enabled: nothing in the runtime consumes its decisions yet (shadow only)`,
+        );
     }
   }
   mode(f: Family): Mode {
@@ -46,56 +70,116 @@ export class Fabric {
 
   // `state` is the compact, minimized evidence sent to Jev. Only its hash is stored locally.
   async decide(family: Family, ctx: { taskId: string; state: string; items: Item[] }): Promise<Resolved[]> {
-    const rules = (reason?: string): Resolved[] => ctx.items.map((i) => ({ id: i.id, chosen: i.rulesDefault, source: "rules", ...(reason ? { fallbackReason: reason } : {}) }));
+    const rules = (reason?: string): Resolved[] =>
+      ctx.items.map((i) => ({
+        id: i.id,
+        chosen: i.rulesDefault,
+        source: "rules",
+        ...(reason ? { fallbackReason: reason } : {}),
+      }));
     const mode = this.mode(family);
     const spec = FAMILIES[family];
     const base = { family, mode, taskId: ctx.taskId, stateHash: sha256(ctx.state) };
     if (mode === "disabled") return rules();
     // Rules already determine the action when there is nothing to choose between.
     const live = ctx.items.filter((i) => Object.keys(i.options).filter((k) => k !== i.rulesDefault).length > 0);
-    if (live.length === 0) { this.#log({ ...base, skipped: "rules-determined" }); return rules(); }
-    if (this.#p.egress !== "hosted-allowed") { this.#log({ ...base, skipped: "blocked: egress is local-only" }); return rules("egress"); }
-    if (spec.sendsSource && !this.#p.allowSource) { this.#log({ ...base, skipped: "blocked: family sends source and allowSource is off" }); return rules("source-egress"); }
-    if (!this.#t) { this.#log({ ...base, skipped: "no transport/credential" }); return rules("unavailable"); }
+    if (live.length === 0) {
+      this.#log({ ...base, skipped: "rules-determined" });
+      return rules();
+    }
+    if (this.#p.egress !== "hosted-allowed") {
+      this.#log({ ...base, skipped: "blocked: egress is local-only" });
+      return rules("egress");
+    }
+    if (spec.sendsSource && !this.#p.allowSource) {
+      this.#log({ ...base, skipped: "blocked: family sends source and allowSource is off" });
+      return rules("source-egress");
+    }
+    if (!this.#t) {
+      this.#log({ ...base, skipped: "no transport/credential" });
+      return rules("unavailable");
+    }
 
     const questions: Record<string, Question> = {};
     for (const i of live) questions[i.id] = { instructions: i.instructions, criteria: { ...i.options, ...ESCAPES } };
     const cal = this.#cal.get(family);
-    const key = sha256(canonical({ state: ctx.state, questions, cal: cal?.id ?? null, model: this.#p.pinnedModel ?? "alias" }));
+    const key = sha256(
+      canonical({ state: ctx.state, questions, cal: cal?.id ?? null, model: this.#p.pinnedModel ?? "alias" }),
+    );
     let result = this.#cache.get(key);
     const cached = !!result;
     try {
       if (!result) {
         this.calls += 1;
         result = await this.#t.choice({ state: ctx.state, questions });
-        if (this.#p.pinnedModel && result.model !== this.#p.pinnedModel) throw Object.assign(new Error(`model ${result.model} is not the pinned ${this.#p.pinnedModel}`), { fallback: "model-mismatch" });
+        if (this.#p.pinnedModel && result.model !== this.#p.pinnedModel)
+          throw Object.assign(new Error(`model ${result.model} is not the pinned ${this.#p.pinnedModel}`), {
+            fallback: "model-mismatch",
+          });
         this.#cache.set(key, result);
       }
     } catch (e) {
-      const reason = (e as { fallback?: string }).fallback ?? ((e as Error).constructor.name === "JevInvalid" ? "invalid-response" : "unavailable");
+      const reason =
+        (e as { fallback?: string }).fallback ??
+        ((e as Error).constructor.name === "JevInvalid" ? "invalid-response" : "unavailable");
       this.#log({ ...base, error: (e as Error).message.slice(0, 200), fallback: reason });
       return rules(reason);
     }
     const out: Resolved[] = [];
     for (const i of ctx.items) {
       const a = result.answers[i.id];
-      if (!a) { out.push({ id: i.id, chosen: i.rulesDefault, source: "rules" }); continue; }
+      if (!a) {
+        out.push({ id: i.id, chosen: i.rulesDefault, source: "rules" });
+        continue;
+      }
       const allowed = Object.keys(i.options);
-      let chosen = i.rulesDefault, source: Resolved["source"] = "rules", fallbackReason: string | undefined;
+      let chosen = i.rulesDefault,
+        source: Resolved["source"] = "rules",
+        fallbackReason: string | undefined;
       if (mode === "shadow") fallbackReason = "shadow";
       else if (!allowed.includes(a.choice)) fallbackReason = a.choice in ESCAPES ? `escape:${a.choice}` : "not-allowed";
       else if (!cal || cal.threshold === null) fallbackReason = "uncalibrated";
       else if (a.confidence < cal.threshold) fallbackReason = "below-threshold";
-      else { chosen = a.choice; source = "jev"; }
-      out.push({ id: i.id, chosen, source, ...(fallbackReason ? { fallbackReason } : {}), jevChoice: a.choice, confidence: a.confidence });
-      this.#log({ ...base, qid: i.id, resolvedModel: result.model, probabilities: a.probabilities, jevChoice: a.choice, confidence: a.confidence, calibrationId: cal?.id ?? null, rulesDefault: i.rulesDefault, resolved: chosen, source, fallbackReason, usage: result.usage, latencyMs: result.latencyMs, cached });
+      else {
+        chosen = a.choice;
+        source = "jev";
+      }
+      out.push({
+        id: i.id,
+        chosen,
+        source,
+        ...(fallbackReason ? { fallbackReason } : {}),
+        jevChoice: a.choice,
+        confidence: a.confidence,
+      });
+      this.#log({
+        ...base,
+        qid: i.id,
+        resolvedModel: result.model,
+        probabilities: a.probabilities,
+        jevChoice: a.choice,
+        confidence: a.confidence,
+        calibrationId: cal?.id ?? null,
+        rulesDefault: i.rulesDefault,
+        resolved: chosen,
+        source,
+        fallbackReason,
+        usage: result.usage,
+        latencyMs: result.latencyMs,
+        cached,
+      });
     }
     return out;
   }
 }
 
 export function readTelemetry(file: string): Array<Record<string, any>> {
-  return existsSync(file) ? readFileSync(file, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)) : [];
+  return existsSync(file)
+    ? readFileSync(file, "utf8")
+        .split("\n")
+        .filter(Boolean)
+        .map((l) => JSON.parse(l))
+    : [];
 }
 export function saveCalibrations(file: string, cals: Calibration[]): void {
   mkdirSync(dirname(file), { recursive: true });

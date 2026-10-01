@@ -97,9 +97,7 @@ function workspaceGlobs(root, pkg) {
   if (!existsSync(pnpm)) {
     return [];
   }
-  return [...readFileSync(pnpm, "utf8").matchAll(/^\s*-\s*["']?([^"'\s#]+)["']?/gm)].map(
-    (match) => match[1],
-  );
+  return [...readFileSync(pnpm, "utf8").matchAll(/^\s*-\s*["']?([^"'\s#]+)["']?/gm)].map((match) => match[1]);
 }
 
 // ponytail: supports "dir/*" and exact paths, the shapes real workspace globs use; add "**" if needed.
@@ -221,7 +219,15 @@ function main() {
     ?.split("/")[0];
 
   const linters = [
-    ...["eslint.config.js", "eslint.config.mjs", "eslint.config.ts", ".eslintrc", ".eslintrc.js", ".eslintrc.json", ".eslintrc.cjs"]
+    ...[
+      "eslint.config.js",
+      "eslint.config.mjs",
+      "eslint.config.ts",
+      ".eslintrc",
+      ".eslintrc.js",
+      ".eslintrc.json",
+      ".eslintrc.cjs",
+    ]
       .filter(has)
       .map(() => "eslint")
       .slice(0, 1),
@@ -256,7 +262,9 @@ function main() {
     conflicts.push(`linter present (${linters.join(", ")}) → OWN_LINTER: keep it; architecture rules go in oxlint`);
   }
   if (ownHooks) {
-    conflicts.push(`git hooks present (${hooks.join(", ")}) → OWN_HOOKS: add our checks to them; never run install-hooks`);
+    conflicts.push(
+      `git hooks present (${hooks.join(", ")}) → OWN_HOOKS: add our checks to them; never run install-hooks`,
+    );
   }
   if (ownCi) {
     conflicts.push(`CI present (${workflows.join(", ")}) → OWN_CI: add steps to the PR workflow`);

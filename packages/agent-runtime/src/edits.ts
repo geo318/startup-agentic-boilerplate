@@ -25,7 +25,11 @@ export function applyEdits(root: string, edits: Edit[], protectedPaths: string[]
     const abs = resolveSafe(root, e.path, protectedPaths);
     if (planned.has(abs)) throw new EditRejected("policy violation", `two edits to ${e.path}`);
     if (e.kind === "create") {
-      if (existsSync(abs)) throw new EditRejected("stale evidence", `${e.path} already exists: to rewrite it use kind "replace_file" with its current expectHash, or "replace" for a part`);
+      if (existsSync(abs))
+        throw new EditRejected(
+          "stale evidence",
+          `${e.path} already exists: to rewrite it use kind "replace_file" with its current expectHash, or "replace" for a part`,
+        );
       if (e.content.includes("\0") || Buffer.byteLength(e.content) > MAX_BYTES) {
         throw new EditRejected("policy violation", `binary or oversized: ${e.path}`);
       }
@@ -36,7 +40,8 @@ export function applyEdits(root: string, edits: Edit[], protectedPaths: string[]
     const current = readFileSync(abs, "utf8");
     if (e.kind === "replace_file") {
       if (sha256(current) !== e.expectHash) throw new EditRejected("stale evidence", `stale content: ${e.path}`);
-      if (e.content.includes("\0") || Buffer.byteLength(e.content) > MAX_BYTES) throw new EditRejected("policy violation", `binary or oversized: ${e.path}`);
+      if (e.content.includes("\0") || Buffer.byteLength(e.content) > MAX_BYTES)
+        throw new EditRejected("policy violation", `binary or oversized: ${e.path}`);
       planned.set(abs, e.content);
       continue;
     }
@@ -44,7 +49,8 @@ export function applyEdits(root: string, edits: Edit[], protectedPaths: string[]
     if (!e.find) throw new EditRejected("insufficient context", "empty find");
     const first = current.indexOf(e.find);
     if (first < 0) throw new EditRejected("insufficient context", `span not found: ${e.path}`);
-    if (current.indexOf(e.find, first + 1) >= 0) throw new EditRejected("insufficient context", `ambiguous span: ${e.path}`);
+    if (current.indexOf(e.find, first + 1) >= 0)
+      throw new EditRejected("insufficient context", `ambiguous span: ${e.path}`);
     const next = current.slice(0, first) + e.replace + current.slice(first + e.find.length);
     if (Buffer.byteLength(next) > MAX_BYTES) throw new EditRejected("policy violation", `oversized: ${e.path}`);
     planned.set(abs, next);

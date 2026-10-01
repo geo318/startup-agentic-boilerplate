@@ -31,10 +31,22 @@ const env: c.Env = {
   operatorTty: Boolean(process.stdin.isTTY && process.stdout.isTTY),
   ask: (q) => rl.question(q),
   user: userInfo().username,
-  secrets: (() => { try { return loadSecrets(process.env.AGENTIC_HOME ?? join(homedir(), ".agentic")); } catch (e) { console.error(String((e as Error).message)); return {}; } })(),
-  onRun: (r) => { active = r; },
+  secrets: (() => {
+    try {
+      return loadSecrets(process.env.AGENTIC_HOME ?? join(homedir(), ".agentic"));
+    } catch (e) {
+      console.error(String((e as Error).message));
+      return {};
+    }
+  })(),
+  onRun: (r) => {
+    active = r;
+  },
 };
-process.on("SIGINT", () => { active?.cancel(); process.exit(130); });
+process.on("SIGINT", () => {
+  active?.cancel();
+  process.exit(130);
+});
 
 async function main(): Promise<number> {
   const [cmd, sub, arg] = argv;
@@ -44,13 +56,27 @@ async function main(): Promise<number> {
       console.log(`pinned ${pin.runtimePath} @ ${pin.treeHash.slice(0, 12)} in ${env.project}/.agents/runtime.json`);
       return 0;
     }
-    case "doctor": return c.doctor(env);
-    case "validate": return c.validateFiles(env, argv.slice(1).filter((a) => !a.startsWith("--") && a !== env.project));
-    case "qualify": return c.qualify(env, sub ?? "", flag("--owner-declare") as any);
-    case "report": return c.report(env, sub ?? "");
-    case "enable": return c.enableWorkflow(env);
-    case "disable": return c.disableWorkflow(env);
-    case "stats": return c.stats(env, { all: argv.includes("--all"), json: argv.includes("--json"), ...(flag("--since") ? { since: flag("--since")! } : {}) });
+    case "doctor":
+      return c.doctor(env);
+    case "validate":
+      return c.validateFiles(
+        env,
+        argv.slice(1).filter((a) => !a.startsWith("--") && a !== env.project),
+      );
+    case "qualify":
+      return c.qualify(env, sub ?? "", flag("--owner-declare") as any);
+    case "report":
+      return c.report(env, sub ?? "");
+    case "enable":
+      return c.enableWorkflow(env);
+    case "disable":
+      return c.disableWorkflow(env);
+    case "stats":
+      return c.stats(env, {
+        all: argv.includes("--all"),
+        json: argv.includes("--json"),
+        ...(flag("--since") ? { since: flag("--since")! } : {}),
+      });
     case "learn":
       if (sub === "capture") return c.learnCapture(env, arg ?? "");
       if (sub === "propose") return c.learnPropose(env, resolve(arg ?? ""));
@@ -64,6 +90,7 @@ async function main(): Promise<number> {
       if (sub === "status") return c.jevStatus(env);
       if (sub === "report") return c.jevReport(env);
       if (sub === "calibrate") return c.jevCalibrate(env, (flag("--family") ?? "") as any, flag("--labels") ?? "");
+      break;
     case "task":
       if (sub === "create") return c.taskCreate(env, resolve(arg ?? ""));
       if (sub === "run") return c.taskRun(env, arg ?? "");
@@ -73,13 +100,20 @@ async function main(): Promise<number> {
       if (sub === "cancel") return c.taskCancel(env, arg ?? "");
       if (sub === "export") return c.exportPatch(env, arg ?? "");
       if (sub === "verify") return c.verifyTask(env, arg ?? "");
+      break;
   }
   console.log(USAGE);
   return 1;
 }
 
-main().then((code) => { rl.close(); process.exit(code); }, (e) => {
-  console.error(e instanceof c.CliError ? e.message : e);
-  rl.close();
-  process.exit(e instanceof c.CliError ? e.code : 1);
-});
+main().then(
+  (code) => {
+    rl.close();
+    process.exit(code);
+  },
+  (e) => {
+    console.error(e instanceof c.CliError ? e.message : e);
+    rl.close();
+    process.exit(e instanceof c.CliError ? e.code : 1);
+  },
+);

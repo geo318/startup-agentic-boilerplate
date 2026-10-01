@@ -16,7 +16,13 @@ export class Ledger {
     this.limits = limits;
   }
   snapshot() {
-    return { tokens: this.tokens, actions: this.actions, repairs: this.repairs, costUsd: this.costUsd, unknownUsageCalls: this.unknownUsageCalls };
+    return {
+      tokens: this.tokens,
+      actions: this.actions,
+      repairs: this.repairs,
+      costUsd: this.costUsd,
+      unknownUsageCalls: this.unknownUsageCalls,
+    };
   }
   restore(x: ReturnType<Ledger["snapshot"]>): void {
     Object.assign(this, x);
@@ -28,7 +34,8 @@ export class Ledger {
     return maxTokens;
   }
   settle(reserved: number, actual: number | null): void {
-    if (actual === null) this.unknownUsageCalls += 1; // keep the reservation: assume worst case
+    if (actual === null)
+      this.unknownUsageCalls += 1; // keep the reservation: assume worst case
     else this.tokens += actual - reserved;
   }
   action(): void {

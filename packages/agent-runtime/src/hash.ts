@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 
-export const sha256 = (data: string | Uint8Array): string =>
-  createHash("sha256").update(data).digest("hex");
+export const sha256 = (data: string | Uint8Array): string => createHash("sha256").update(data).digest("hex");
 
 // Stable JSON (sorted keys) so equal values always hash equal.
 export function canonical(value: unknown): string {

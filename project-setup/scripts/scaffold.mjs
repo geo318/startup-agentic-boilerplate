@@ -65,9 +65,7 @@ function parseArgs(argv) {
     }
   }
   if (!args.answers) {
-    throw new Error(
-      "usage: scaffold.mjs --answers <file> [--target <dir>] [--force] [--dry-run] [--sync]",
-    );
+    throw new Error("usage: scaffold.mjs --answers <file> [--target <dir>] [--force] [--dry-run] [--sync]");
   }
   if (args.sync && args.force) {
     throw new Error("--sync and --force are exclusive: --sync never overwrites local edits");
@@ -101,13 +99,9 @@ function loadAnswers(path) {
   for (const app of apps) {
     const dir = app.APP_DIR;
     const segments = typeof dir === "string" ? dir.split("/") : [];
-    const unsafe = segments.some(
-      (segment) => segment === "" || segment === "." || segment === "..",
-    );
+    const unsafe = segments.some((segment) => segment === "" || segment === "." || segment === "..");
     if (typeof dir !== "string" || dir.startsWith("/") || unsafe) {
-      throw new Error(
-        `apps[].APP_DIR must be a relative sub-directory like "apps/web" (got ${JSON.stringify(dir)})`,
-      );
+      throw new Error(`apps[].APP_DIR must be a relative sub-directory like "apps/web" (got ${JSON.stringify(dir)})`);
     }
   }
   return withRuntimeDerivations({ vars, flags, apps });
@@ -159,8 +153,7 @@ const LEFTOVER_BLOCK_TAG = /\{\{(?:[#/](?:if|unless|each)\b[^}]*|else)\}\}/;
 const OWN_LINE_TAG =
   /^[ \t]*(\{\{(?:#if [!A-Z0-9_]+|#unless [A-Z0-9_]+|#each [A-Z0-9_]+|\/if|\/unless|\/each|else)\}\})[ \t]*\r?\n/gm;
 const EACH_BLOCK = /\{\{#each ([A-Z0-9_]+)\}\}([\s\S]*?)\{\{\/each\}\}/g;
-const INNERMOST_CONDITIONAL =
-  /\{\{#(if|unless) ([A-Z0-9_]+)\}\}((?:(?!\{\{#(?:if|unless) )[\s\S])*?)\{\{\/\1\}\}/;
+const INNERMOST_CONDITIONAL = /\{\{#(if|unless) ([A-Z0-9_]+)\}\}((?:(?!\{\{#(?:if|unless) )[\s\S])*?)\{\{\/\1\}\}/;
 const VARIABLE = /\{\{([A-Z][A-Z0-9_]*)\}\}/g;
 
 function render(text, context, missing) {
@@ -172,9 +165,7 @@ function render(text, context, missing) {
       return "";
     }
     return context.apps
-      .map((app) =>
-        render(body, { ...context, vars: { ...context.vars, ...appVars(app) } }, missing),
-      )
+      .map((app) => render(body, { ...context, vars: { ...context.vars, ...appVars(app) } }, missing))
       .join("");
   });
 
@@ -209,9 +200,7 @@ function flagHolds(expression, flags) {
 
 function included(relPath, flags) {
   return manifest.when.every(
-    (rule) =>
-      !(relPath === rule.path || relPath.startsWith(`${rule.path}/`)) ||
-      flagHolds(rule.flag, flags),
+    (rule) => !(relPath === rule.path || relPath.startsWith(`${rule.path}/`)) || flagHolds(rule.flag, flags),
   );
 }
 
@@ -450,9 +439,7 @@ function main() {
     console.log(`linked ${report.linked.length} skills into .claude/skills`);
   }
   if (report.skipped.length > 0) {
-    console.log(
-      `\nskipped ${report.skipped.length} existing files (merge by hand or rerun with --force):`,
-    );
+    console.log(`\nskipped ${report.skipped.length} existing files (merge by hand or rerun with --force):`);
     for (const path of report.skipped) {
       console.log(`  = ${path}`);
     }

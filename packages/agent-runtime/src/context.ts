@@ -25,7 +25,8 @@ function listFiles(root: string): string[] {
       if (SKIP.has(e.name)) continue;
       const f = join(d, e.name);
       if (e.isDirectory()) walk(f);
-      else if (e.isFile() && TEXT.test(e.name) && statSync(f).size < 200_000) out.push(relative(root, f).split(sep).join("/"));
+      else if (e.isFile() && TEXT.test(e.name) && statSync(f).size < 200_000)
+        out.push(relative(root, f).split(sep).join("/"));
     }
   };
   walk(root);
@@ -39,7 +40,12 @@ const EXTS = ["", ".ts", ".tsx", ".mts", ".js", ".mjs", ".json", "/index.ts", "/
 // `maxOptional` files that are *structurally* related: direct relative imports of a mandatory file, files that
 // import a mandatory file (direct callers), and sibling tests. Word overlap with the goal is NOT used: common
 // words ("year", "date", "test") pull in large unrelated files. Everything else is a retrievable manifest.
-export function compile(root: string, mandatory: string[], budget: number, opts: { maxOptional?: number; maxOptionalTokens?: number } = {}): Packet {
+export function compile(
+  root: string,
+  mandatory: string[],
+  budget: number,
+  opts: { maxOptional?: number; maxOptionalTokens?: number } = {},
+): Packet {
   const maxOptional = opts.maxOptional ?? 2;
   const maxOptionalTokens = opts.maxOptionalTokens ?? 2000;
   const excerpts: Excerpt[] = [];
@@ -57,7 +63,9 @@ export function compile(root: string, mandatory: string[], budget: number, opts:
   const have = new Set(mandatory);
   const all = listFiles(root);
   const related = new Map<string, number>(); // path → rank (lower = more relevant)
-  const rank = (f: string, r: number) => { if (!have.has(f) && (related.get(f) ?? 99) > r) related.set(f, r); };
+  const rank = (f: string, r: number) => {
+    if (!have.has(f) && (related.get(f) ?? 99) > r) related.set(f, r);
+  };
   for (const m of mandatory) {
     const dir = dirname(m);
     const text = readFileSync(join(root, m), "utf8");
@@ -67,23 +75,41 @@ export function compile(root: string, mandatory: string[], budget: number, opts:
       const hit = EXTS.map((x) => base + x).find((c) => all.includes(c));
       if (hit) rank(hit, 1); // direct dependency
     }
-    const stem = posix.basename(m).replace(/\.[^.]+$/, "").replace(/\.(unit|integration)?\.?test$/, "");
-    for (const f of all) if (posix.dirname(f) === dir && new RegExp(`^${stem}\\.[a-z.]*(test|spec)\\.`).test(posix.basename(f))) rank(f, 0); // sibling tests
+    const stem = posix
+      .basename(m)
+      .replace(/\.[^.]+$/, "")
+      .replace(/\.(unit|integration)?\.?test$/, "");
+    for (const f of all)
+      if (posix.dirname(f) === dir && new RegExp(`^${stem}\\.[a-z.]*(test|spec)\\.`).test(posix.basename(f)))
+        rank(f, 0); // sibling tests
   }
   const stems = mandatory.map((m) => posix.basename(m).replace(/\.[^.]+$/, ""));
   for (const f of all) {
     if (have.has(f) || !/\.(ts|tsx|js|jsx|mjs)$/.test(f)) continue;
     const body = readFileSync(join(root, f), "utf8");
     for (const [, spec] of body.matchAll(IMPORT_SPEC)) {
-      if (spec!.startsWith(".") && stems.some((st) => spec!.endsWith(`/${st}`) || spec === `./${st}`) && have.has(posix.normalize(posix.join(posix.dirname(f), spec!)) + (EXTS.find((x) => have.has(posix.normalize(posix.join(posix.dirname(f), spec!)) + x)) ?? ""))) rank(f, 2); // direct caller
+      if (
+        spec!.startsWith(".") &&
+        stems.some((st) => spec!.endsWith(`/${st}`) || spec === `./${st}`) &&
+        have.has(
+          posix.normalize(posix.join(posix.dirname(f), spec!)) +
+            (EXTS.find((x) => have.has(posix.normalize(posix.join(posix.dirname(f), spec!)) + x)) ?? ""),
+        )
+      )
+        rank(f, 2); // direct caller
     }
   }
   const omitted: Packet["omitted"] = [];
-  let optional = 0, optionalTokens = 0;
-  const ordered = [...related.entries()].sort((a, b) => a[1] - b[1] || (a[0] < b[0] ? -1 : 1)).map(([f]) => take(f, "related"));
+  let optional = 0,
+    optionalTokens = 0;
+  const ordered = [...related.entries()]
+    .sort((a, b) => a[1] - b[1] || (a[0] < b[0] ? -1 : 1))
+    .map(([f]) => take(f, "related"));
   for (const e of ordered) {
     if (optional < maxOptional && optionalTokens + e.tokens <= maxOptionalTokens && used + e.tokens <= budget) {
-      used += e.tokens; optional += 1; optionalTokens += e.tokens;
+      used += e.tokens;
+      optional += 1;
+      optionalTokens += e.tokens;
       excerpts.push(e);
     } else omitted.push({ path: e.path, hash: e.hash, tokens: e.tokens });
   }
@@ -92,6 +118,11 @@ export function compile(root: string, mandatory: string[], budget: number, opts:
 
 export function render(p: Packet): string {
   const body = p.excerpts.map((e) => `--- ${e.path} (hash ${e.hash}; ${e.reason})\n${e.text}`).join("\n\n");
-  const rest = p.omitted.length ? `\nNOT INCLUDED (use read): ${p.omitted.slice(0, 40).map((o) => o.path).join(", ")}` : "";
+  const rest = p.omitted.length
+    ? `\nNOT INCLUDED (use read): ${p.omitted
+        .slice(0, 40)
+        .map((o) => o.path)
+        .join(", ")}`
+    : "";
   return body + rest;
 }

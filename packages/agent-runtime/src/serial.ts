@@ -11,5 +11,9 @@ export class Serial {
 }
 
 export function serialized(p: GenerationProvider, lock: Serial): GenerationProvider {
-  return { id: p.id, hosted: p.hosted, generate: (req: GenerateRequest): Promise<GenerateResult> => lock.run(() => p.generate(req)) };
+  return {
+    id: p.id,
+    hosted: p.hosted,
+    generate: (req: GenerateRequest): Promise<GenerateResult> => lock.run(() => p.generate(req)),
+  };
 }

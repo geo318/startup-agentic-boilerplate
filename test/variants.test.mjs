@@ -1,6 +1,16 @@
 // M0 fixtures: scaffold variants, sync/upgrade outcomes, installer, protection report.
 import assert from "node:assert/strict";
-import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  cpSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -15,14 +25,20 @@ const tmp = () => mkdtempSync(join(tmpdir(), "var-"));
 const sha = (t) => createHash("sha256").update(t).digest("hex");
 
 function answers(patch = {}) {
-  const a = { vars: { ...base.vars, ...patch.vars }, flags: { ...base.flags, ...patch.flags }, apps: patch.apps ?? base.apps };
+  const a = {
+    vars: { ...base.vars, ...patch.vars },
+    flags: { ...base.flags, ...patch.flags },
+    apps: patch.apps ?? base.apps,
+  };
   const f = join(tmp(), "a.json");
   writeFileSync(f, JSON.stringify(a));
   return f;
 }
 const render = (patch, extra = []) => {
   const t = tmp();
-  const r = spawnSync(process.execPath, [scaffold, "--answers", answers(patch), "--target", t, ...extra], { encoding: "utf8" });
+  const r = spawnSync(process.execPath, [scaffold, "--answers", answers(patch), "--target", t, ...extra], {
+    encoding: "utf8",
+  });
   return { t, r };
 };
 function files(dir, out = [], rel = "") {
@@ -43,10 +59,26 @@ const app = (dir) => ({ ...base.apps[0], APP_DIR: dir });
 const variants = {
   "typescript + github (base)": { patch: {}, has: [".github/workflows/ci.yml", "biome.json"], hasNot: [] },
   "no github": { patch: { flags: { GITHUB: false } }, has: ["AGENTS.md"], hasNot: [".github", ".agents/routines"] },
-  "non-typescript": { patch: { flags: { TYPESCRIPT: false } }, has: ["AGENTS.md"], hasNot: ["biome.json", "tsconfig.base.json", ".fallowrc.json"] },
-  "monorepo (two apps)": { patch: { apps: [app("apps/web"), app("apps/api")] }, has: ["apps/web/AGENTS.md", "apps/api/AGENTS.md"], hasNot: [] },
-  "docs-only (no apps, no claude)": { patch: { apps: [], flags: { CLAUDE_CODE: false } }, has: ["context/README.md"], hasNot: [".claude"] },
-  "adopt existing project": { patch: { flags: { ADOPT: true } }, has: ["context/plans/adoption.md"], hasNot: [".fallowrc.json"] },
+  "non-typescript": {
+    patch: { flags: { TYPESCRIPT: false } },
+    has: ["AGENTS.md"],
+    hasNot: ["biome.json", "tsconfig.base.json", ".fallowrc.json"],
+  },
+  "monorepo (two apps)": {
+    patch: { apps: [app("apps/web"), app("apps/api")] },
+    has: ["apps/web/AGENTS.md", "apps/api/AGENTS.md"],
+    hasNot: [],
+  },
+  "docs-only (no apps, no claude)": {
+    patch: { apps: [], flags: { CLAUDE_CODE: false } },
+    has: ["context/README.md"],
+    hasNot: [".claude"],
+  },
+  "adopt existing project": {
+    patch: { flags: { ADOPT: true } },
+    has: ["context/plans/adoption.md"],
+    hasNot: [".fallowrc.json"],
+  },
 };
 for (const [name, v] of Object.entries(variants)) {
   test(`variant renders cleanly: ${name}`, () => {
@@ -59,7 +91,8 @@ for (const [name, v] of Object.entries(variants)) {
 }
 
 test("lock records the generator and a deterministic templates hash", () => {
-  const a = render({}), b = render({});
+  const a = render({}),
+    b = render({});
   const la = JSON.parse(readFileSync(join(a.t, "docs/archive/project-setup.lock.json"), "utf8"));
   const lb = JSON.parse(readFileSync(join(b.t, "docs/archive/project-setup.lock.json"), "utf8"));
   assert.match(la.$meta.templatesHash, /^[0-9a-f]{64}$/);
@@ -77,7 +110,9 @@ test("upgrade (--sync): untouched file with a changed template is updated; edite
   writeFileSync(join(t, "docs/local-setup.md"), "my edits\n");
   lock["docs/local-setup.md"] = sha("an older render\n");
   writeFileSync(lockPath, JSON.stringify(lock));
-  const r = spawnSync(process.execPath, [scaffold, "--answers", answers(), "--target", t, "--sync"], { encoding: "utf8" });
+  const r = spawnSync(process.execPath, [scaffold, "--answers", answers(), "--target", t, "--sync"], {
+    encoding: "utf8",
+  });
   assert.equal(r.status, 0, r.stderr);
   assert.notEqual(readFileSync(join(t, "docs/README.md"), "utf8"), "old render\n");
   assert.equal(readFileSync(join(t, "docs/local-setup.md"), "utf8"), "my edits\n"); // user's file untouched
@@ -89,14 +124,20 @@ test("dry-run on an adopted project reports conflicts and writes nothing", () =>
   const { t } = render({});
   writeFileSync(join(t, "AGENTS.md"), "mine\n");
   const before = files(t).map((f) => [f, sha(readFileSync(join(t, f)))]);
-  const r = spawnSync(process.execPath, [scaffold, "--answers", answers(), "--target", t, "--dry-run"], { encoding: "utf8" });
+  const r = spawnSync(process.execPath, [scaffold, "--answers", answers(), "--target", t, "--dry-run"], {
+    encoding: "utf8",
+  });
   assert.match(r.stdout, /= AGENTS\.md/);
-  assert.deepEqual(files(t).map((f) => [f, sha(readFileSync(join(t, f)))]), before);
+  assert.deepEqual(
+    files(t).map((f) => [f, sha(readFileSync(join(t, f)))]),
+    before,
+  );
 });
 
 // ---------- installer ----------
 const install = join(root, "install.sh");
-const sh = (args, env = {}) => spawnSync("sh", [install, ...args], { encoding: "utf8", env: { ...process.env, ...env } });
+const sh = (args, env = {}) =>
+  spawnSync("sh", [install, ...args], { encoding: "utf8", env: { ...process.env, ...env } });
 
 test("install.sh: project install copies; --link symlinks; reinstall refused; bad dir and no args fail", () => {
   const p = tmp();
@@ -124,18 +165,28 @@ function fakeGh(script) {
   chmodSync(join(d, "gh"), 0o755);
   return { PATH: `${d}:${process.env.PATH}` };
 }
-const prot = (env, args = []) => spawnSync(process.execPath, [protection, "--repo", "o/r", "--branch", "main", ...args], { encoding: "utf8", env: { ...process.env, ...env } });
+const prot = (env, args = []) =>
+  spawnSync(process.execPath, [protection, "--repo", "o/r", "--branch", "main", ...args], {
+    encoding: "utf8",
+    env: { ...process.env, ...env },
+  });
 
 test("protection: unprotected, protected, and unknown are distinct; --require fails unless protected", () => {
-  const unprot = fakeGh(`case "$*" in *protection*) echo '{"message":"Branch not protected"}' >&2; exit 1;; *rules/branches*) echo '[]';; esac`);
+  const unprot = fakeGh(
+    `case "$*" in *protection*) echo '{"message":"Branch not protected"}' >&2; exit 1;; *rules/branches*) echo '[]';; esac`,
+  );
   const r = prot(unprot);
   assert.match(r.stdout, /UNPROTECTED/);
   assert.equal(r.status, 0);
   assert.equal(prot(unprot, ["--require"]).status, 1);
-  const ok = fakeGh(`case "$*" in *protection*) echo '{"required_status_checks":{"contexts":["ci"]}}';; *rules/branches*) echo '[]';; esac`);
+  const ok = fakeGh(
+    `case "$*" in *protection*) echo '{"required_status_checks":{"contexts":["ci"]}}';; *rules/branches*) echo '[]';; esac`,
+  );
   assert.match(prot(ok).stdout, /PROTECTED/);
   assert.equal(prot(ok, ["--require"]).status, 0);
-  const rules = fakeGh(`case "$*" in *protection*) echo '{"message":"Not Found"}' >&2; exit 1;; *rules/branches*) echo '[{"type":"required_status_checks"}]';; esac`);
+  const rules = fakeGh(
+    `case "$*" in *protection*) echo '{"message":"Not Found"}' >&2; exit 1;; *rules/branches*) echo '[{"type":"required_status_checks"}]';; esac`,
+  );
   assert.match(prot(rules).stdout, /PROTECTED/);
   const noaccess = fakeGh(`echo "HTTP 403" >&2; exit 1`);
   const u = prot(noaccess);
@@ -144,12 +195,16 @@ test("protection: unprotected, protected, and unknown are distinct; --require fa
 });
 
 // ---------- optional runtime (M7) ----------
-const runtimeFlags = { flags: { AGENTIC_RUNTIME: true }, vars: { GATE_DISCOVER_REGEX: "# pass (\\d+)", CMD_TEST: "node --test" } };
+const runtimeFlags = {
+  flags: { AGENTIC_RUNTIME: true },
+  vars: { GATE_DISCOVER_REGEX: "# pass (\\d+)", CMD_TEST: "node --test" },
+};
 const schemasDir = join(root, "schemas");
 
 test("runtime disabled: no runtime files, skills carry no managed section", () => {
   const { t } = render({});
-  for (const f of [".agents/policy.json", ".agents/models.example.json", "scripts/agentic.mjs", ".agents/skills/stats"]) assert.ok(!existsSync(join(t, f)), f);
+  for (const f of [".agents/policy.json", ".agents/models.example.json", "scripts/agentic.mjs", ".agents/skills/stats"])
+    assert.ok(!existsSync(join(t, f)), f);
   assert.doesNotMatch(readFileSync(join(t, "AGENTS.md"), "utf8"), /Managed workflow/);
   assert.doesNotMatch(readFileSync(join(t, ".agents/skills/architect/SKILL.md"), "utf8"), /Managed mode/);
 });
@@ -173,11 +228,19 @@ test("runtime enabled: policy.json validates against the schema; launcher execut
 });
 
 test("runtime: hosted and docker options flow into policy; bad inputs refuse before writing", () => {
-  const ok = render({ flags: { ...runtimeFlags.flags, AGENTIC_ALLOW_HOSTED: true }, vars: { ...runtimeFlags.vars, AGENTIC_DOCKER_IMAGE: "node:22-slim" } });
+  const ok = render({
+    flags: { ...runtimeFlags.flags, AGENTIC_ALLOW_HOSTED: true },
+    vars: { ...runtimeFlags.vars, AGENTIC_DOCKER_IMAGE: "node:22-slim" },
+  });
   const p = JSON.parse(readFileSync(join(ok.t, ".agents/policy.json"), "utf8"));
   assert.equal(p.egress, "hosted-allowed");
   assert.equal(p.dockerImage, "node:22-slim");
-  for (const vars of [{ GATE_DISCOVER_REGEX: undefined }, { GATE_DISCOVER_REGEX: "no capture group" }, { GATE_DISCOVER_REGEX: "(unclosed" }, { AGENTIC_DOCKER_IMAGE: 'bad"image' }]) {
+  for (const vars of [
+    { GATE_DISCOVER_REGEX: undefined },
+    { GATE_DISCOVER_REGEX: "no capture group" },
+    { GATE_DISCOVER_REGEX: "(unclosed" },
+    { AGENTIC_DOCKER_IMAGE: 'bad"image' },
+  ]) {
     const bad = render({ flags: runtimeFlags.flags, vars: { ...runtimeFlags.vars, ...vars } });
     assert.notEqual(bad.r.status, 0, JSON.stringify(vars));
     assert.deepEqual(readdirSync(bad.t), [], JSON.stringify(vars));
@@ -187,7 +250,9 @@ test("runtime: hosted and docker options flow into policy; bad inputs refuse bef
 test("enable the runtime later with --sync: adds files, leaves edited files alone, reports template change", () => {
   const { t } = render({});
   writeFileSync(join(t, "AGENTS.md"), "my edits\n");
-  const r = spawnSync(process.execPath, [scaffold, "--answers", answers(runtimeFlags), "--target", t, "--sync"], { encoding: "utf8" });
+  const r = spawnSync(process.execPath, [scaffold, "--answers", answers(runtimeFlags), "--target", t, "--sync"], {
+    encoding: "utf8",
+  });
   assert.equal(r.status, 0, r.stderr);
   assert.ok(existsSync(join(t, ".agents/policy.json")));
   assert.equal(readFileSync(join(t, "AGENTS.md"), "utf8"), "my edits\n");
@@ -211,7 +276,10 @@ function pinned() {
 const homes = new Map(); // one controller home per scaffolded project, never shared between tests
 const homeOf = (t) => homes.get(t) ?? homes.set(t, tmp()).get(t);
 const launch = (t, args, env = {}) =>
-  spawnSync(process.execPath, [join(t, "scripts/agentic.mjs"), ...args], { encoding: "utf8", env: { ...process.env, AGENTIC_HOME: homeOf(t), ...env } });
+  spawnSync(process.execPath, [join(t, "scripts/agentic.mjs"), ...args], {
+    encoding: "utf8",
+    env: { ...process.env, AGENTIC_HOME: homeOf(t), ...env },
+  });
 
 test("pin and launcher compute the same tree hash", () => {
   const { t, rt } = pinned();
@@ -237,12 +305,29 @@ test("fresh scaffold → pin → create → run with a replay worker → awaitin
   const home = homeOf(t);
   const h = createHash("sha256").update("bad").digest("hex");
   writeFileSync(join(t, "value.txt"), "bad");
-  writeFileSync(join(t, "check.mjs"), `import {readFileSync} from "node:fs"; console.log("# pass 1"); process.exit(readFileSync("value.txt","utf8")==="good"?0:1)`);
-  writeFileSync(join(t, "worker.json"), JSON.stringify([
-    JSON.stringify({ id: "a", kind: "edit", edits: [{ kind: "replace", path: "value.txt", expectHash: h, find: "bad", replace: "good" }] }),
-    JSON.stringify({ id: "b", kind: "finish" }),
-  ]));
-  writeFileSync(join(t, ".agents/models.json"), JSON.stringify({ schemaVersion: 1, profiles: { w: { kind: "replay", file: join(t, "worker.json") } }, roles: { worker: "w" } }));
+  writeFileSync(
+    join(t, "check.mjs"),
+    `import {readFileSync} from "node:fs"; console.log("# pass 1"); process.exit(readFileSync("value.txt","utf8")==="good"?0:1)`,
+  );
+  writeFileSync(
+    join(t, "worker.json"),
+    JSON.stringify([
+      JSON.stringify({
+        id: "a",
+        kind: "edit",
+        edits: [{ kind: "replace", path: "value.txt", expectHash: h, find: "bad", replace: "good" }],
+      }),
+      JSON.stringify({ id: "b", kind: "finish" }),
+    ]),
+  );
+  writeFileSync(
+    join(t, ".agents/models.json"),
+    JSON.stringify({
+      schemaVersion: 1,
+      profiles: { w: { kind: "replay", file: join(t, "worker.json") } },
+      roles: { worker: "w" },
+    }),
+  );
   // the check script is the gate: point the generated policy's gate at it (a maintenance edit by the project owner)
   const pol = JSON.parse(readFileSync(join(t, ".agents/policy.json"), "utf8"));
   pol.gates[0].argv = ["node", "check.mjs"];
@@ -250,14 +335,40 @@ test("fresh scaffold → pin → create → run with a replay worker → awaitin
   pol.protectedPaths.push("check.mjs");
   writeFileSync(join(t, ".agents/policy.json"), JSON.stringify(pol));
   const contract = join(t, "contract.json");
-  writeFileSync(contract, JSON.stringify({ schemaVersion: 1, id: "fix-value", goal: "make value.txt say good", acceptance: ["check passes"], files: ["value.txt"], riskTier: "R1", budget: "narrow" }));
+  writeFileSync(
+    contract,
+    JSON.stringify({
+      schemaVersion: 1,
+      id: "fix-value",
+      goal: "make value.txt say good",
+      acceptance: ["check passes"],
+      files: ["value.txt"],
+      riskTier: "R1",
+      budget: "narrow",
+    }),
+  );
   const v = launch(t, ["validate", contract]);
   assert.equal(v.status, 0, v.stdout + v.stderr);
   assert.equal(launch(t, ["task", "create", contract]).status, 0);
   // the user's recorded decisions (what an interactive session would have written)
   mkdirSync(join(home, "tasks/fix-value/state"), { recursive: true });
-  writeFileSync(join(home, "tasks/fix-value/state/isolation-consent.json"), JSON.stringify({ isolation: "none", decidedAt: "t" }));
-  writeFileSync(join(home, "qualifications.json"), JSON.stringify([{ profileId: "mock/replay:worker.json", family: "action-protocol", source: "owner-declared", passed: true, detail: {}, at: "t" }]));
+  writeFileSync(
+    join(home, "tasks/fix-value/state/isolation-consent.json"),
+    JSON.stringify({ isolation: "none", decidedAt: "t" }),
+  );
+  writeFileSync(
+    join(home, "qualifications.json"),
+    JSON.stringify([
+      {
+        profileId: "mock/replay:worker.json",
+        family: "action-protocol",
+        source: "owner-declared",
+        passed: true,
+        detail: {},
+        at: "t",
+      },
+    ]),
+  );
   const run = launch(t, ["task", "run", "fix-value"]);
   assert.equal(run.status, 0, run.stdout + run.stderr);
   assert.match(run.stdout, /AWAITING_ACCEPTANCE/);
@@ -271,26 +382,42 @@ test("fresh scaffold → pin → create → run with a replay worker → awaitin
 const trusted = join(root, "project-setup/templates/scripts/checks/trusted-gates.mjs");
 function ciRepo(policyOverride) {
   const d = tmp();
-  const g = (...a) => spawnSync("git", ["-c", "user.email=a@b", "-c", "user.name=n", ...a], { cwd: d, encoding: "utf8" });
+  const g = (...a) =>
+    spawnSync("git", ["-c", "user.email=a@b", "-c", "user.name=n", ...a], { cwd: d, encoding: "utf8" });
   g("init", "-q", "-b", "main");
   mkdirSync(join(d, ".agents"));
   writeFileSync(join(d, "tests.txt"), "test a\ntest b\n");
-  writeFileSync(join(d, "check.mjs"), `import {readFileSync} from "node:fs"; const n=readFileSync("tests.txt","utf8").split("\\n").filter(l=>l.startsWith("test ")).length; console.log("tests "+n); process.exit(readFileSync("value.txt","utf8")==="good"?0:1)`);
+  writeFileSync(
+    join(d, "check.mjs"),
+    `import {readFileSync} from "node:fs"; const n=readFileSync("tests.txt","utf8").split("\\n").filter(l=>l.startsWith("test ")).length; console.log("tests "+n); process.exit(readFileSync("value.txt","utf8")==="good"?0:1)`,
+  );
   writeFileSync(join(d, "value.txt"), "good");
-  const policy = { schemaVersion: 1, protectedPaths: [".agents", "check.mjs"], requiredGates: ["unit"], egress: "local-only", gates: [{ id: "unit", argv: ["node", "check.mjs"], timeoutMs: 20000, discover: { regex: "tests (\\d+)", min: 2 } }], ...policyOverride };
+  const policy = {
+    schemaVersion: 1,
+    protectedPaths: [".agents", "check.mjs"],
+    requiredGates: ["unit"],
+    egress: "local-only",
+    gates: [{ id: "unit", argv: ["node", "check.mjs"], timeoutMs: 20000, discover: { regex: "tests (\\d+)", min: 2 } }],
+    ...policyOverride,
+  };
   writeFileSync(join(d, ".agents/policy.json"), JSON.stringify(policy));
-  g("add", "-A"); g("commit", "-qm", "base");
+  g("add", "-A");
+  g("commit", "-qm", "base");
   g("checkout", "-qb", "pr");
   return { d, g, policy };
 }
-const verify = (d, ...extra) => spawnSync(process.execPath, [trusted, "--base", "main", ...extra], { cwd: d, encoding: "utf8" });
+const verify = (d, ...extra) =>
+  spawnSync(process.execPath, [trusted, "--base", "main", ...extra], { cwd: d, encoding: "utf8" });
 
 test("trusted-gates: green change passes; failing test fails; deleted tests fail on discovery", () => {
   const { d, g } = ciRepo();
   assert.equal(verify(d).status, 0);
-  writeFileSync(join(d, "value.txt"), "bad"); g("commit", "-qam", "break");
+  writeFileSync(join(d, "value.txt"), "bad");
+  g("commit", "-qam", "break");
   assert.equal(verify(d).status, 1);
-  writeFileSync(join(d, "value.txt"), "good"); writeFileSync(join(d, "tests.txt"), "test a\n"); g("commit", "-qam", "delete a test");
+  writeFileSync(join(d, "value.txt"), "good");
+  writeFileSync(join(d, "tests.txt"), "test a\n");
+  g("commit", "-qam", "delete a test");
   const r = verify(d);
   assert.equal(r.status, 1);
   assert.match(r.stdout, /incomplete \(discovered 1, need 2\)/);
@@ -299,7 +426,13 @@ test("trusted-gates: green change passes; failing test fails; deleted tests fail
 test("trusted-gates: a PR that weakens the policy or the gate script cannot approve itself", () => {
   const { d, g, policy } = ciRepo();
   // the PR rewrites the policy to run `true` with no discovery requirement, and breaks the real behaviour
-  writeFileSync(join(d, ".agents/policy.json"), JSON.stringify({ ...policy, gates: [{ id: "unit", argv: ["true"], timeoutMs: 1000, discover: { regex: ".", min: 0 } }] }));
+  writeFileSync(
+    join(d, ".agents/policy.json"),
+    JSON.stringify({
+      ...policy,
+      gates: [{ id: "unit", argv: ["true"], timeoutMs: 1000, discover: { regex: ".", min: 0 } }],
+    }),
+  );
   writeFileSync(join(d, "value.txt"), "bad");
   g("commit", "-qam", "weaken");
   const r = verify(d);
@@ -327,12 +460,18 @@ test("trusted-gates: replacing the gate script is caught; missing base policy fa
 
 test("runtime workflow: positive required check present, runs base policy, no secrets trigger; label stays a veto", () => {
   const { t } = render({ ...runtimeFlags });
-  const wf = readFileSync(join(t, ".github/workflows/agentic-verify.yml"), "utf8").split("\n").filter((l) => !l.trim().startsWith("#")).join("\n");
+  const wf = readFileSync(join(t, ".github/workflows/agentic-verify.yml"), "utf8")
+    .split("\n")
+    .filter((l) => !l.trim().startsWith("#"))
+    .join("\n");
   assert.match(wf, /pull_request:/);
   assert.doesNotMatch(wf, /pull_request_target/);
   assert.match(wf, /trusted-gates\.mjs --base origin\/main/);
   assert.ok(existsSync(join(t, ".github/workflows/merge-gate.yml")));
   assert.match(readFileSync(join(t, ".github/workflows/merge-gate.yml"), "utf8"), /do-not-merge/);
   const off = render({}).t;
-  assert.ok(!existsSync(join(off, ".github/workflows/agentic-verify.yml")) && !existsSync(join(off, "scripts/checks/trusted-gates.mjs")));
+  assert.ok(
+    !existsSync(join(off, ".github/workflows/agentic-verify.yml")) &&
+      !existsSync(join(off, "scripts/checks/trusted-gates.mjs")),
+  );
 });

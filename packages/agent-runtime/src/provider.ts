@@ -1,5 +1,11 @@
 export type Usage = { input: number; output: number } | null; // null = provider reported nothing (unknown, not zero)
-export type GenerateRequest = { system: string; prompt: string; maxOutputTokens: number; schema?: object; signal?: AbortSignal };
+export type GenerateRequest = {
+  system: string;
+  prompt: string;
+  maxOutputTokens: number;
+  schema?: object;
+  signal?: AbortSignal;
+};
 export type GenerateResult = {
   content: string;
   finishReason: "stop" | "length" | "error";

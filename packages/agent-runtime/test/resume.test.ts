@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { drive } from "../src/drive.ts";
 import { sha256 } from "../src/hash.ts";
-import { MockProvider } from "../src/provider.ts";
 import { type Policy, Run } from "../src/run.ts";
 
 function setup(over: Partial<Policy> = {}, check?: string) {
@@ -13,15 +12,30 @@ function setup(over: Partial<Policy> = {}, check?: string) {
   const ws = join(base, "ws");
   mkdirSync(ws);
   writeFileSync(join(ws, "value.txt"), "bad");
-  writeFileSync(join(ws, "check.mjs"), check ?? `import {readFileSync} from "node:fs"; console.log("tests 1"); process.exit(readFileSync("value.txt","utf8")==="good"?0:1)`);
+  writeFileSync(
+    join(ws, "check.mjs"),
+    check ??
+      `import {readFileSync} from "node:fs"; console.log("tests 1"); process.exit(readFileSync("value.txt","utf8")==="good"?0:1)`,
+  );
   const policy: Policy = {
-    workspace: ws, stateDir: join(base, "state"), protectedPaths: ["check.mjs"], riskTier: "R1", egress: "local-only", isolation: "none",
+    workspace: ws,
+    stateDir: join(base, "state"),
+    protectedPaths: ["check.mjs"],
+    riskTier: "R1",
+    egress: "local-only",
+    isolation: "none",
     gates: [{ id: "unit", argv: ["node", "check.mjs"], timeoutMs: 8000, discover: { regex: "tests (\\d+)", min: 1 } }],
-    requiredGates: ["unit"], limits: { aggregateTokens: 50_000, toolActions: 12, semanticRepairs: 1 }, ...over,
+    requiredGates: ["unit"],
+    limits: { aggregateTokens: 50_000, toolActions: 12, semanticRepairs: 1 },
+    ...over,
   };
   return { policy, ws, base };
 }
-const fix = (id: string) => ({ id, kind: "edit", edits: [{ kind: "replace", path: "value.txt", expectHash: sha256("bad"), find: "bad", replace: "good" }] });
+const fix = (id: string) => ({
+  id,
+  kind: "edit",
+  edits: [{ kind: "replace", path: "value.txt", expectHash: sha256("bad"), find: "bad", replace: "good" }],
+});
 // "crash": drop the process-local Run without a clean shutdown, except releasing the lock the dead process would have freed
 const crash = (run: Run) => run.close();
 
@@ -121,9 +135,12 @@ test("resume of a finished run stays finished", async () => {
 
 test("cancel kills a running gate and its descendants", async () => {
   const marker = (ws: string) => join(ws, "survivor.txt");
-  const { policy, ws } = setup({}, `import {spawn} from "node:child_process";
+  const { policy, ws } = setup(
+    {},
+    `import {spawn} from "node:child_process";
 spawn(process.execPath, ["-e", "setTimeout(()=>require('fs').writeFileSync('survivor.txt','alive'),1500)"], {stdio:"ignore"});
-console.log("tests 1"); setTimeout(()=>{}, 20000)`);
+console.log("tests 1"); setTimeout(()=>{}, 20000)`,
+  );
   const run = new Run(policy);
   run.start();
   const pending = run.handle({ id: "g1", kind: "finish" });
@@ -141,8 +158,15 @@ test("cancel aborts an in-flight provider call and stops the driver", async () =
   run.start();
   let aborted = false;
   const slow = {
-    id: "slow", hosted: false,
-    generate: (req: { signal?: AbortSignal }) => new Promise<never>((_, rej) => req.signal?.addEventListener("abort", () => { aborted = true; rej(new Error("aborted")); })),
+    id: "slow",
+    hosted: false,
+    generate: (req: { signal?: AbortSignal }) =>
+      new Promise<never>((_, rej) =>
+        req.signal?.addEventListener("abort", () => {
+          aborted = true;
+          rej(new Error("aborted"));
+        }),
+      ),
   } as any;
   const d = drive(run, slow, ws, { goal: "g", acceptance: [], files: ["value.txt"] }).catch(() => {});
   await new Promise((r) => setTimeout(r, 100));

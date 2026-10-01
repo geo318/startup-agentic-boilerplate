@@ -7,9 +7,16 @@
   },
   "scripts": {
     "test": "node --test 'test/*.test.ts'",
-    "typecheck": "tsc --noEmit -p ."
+    "typecheck": "tsc --noEmit -p .",
+    "format": "biome format --write ../..",
+    "format:check": "biome format ../.."
   },
   "bin": {
     "agentic": "src/cli/main.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "@types/node": "^22.20.4",
+    "typescript": "^7.0.2"
   }
 }

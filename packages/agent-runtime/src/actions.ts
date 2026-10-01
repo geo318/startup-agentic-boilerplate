@@ -27,7 +27,8 @@ const EDIT_KEYS: Record<string, string[]> = {
 const isStr = (v: unknown): v is string => typeof v === "string" && v.length <= 200_000;
 function closed(o: Record<string, unknown>, keys: string[], what: string) {
   for (const k of Object.keys(o)) if (!keys.includes(k)) throw new InvalidAction(`${what}: unknown field ${k}`);
-  for (const k of keys) if (!isStr(o[k]) && !(k === "edits" && Array.isArray(o[k]))) throw new InvalidAction(`${what}: bad field ${k}`);
+  for (const k of keys)
+    if (!isStr(o[k]) && !(k === "edits" && Array.isArray(o[k]))) throw new InvalidAction(`${what}: bad field ${k}`);
 }
 
 // Closed-object validation of untrusted model output. Anything unrecognised is rejected, never repaired.
@@ -63,12 +64,25 @@ export const ACTION_SCHEMA = {
   properties: {
     id: str,
     kind: { enum: ["read", "edit", "run_gate", "finish", "blocked"] },
-    path: str, gateId: str, reason: str,
+    path: str,
+    gateId: str,
+    reason: str,
     edits: {
-      type: "array", minItems: 1, maxItems: 20,
+      type: "array",
+      minItems: 1,
+      maxItems: 20,
       items: {
-        type: "object", additionalProperties: false, required: ["kind", "path"],
-        properties: { kind: { enum: ["replace", "create", "replace_file"] }, path: str, expectHash: str, find: str, replace: str, content: str },
+        type: "object",
+        additionalProperties: false,
+        required: ["kind", "path"],
+        properties: {
+          kind: { enum: ["replace", "create", "replace_file"] },
+          path: str,
+          expectHash: str,
+          find: str,
+          replace: str,
+          content: str,
+        },
       },
     },
   },

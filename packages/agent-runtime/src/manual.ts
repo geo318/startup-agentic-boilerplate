@@ -22,10 +22,17 @@ export class ManualProvider implements GenerationProvider {
     const n = (this.#n += 1);
     writeFileSync(
       join(this.#dir, `packet-${n}.json`),
-      JSON.stringify({
-        instructions: `Answer the prompt below and save ONLY the JSON reply to ${join(this.#dir, `response-${n}.txt`)}`,
-        system: req.system, prompt: req.prompt, schema: req.schema ?? null, maxOutputTokens: req.maxOutputTokens,
-      }, null, 2),
+      JSON.stringify(
+        {
+          instructions: `Answer the prompt below and save ONLY the JSON reply to ${join(this.#dir, `response-${n}.txt`)}`,
+          system: req.system,
+          prompt: req.prompt,
+          schema: req.schema ?? null,
+          maxOutputTokens: req.maxOutputTokens,
+        },
+        null,
+        2,
+      ),
     );
     const reply = join(this.#dir, `response-${n}.txt`);
     while (Date.now() - started < this.#timeoutMs && !req.signal?.aborted) {

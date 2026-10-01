@@ -25,7 +25,10 @@ export async function askIsolation(ask: (q: string) => Promise<string>, tries = 
 // Decision lives in controller state (outside the workspace), per run directory.
 export function saveChoice(stateDir: string, choice: Choice): void {
   mkdirSync(stateDir, { recursive: true });
-  writeFileSync(join(stateDir, "isolation-consent.json"), JSON.stringify({ isolation: choice, decidedAt: new Date().toISOString() }));
+  writeFileSync(
+    join(stateDir, "isolation-consent.json"),
+    JSON.stringify({ isolation: choice, decidedAt: new Date().toISOString() }),
+  );
 }
 export function loadChoice(stateDir: string): Choice | undefined {
   const f = join(stateDir, "isolation-consent.json");

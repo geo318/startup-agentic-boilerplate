@@ -10,10 +10,32 @@ import { QualStore } from "../src/qualify.ts";
 import { formatStats, summarizeTasks, type TaskStat } from "../src/stats.ts";
 
 const tmp = () => mkdtempSync(join(tmpdir(), "stats-"));
-const t = (o: Partial<TaskStat>): TaskStat => ({ id: "x", project: "/p", state: "AWAITING_ACCEPTANCE", tokens: 1000, costUsd: 0.02, unknownUsageCalls: 0, modelCalls: 2, repairs: 0, rejected: 0, accepted: false, verified: true, firstAttempt: true, wallMs: 10_000, ...o });
+const t = (o: Partial<TaskStat>): TaskStat => ({
+  id: "x",
+  project: "/p",
+  state: "AWAITING_ACCEPTANCE",
+  tokens: 1000,
+  costUsd: 0.02,
+  unknownUsageCalls: 0,
+  modelCalls: 2,
+  repairs: 0,
+  rejected: 0,
+  accepted: false,
+  verified: true,
+  firstAttempt: true,
+  wallMs: 10_000,
+  ...o,
+});
 
 test("summary: cost per verified candidate counts ALL tasks; zero verified → undefined; timing only where it exists", () => {
-  const s = summarizeTasks([t({}), t({ id: "b", state: "ESCALATED", verified: false, firstAttempt: false, costUsd: 0.03, wallMs: null }), t({ id: "c", state: "ACCEPTED", accepted: true, repairs: 1, firstAttempt: false, wallMs: 30_000 })], "/p");
+  const s = summarizeTasks(
+    [
+      t({}),
+      t({ id: "b", state: "ESCALATED", verified: false, firstAttempt: false, costUsd: 0.03, wallMs: null }),
+      t({ id: "c", state: "ACCEPTED", accepted: true, repairs: 1, firstAttempt: false, wallMs: 30_000 }),
+    ],
+    "/p",
+  );
   assert.equal(s.tasks, 3);
   assert.equal(s.verified, 2);
   assert.equal(s.firstAttemptVerified, 1);
@@ -31,7 +53,8 @@ test("events carry timestamps; old logs without them still verify; tampering sti
   const dir = tmp();
   const f = join(dir, "e.jsonl");
   const log = new EventLog(f).open();
-  log.append("a", { x: 1 }); log.append("b", {});
+  log.append("a", { x: 1 });
+  log.append("b", {});
   log.close();
   const ev = new EventLog(f).read();
   assert.ok(ev.every((e) => /^\d{4}-/.test(e.ts!)));
@@ -52,30 +75,91 @@ test("stats from real task runs: scoped to the repo, --since filters, --all span
     const project = tmp();
     mkdirSync(join(project, ".agents"));
     writeFileSync(join(project, "value.txt"), "bad");
-    writeFileSync(join(project, ".agents/policy.json"), JSON.stringify({ schemaVersion: 1, protectedPaths: [], baseline: "off", egress: "local-only", gates: [{ id: "g", argv: ["node", "-e", "console.log('tests 1')"], timeoutMs: 5000, discover: { regex: "tests (\\d+)", min: 1 } }], requiredGates: ["g"] }));
+    writeFileSync(
+      join(project, ".agents/policy.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        protectedPaths: [],
+        baseline: "off",
+        egress: "local-only",
+        gates: [
+          {
+            id: "g",
+            argv: ["node", "-e", "console.log('tests 1')"],
+            timeoutMs: 5000,
+            discover: { regex: "tests (\\d+)", min: 1 },
+          },
+        ],
+        requiredGates: ["g"],
+      }),
+    );
     writeFileSync(join(project, "ok.json"), JSON.stringify([JSON.stringify({ id: "x", kind: "finish" })]));
-    writeFileSync(join(project, "stop.json"), JSON.stringify([JSON.stringify({ id: "x", kind: "blocked", reason: "stop" })]));
+    writeFileSync(
+      join(project, "stop.json"),
+      JSON.stringify([JSON.stringify({ id: "x", kind: "blocked", reason: "stop" })]),
+    );
     return project;
   };
-  new QualStore(join(home, "qualifications.json")).record({ profileId: "mock/replay:ok.json", family: "action-protocol", source: "owner-declared", passed: true, detail: {}, at: "t" });
-  new QualStore(join(home, "qualifications.json")).record({ profileId: "mock/replay:stop.json", family: "action-protocol", source: "owner-declared", passed: true, detail: {}, at: "t" });
+  new QualStore(join(home, "qualifications.json")).record({
+    profileId: "mock/replay:ok.json",
+    family: "action-protocol",
+    source: "owner-declared",
+    passed: true,
+    detail: {},
+    at: "t",
+  });
+  new QualStore(join(home, "qualifications.json")).record({
+    profileId: "mock/replay:stop.json",
+    family: "action-protocol",
+    source: "owner-declared",
+    passed: true,
+    detail: {},
+    at: "t",
+  });
   const run = async (project: string, id: string, script: string) => {
-    writeFileSync(join(project, ".agents/models.json"), JSON.stringify({ schemaVersion: 1, profiles: { w: { kind: "replay", file: join(project, script) } }, roles: { worker: "w" } }));
+    writeFileSync(
+      join(project, ".agents/models.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        profiles: { w: { kind: "replay", file: join(project, script) } },
+        roles: { worker: "w" },
+      }),
+    );
     const out: string[] = [];
-    const env: c.Env = { home, project, out: (s) => out.push(s), operatorTty: true, ask: async () => "no", user: "u", dockerUp: () => false };
+    const env: c.Env = {
+      home,
+      project,
+      out: (s) => out.push(s),
+      operatorTty: true,
+      ask: async () => "no",
+      user: "u",
+      dockerUp: () => false,
+    };
     const f = join(tmp(), "c.json");
-    writeFileSync(f, JSON.stringify({ schemaVersion: 1, id, goal: "do the thing", acceptance: ["done"], files: ["value.txt"], riskTier: "R1", budget: "narrow" }));
+    writeFileSync(
+      f,
+      JSON.stringify({
+        schemaVersion: 1,
+        id,
+        goal: "do the thing",
+        acceptance: ["done"],
+        files: ["value.txt"],
+        riskTier: "R1",
+        budget: "narrow",
+      }),
+    );
     await c.taskCreate(env, f);
     await c.taskRun(env, id);
     return env;
   };
-  const a = mkProject(), b = mkProject();
+  const a = mkProject(),
+    b = mkProject();
   const envA = await run(a, "task-ok", "ok.json");
   await run(a, "task-stop", "stop.json");
   const envB = await run(b, "other-repo", "ok.json");
   const out: string[] = [];
   await c.stats({ ...envA, out: (s) => out.push(s) }, { json: true });
-  const s = JSON.parse(out.join("")); 
+  const s = JSON.parse(out.join(""));
   assert.equal(s.tasks, 2);
   assert.equal(s.verified, 1);
   assert.equal(s.abstained, 1);

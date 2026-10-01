@@ -37,7 +37,8 @@ function answers(patch) {
 }
 
 test("render is reproducible", () => {
-  const a = tmp(), b = tmp();
+  const a = tmp(),
+    b = tmp();
   assert.equal(run(["--answers", answersPath, "--target", a]).status, 0);
   assert.equal(run(["--answers", answersPath, "--target", b]).status, 0);
   assert.deepEqual(tree(a), tree(b));
@@ -95,7 +96,9 @@ test("--sync and --force are exclusive", () => {
 });
 
 const docsCheck = (dir, ...extra) =>
-  spawnSync(process.execPath, [join(dir, "scripts/checks/docs-check.mjs"), "--root", dir, ...extra], { encoding: "utf8" });
+  spawnSync(process.execPath, [join(dir, "scripts/checks/docs-check.mjs"), "--root", dir, ...extra], {
+    encoding: "utf8",
+  });
 
 test("docs-check fails on unfilled FILL markers", () => {
   const t = tmp();
@@ -113,6 +116,10 @@ test("docs-check fails when a link target is broken", () => {
 });
 
 test("docs-check on an empty root reports no Markdown scanned", () => {
-  const r = spawnSync(process.execPath, [join(root, "project-setup/templates/scripts/checks/docs-check.mjs"), "--root", tmp()], { encoding: "utf8" });
+  const r = spawnSync(
+    process.execPath,
+    [join(root, "project-setup/templates/scripts/checks/docs-check.mjs"), "--root", tmp()],
+    { encoding: "utf8" },
+  );
   assert.notEqual(r.status, 0, "an empty applicable scan must not pass");
 });

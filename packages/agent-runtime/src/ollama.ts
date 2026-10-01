@@ -34,7 +34,9 @@ export class OllamaProvider implements GenerationProvider {
 
   async generate(req: GenerateRequest): Promise<GenerateResult> {
     const started = Date.now();
-    const signal = req.signal ? AbortSignal.any([req.signal, AbortSignal.timeout(this.#p.timeoutMs)]) : AbortSignal.timeout(this.#p.timeoutMs);
+    const signal = req.signal
+      ? AbortSignal.any([req.signal, AbortSignal.timeout(this.#p.timeoutMs)])
+      : AbortSignal.timeout(this.#p.timeoutMs);
     try {
       const r = await fetch(`${this.#p.baseUrl}/api/chat`, {
         method: "POST",
@@ -43,14 +45,20 @@ export class OllamaProvider implements GenerationProvider {
         body: JSON.stringify({
           model: this.#p.model,
           stream: false,
-          messages: [{ role: "system", content: req.system }, { role: "user", content: req.prompt }],
+          messages: [
+            { role: "system", content: req.system },
+            { role: "user", content: req.prompt },
+          ],
           ...(req.schema ? { format: req.schema } : {}),
           options: { num_predict: req.maxOutputTokens, num_ctx: this.#p.numCtx, temperature: this.#p.temperature },
         }),
       });
       if (!r.ok) return { content: "", finishReason: "error", usage: null, latencyMs: Date.now() - started };
       const b = (await r.json()) as {
-        message?: { content?: unknown }; done_reason?: string; prompt_eval_count?: number; eval_count?: number;
+        message?: { content?: unknown };
+        done_reason?: string;
+        prompt_eval_count?: number;
+        eval_count?: number;
       };
       const content = typeof b.message?.content === "string" ? b.message.content : "";
       const usage =
@@ -58,7 +66,12 @@ export class OllamaProvider implements GenerationProvider {
           ? { input: b.prompt_eval_count, output: b.eval_count }
           : null;
       // anything but a clean stop (e.g. "length") is non-executable
-      return { content, finishReason: b.done_reason === "stop" ? "stop" : b.done_reason === "length" ? "length" : "error", usage, latencyMs: Date.now() - started };
+      return {
+        content,
+        finishReason: b.done_reason === "stop" ? "stop" : b.done_reason === "length" ? "length" : "error",
+        usage,
+        latencyMs: Date.now() - started,
+      };
     } catch {
       return { content: "", finishReason: "error", usage: null, latencyMs: Date.now() - started };
     }

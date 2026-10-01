@@ -30,15 +30,21 @@ function check() {
       const list = JSON.parse(rules.stdout || "[]");
       if (list.length > 0) return { state: "PROTECTED", why: `${list.length} ruleset rule(s) apply` };
       // no ruleset rules; classic said "not protected" or was unreadable
-      if (/not protected|not found/i.test(classic.stderr)) return { state: "UNPROTECTED", why: "no branch protection and no ruleset rules" };
+      if (/not protected|not found/i.test(classic.stderr))
+        return { state: "UNPROTECTED", why: "no branch protection and no ruleset rules" };
     } catch {}
   }
-  return { state: "UNKNOWN", why: `could not read protection (${classic.stderr.trim().split("\n")[0] || "no output"})` };
+  return {
+    state: "UNKNOWN",
+    why: `could not read protection (${classic.stderr.trim().split("\n")[0] || "no output"})`,
+  };
 }
 
 const { state, why } = check();
 console.log(`${repo ?? "?"}@${branch}: ${state} — ${why}`);
 if (state !== "PROTECTED") {
-  console.log("Merge gating needs owner-configured branch protection or a ruleset requiring the CI checks; the workflow files alone do not enforce it.");
+  console.log(
+    "Merge gating needs owner-configured branch protection or a ruleset requiring the CI checks; the workflow files alone do not enforce it.",
+  );
 }
 process.exit(args.includes("--require") && state !== "PROTECTED" ? 1 : 0);

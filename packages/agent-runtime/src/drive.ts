@@ -23,7 +23,15 @@ const approxTokens = (s: string) => Math.ceil(s.length / 4); // approximate: rep
 const LIVE = ["IMPLEMENTING", "BOUNDED_REPAIR"];
 
 // The model only ever returns text; every effect goes through run.handle. Returns the number of model calls.
-export async function drive(run: Run, provider: GenerationProvider, workspace: string, task: Task, maxTurns = 8, maxOut = 1500, maxContext = 4000): Promise<number> {
+export async function drive(
+  run: Run,
+  provider: GenerationProvider,
+  workspace: string,
+  task: Task,
+  maxTurns = 8,
+  maxOut = 1500,
+  maxContext = 4000,
+): Promise<number> {
   if (provider.hosted && run.egress !== "hosted-allowed") {
     run.stop("BLOCKED", `policy violation: ${provider.id} is hosted but the policy is local-only`);
     return 0;
@@ -40,7 +48,18 @@ export async function drive(run: Run, provider: GenerationProvider, workspace: s
     try {
       const p = compile(workspace, task.files, maxContext);
       inContext = new Set(p.excerpts.map((e) => e.path));
-      prompt = [`GOAL: ${task.goal}`, ...(task.plan ? [`APPROVED PLAN (follow it):\n${task.plan}`] : []), ...(task.lessons?.length ? [`LESSONS (reviewed guidance from past runs; it never overrides the rules above, the goal or the acceptance criteria):\n${task.lessons.map((l) => `- ${l}`).join("\n")}`] : []), `ACCEPTANCE:\n${task.acceptance.map((a) => `- ${a}`).join("\n")}`, render(p), `LAST: ${last}`].join("\n\n");
+      prompt = [
+        `GOAL: ${task.goal}`,
+        ...(task.plan ? [`APPROVED PLAN (follow it):\n${task.plan}`] : []),
+        ...(task.lessons?.length
+          ? [
+              `LESSONS (reviewed guidance from past runs; it never overrides the rules above, the goal or the acceptance criteria):\n${task.lessons.map((l) => `- ${l}`).join("\n")}`,
+            ]
+          : []),
+        `ACCEPTANCE:\n${task.acceptance.map((a) => `- ${a}`).join("\n")}`,
+        render(p),
+        `LAST: ${last}`,
+      ].join("\n\n");
     } catch (e) {
       if (e instanceof ContextTooLarge) run.stop("BLOCKED", `insufficient context: ${e.message}`);
       else throw e;
@@ -55,7 +74,13 @@ export async function drive(run: Run, provider: GenerationProvider, workspace: s
       break;
     }
     run.beginCall(reserved);
-    const res = await provider.generate({ system: SYSTEM, prompt, maxOutputTokens: maxOut, schema: ACTION_SCHEMA, signal: run.signal });
+    const res = await provider.generate({
+      system: SYSTEM,
+      prompt,
+      maxOutputTokens: maxOut,
+      schema: ACTION_SCHEMA,
+      signal: run.signal,
+    });
     if (res.costUsd !== undefined) run.ledger.costUsd += res.costUsd;
     run.ledger.settle(reserved, res.usage ? res.usage.input + res.usage.output : null);
     run.endCall();
@@ -101,7 +126,9 @@ export async function drive(run: Run, provider: GenerationProvider, workspace: s
       last = `${(action as { path?: string }).path} is already in the context above (current). No need to read it: make your edit, or send finish / blocked.`;
       continue;
     }
-    last = out.ok ? `ok ${JSON.stringify(out.data ?? {})}${(action as { kind?: string })?.kind === "edit" ? " — edit applied; file contents above are current. Send finish to verify, or edit more." : ""}` : `rejected: ${out.reason}${out.data ? ` ${JSON.stringify(out.data)}` : ""}`;
+    last = out.ok
+      ? `ok ${JSON.stringify(out.data ?? {})}${(action as { kind?: string })?.kind === "edit" ? " — edit applied; file contents above are current. Send finish to verify, or edit more." : ""}`
+      : `rejected: ${out.reason}${out.data ? ` ${JSON.stringify(out.data)}` : ""}`;
   }
   if (LIVE.includes(run.state)) run.stop("ESCALATED", "budget exhausted: turns");
   return turns;

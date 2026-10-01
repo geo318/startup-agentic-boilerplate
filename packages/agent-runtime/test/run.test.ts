@@ -28,15 +28,24 @@ function setup(over: Partial<Policy> = {}, checkSource?: string) {
       `import {readFileSync} from "node:fs"; const ok = readFileSync("value.txt","utf8")==="good"; console.log("tests 1"); process.exit(ok?0:1)`,
   );
   const policy: Policy = {
-    workspace, stateDir: join(base, "state"), protectedPaths: ["acceptance", "check.mjs"],
-    gates: [gate], requiredGates: ["unit"], limits, isolation: "none", riskTier: "R1", egress: "local-only", ...over,
+    workspace,
+    stateDir: join(base, "state"),
+    protectedPaths: ["acceptance", "check.mjs"],
+    gates: [gate],
+    requiredGates: ["unit"],
+    limits,
+    isolation: "none",
+    riskTier: "R1",
+    egress: "local-only",
+    ...over,
   };
   const run = new Run(policy);
   run.start();
   return { run, workspace, policy, base };
 }
 const fix = (n: string) => ({
-  id: n, kind: "edit" as const,
+  id: n,
+  kind: "edit" as const,
   edits: [{ kind: "replace" as const, path: "value.txt", expectHash: sha256("bad"), find: "bad", replace: "good" }],
 });
 
@@ -75,14 +84,24 @@ test("docker chosen but daemon down or image unset → BLOCKED, never host fallb
 
 test("docker argv is locked down", () => {
   const a = dockerArgv(gate, "/w", "node:22", "n").join(" ");
-  for (const must of ["--network none", "--read-only", "--cap-drop ALL", "no-new-privileges", "--user 65534:65534", "--pids-limit"]) {
+  for (const must of [
+    "--network none",
+    "--read-only",
+    "--cap-drop ALL",
+    "no-new-privileges",
+    "--user 65534:65534",
+    "--pids-limit",
+  ]) {
     assert.match(a, new RegExp(must));
   }
   assert.doesNotMatch(a, /privileged|docker\.sock/);
 });
 
 test("consent: only explicit yes/no; anything else is unanswered", async () => {
-  const seq = (...xs: string[]) => async () => xs.shift() ?? "";
+  const seq =
+    (...xs: string[]) =>
+    async () =>
+      xs.shift() ?? "";
   assert.equal(await askIsolation(seq("yes")), "docker");
   assert.equal(await askIsolation(seq("maybe", "N")), "none");
   assert.equal(await askIsolation(seq("", "?", "sure")), undefined);
@@ -124,7 +143,11 @@ test("scope escape: traversal, absolute, symlink, protected path", async () => {
   const { run, workspace, base } = setup();
   writeFileSync(join(base, "secret.txt"), "s");
   symlinkSync(join(base, "secret.txt"), join(workspace, "link.txt"));
-  const edit = (path: string) => ({ id: `e-${path}`, kind: "edit" as const, edits: [{ kind: "create" as const, path, content: "x" }] });
+  const edit = (path: string) => ({
+    id: `e-${path}`,
+    kind: "edit" as const,
+    edits: [{ kind: "create" as const, path, content: "x" }],
+  });
   for (const p of ["../escape.txt", "/etc/evil", "link.txt", "acceptance/spec.txt", "check.mjs"]) {
     const r = await run.handle(edit(p));
     assert.equal(r.ok, false, p);
@@ -137,7 +160,11 @@ test("edits are atomic: one bad edit writes nothing; stale and ambiguous rejecte
   const { run, workspace } = setup();
   const good = { kind: "replace" as const, path: "value.txt", expectHash: sha256("bad"), find: "bad", replace: "good" };
   const stale = { kind: "replace" as const, path: "value.txt", expectHash: sha256("other"), find: "bad", replace: "x" };
-  assert.equal((await run.handle({ id: "a1", kind: "edit", edits: [{ kind: "create", path: "new.txt", content: "n" }, stale] })).ok, false);
+  assert.equal(
+    (await run.handle({ id: "a1", kind: "edit", edits: [{ kind: "create", path: "new.txt", content: "n" }, stale] }))
+      .ok,
+    false,
+  );
   assert.equal(existsSync(join(workspace, "new.txt")), false);
   writeFileSync(join(workspace, "dup.txt"), "aa");
   const amb = { kind: "replace" as const, path: "dup.txt", expectHash: sha256("aa"), find: "a", replace: "b" };
@@ -178,7 +205,8 @@ test("budget: children share the ledger; limits cannot be reset", () => {
   assert.throws(() => parent.reserve(60), /tokens/);
   parent.settle(60, null);
   assert.equal(parent.unknownUsageCalls, 1);
-  child.action(); child.action();
+  child.action();
+  child.action();
   assert.throws(() => parent.action(), /tool actions/);
 });
 
@@ -224,7 +252,10 @@ test("stateDir inside the workspace is refused", () => {
 });
 
 test("coloured runner output still counts discovered tests (ANSI stripped, NO_COLOR set)", async () => {
-  const { run } = setup({}, `console.log("\\u001b[2mTests\\u001b[22m  \\u001b[32m1 passed\\u001b[39m\\n"); console.log("tests " + (process.env.NO_COLOR === "1" ? 1 : 0)); `);
+  const { run } = setup(
+    {},
+    `console.log("\\u001b[2mTests\\u001b[22m  \\u001b[32m1 passed\\u001b[39m\\n"); console.log("tests " + (process.env.NO_COLOR === "1" ? 1 : 0)); `,
+  );
   await run.handle(fix("a1"));
   const out = await run.handle({ id: "a2", kind: "finish" });
   assert.equal(out.ok, true);
