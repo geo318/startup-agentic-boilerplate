@@ -16,6 +16,8 @@ const USAGE = `agentic <command>
   learn capture <task> | propose <file> | list | promote <proposal> | rollback [release] | retire <lesson> | purge <lesson>   (promote/rollback/retire/purge need a terminal)
   enable | disable   (switch the managed workflow; default on; disable needs a terminal)
   arch check   (layer boundaries from .agents/architecture.json, TypeScript-compiler backed)
+  session-check   (Stop hook: run the required gates on the working tree and record the result; exit 2 = failed)
+  pr-summary [--update]   (markdown of this branch's recorded checks; --update edits the open PR body, best-effort)
   stats [--all] [--since 7d|<date>] [--json]
   jev status | report | calibrate --family <f> --labels <file>
   report <id>
@@ -75,6 +77,10 @@ async function main(): Promise<number> {
       return c.enableWorkflow(env);
     case "disable":
       return c.disableWorkflow(env);
+    case "session-check":
+      return c.sessionCheckCmd(env);
+    case "pr-summary":
+      return c.prSummaryCmd(env, argv.includes("--update"));
     case "stats":
       return c.stats(env, {
         all: argv.includes("--all"),

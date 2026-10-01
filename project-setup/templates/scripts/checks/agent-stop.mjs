@@ -63,6 +63,13 @@ function main() {
     failures.push(run(`fallow ${args.join(" ")}`, fallow, args));
   }
 
+  // Managed workflow: run the policy's required gates on the working tree and record the result (exit 2 = failed).
+  // Anything else (launcher not pinned, runtime missing) is not the agent's problem and is ignored.
+  if (existsSync(join(".agents", "policy.json")) && existsSync(join("scripts", "agentic.mjs"))) {
+    const session = spawnSync(process.execPath, ["scripts/agentic.mjs", "session-check"], { encoding: "utf8" });
+    if (session.status === 2) failures.push(`$ agentic session-check\n${(session.stdout ?? "").trim()}`);
+  }
+
   const found = failures.filter((failure) => failure !== null);
   if (found.length > 0) {
     console.error(

@@ -1,5 +1,9 @@
 #!/bin/sh
 {{RUNTIME}} scripts/git/conventions.mjs current || exit 1
+{{#if AGENTIC_RUNTIME}}
+# Best-effort: put this branch's recorded gate checks in the open PR body. Never blocks a push.
+node scripts/agentic.mjs pr-summary --update >/dev/null 2>&1 || true
+{{/if}}
 {{#if TYPESCRIPT}}
 {{RUNTIME}} scripts/checks/docs-check.mjs || exit 1
 {{CMD_LINT}} || exit 1

@@ -499,3 +499,10 @@ test("workflow verifier integrity check rejects a lifecycle-script replacement",
   writeFileSync(verifier, "process.exit(0)"); // candidate-controlled install script
   assert.notEqual(check(), 0);
 });
+
+test("runtime hooks: Stop hook runs session-check; pre-push updates the PR summary only when the runtime is on", () => {
+  const { t } = render({ ...runtimeFlags });
+  assert.match(readFileSync(join(t, "scripts/checks/agent-stop.mjs"), "utf8"), /agentic\.mjs", "session-check"/);
+  assert.match(readFileSync(join(t, ".githooks/pre-push"), "utf8"), /agentic\.mjs pr-summary --update .*\|\| true/);
+  assert.doesNotMatch(readFileSync(join(render({}).t, ".githooks/pre-push"), "utf8"), /pr-summary/);
+});

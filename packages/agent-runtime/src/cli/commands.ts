@@ -26,6 +26,7 @@ import { canonical, sha256 } from "../hash.ts";
 import { ManualProvider } from "../manual.ts";
 import { OllamaProvider } from "../ollama.ts";
 import { type GenerationProvider, MockProvider } from "../provider.ts";
+import { prSummary, readSessions, sessionCheck, updatePr } from "../session.ts";
 import { needsStrongWorker, QualStore, selectProfile } from "../qualify.ts";
 import { maxTier, riskFloor } from "../risk.ts";
 import { architect, review, RoleFailed } from "../roles.ts";
@@ -1043,6 +1044,25 @@ export async function learnRetire(env: Env, lessonId: string, purgeToo = false):
 
 // Usage statistics from the persisted task history. Default scope: tasks of the current project; --all for every
 // project of this user; --since accepts an ISO date or Nd (e.g. 7d). Spend and outcomes only: no savings claim.
+// Called by the project's Stop hook. Exit 2 = the gates failed on the current working tree (diagnostic on stdout).
+export async function sessionCheckCmd(env: Env): Promise<number> {
+  const f = projectFile(env, "policy.json");
+  if (!existsSync(f) || !workflowEnabled(env)) return 0;
+  const pp = loadValidated<ProjectPolicy>(f, "policy");
+  return sessionCheck({
+    home: env.home,
+    project: env.project,
+    gates: pp.gates,
+    requiredGates: pp.requiredGates,
+    out: env.out,
+  });
+}
+
+export async function prSummaryCmd(env: Env, update: boolean): Promise<number> {
+  env.out(update ? updatePr(env.home, env.project) : prSummary(env.home, env.project));
+  return 0;
+}
+
 export async function stats(env: Env, o: { all?: boolean; since?: string; json?: boolean } = {}): Promise<number> {
   let tasks = allTasks(env.home);
   if (!o.all) tasks = tasks.filter((t) => t.project === env.project);
@@ -1053,10 +1073,16 @@ export async function stats(env: Env, o: { all?: boolean; since?: string; json?:
     tasks = tasks.filter((t) => t.createdAt && Date.parse(t.createdAt) >= from); // tasks without a date are excluded, not guessed
   }
   const act = learn.activeLessons(env.home, {});
-  const s = summarizeTasks(tasks, o.all ? "all projects" : env.project, readTelemetry(telemetryFile(env)), {
-    release: act.releaseId,
-    count: act.lessons.length,
-  });
+  const s = summarizeTasks(
+    tasks,
+    o.all ? "all projects" : env.project,
+    readTelemetry(telemetryFile(env)),
+    {
+      release: act.releaseId,
+      count: act.lessons.length,
+    },
+    readSessions(env.home).filter((r) => o.all || r.project === env.project),
+  );
   env.out(o.json ? JSON.stringify(s, null, 2) : formatStats(s));
   return 0;
 }

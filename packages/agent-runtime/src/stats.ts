@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { EventLog } from "./events.ts";
+import type { SessionRow } from "./session.ts";
 
 // Usage statistics computed on demand from what the controller already persists per task ($AGENTIC_HOME/tasks/*):
 // the hash-chained event log, the contract and meta.json. Nothing extra is collected and nothing leaves the machine.
@@ -53,6 +54,7 @@ export type Stats = {
     actedUncalibrated: number; // ...under jev.allowUncalibrated, before any calibration existed
     byFamily: Record<string, { decisions: number; acted: number }>;
   };
+  sessions: { checked: number; passed: number; failed: number };
   lessons: { release: string | null; count: number };
 };
 
@@ -128,6 +130,7 @@ export function summarizeTasks(
   scope: string,
   jevTelemetry: Array<Record<string, any>> = [],
   lessons = { release: null as string | null, count: 0 },
+  sessions: SessionRow[] = [],
 ): Stats {
   const byState: Record<string, number> = {};
   const byTier: Stats["byTier"] = {};
@@ -181,6 +184,11 @@ export function summarizeTasks(
           return a;
         }, {}),
     },
+    sessions: {
+      checked: sessions.length,
+      passed: sessions.filter((r) => r.passed).length,
+      failed: sessions.filter((r) => !r.passed).length,
+    },
     lessons,
   };
 }
@@ -210,6 +218,7 @@ export function formatStats(s: Stats): string {
     )
       .map(([k, v]) => ` · ${k} ${v.acted}/${v.decisions} acted`)
       .join("")}`,
+    `  automatic session checks (Stop hook, no model driven): ${s.sessions.checked} (${s.sessions.passed} passed, ${s.sessions.failed} failed)`,
     `  active lessons: ${s.lessons.count}${s.lessons.release ? ` (release ${s.lessons.release})` : ""}`,
     `  NOT measured: savings. That needs a baseline (the same work done without the runtime); only spend and outcomes are recorded here.`,
   ].join("\n");

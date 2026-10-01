@@ -63,6 +63,7 @@
         "src/jev/calibrate.ts",
         "src/eval.ts",
         "src/stats.ts",
+        "src/session.ts",
         "src/arch/**"
       ],
       "mayImport": [

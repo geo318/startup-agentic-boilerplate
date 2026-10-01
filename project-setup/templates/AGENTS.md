@@ -78,7 +78,7 @@ A passing typecheck is not verification. Run every check relevant to the diff an
 On by default (`"enabled": true` in `.agents/policy.json`). When on, non-trivial changes go through `node scripts/agentic.mjs task …` so the
 controller runs the checks, grounds context in real source, and records evidence, instead of trusting a model's own claim that it works.
 Never turn it off, edit `.agents/`, or work around a refused task to get a change through; ask the person. Check state with
-`node scripts/agentic.mjs doctor`. Only a person at a terminal can disable it (`node scripts/agentic.mjs disable`).
+`node scripts/agentic.mjs doctor`. When you finish, the Stop hook also runs the required gates on your working tree and records the result automatically; a failure is returned to you to fix. After opening a PR, run `node scripts/agentic.mjs pr-summary --update` once (later pushes do it from the pre-push hook). Only a person at a terminal can disable it (`node scripts/agentic.mjs disable`).
 
 {{/if}}
 ## Pull requests
