@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ModelProfiles",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "profiles", "roles"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "profiles": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z0-9][a-z0-9-]{0,40}$" },
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "object", "additionalProperties": false, "required": ["kind", "model"], "properties": {
+            "kind": { "const": "claude-cli" }, "model": { "type": "string", "minLength": 3 },
+            "maxBudgetUsd": { "type": "number", "minimum": 0.001, "maximum": 5 }, "timeoutMs": { "type": "integer", "minimum": 1000 } } },
+          { "type": "object", "additionalProperties": false, "required": ["kind", "model", "baseUrl"], "properties": {
+            "kind": { "const": "ollama" }, "model": { "type": "string", "minLength": 1 }, "baseUrl": { "type": "string" },
+            "numCtx": { "type": "integer", "minimum": 512 }, "timeoutMs": { "type": "integer", "minimum": 1000 } } },
+          { "type": "object", "additionalProperties": false, "required": ["kind", "model", "baseUrl", "hosted"], "properties": {
+            "kind": { "const": "chat-completions" }, "model": { "type": "string", "minLength": 1 }, "baseUrl": { "type": "string" },
+            "hosted": { "type": "boolean" }, "apiKeyEnv": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+            "supportsJsonSchema": { "type": "boolean" }, "timeoutMs": { "type": "integer", "minimum": 1000 } } },
+          { "type": "object", "additionalProperties": false, "required": ["kind", "dir", "label"], "properties": {
+            "kind": { "const": "manual" }, "dir": { "type": "string" }, "label": { "type": "string" }, "timeoutMs": { "type": "integer", "minimum": 1000 } } },
+          { "type": "object", "additionalProperties": false, "required": ["kind", "file"], "properties": {
+            "kind": { "const": "replay" }, "file": { "type": "string" } } }
+        ]
+      }
+    },
+    "roles": {
+      "type": "object", "additionalProperties": false, "required": ["worker"],
+      "properties": { "worker": { "type": "string" }, "architect": { "type": "string" }, "reviewer": { "type": "string" } }
+    }
+  }
+}

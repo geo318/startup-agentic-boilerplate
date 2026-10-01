@@ -2,9 +2,14 @@
   "name": "@startup-agentic/agent-runtime",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22.18" },
+  "engines": {
+    "node": ">=22.18"
+  },
   "scripts": {
     "test": "node --test 'test/*.test.ts'",
     "typecheck": "tsc --noEmit -p ."
+  },
+  "bin": {
+    "agentic": "src/cli/main.ts"
   }
 }

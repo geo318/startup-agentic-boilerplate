@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TaskContract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "goal", "acceptance", "files", "riskTier", "budget"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{2,40}$" },
+    "goal": { "type": "string", "minLength": 5, "maxLength": 4000 },
+    "nonGoals": { "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 500 } },
+    "originalRequest": { "type": "string", "maxLength": 500 },
+    "acceptance": { "type": "array", "minItems": 1, "maxItems": 30, "items": { "type": "string", "minLength": 3, "maxLength": 500 } },
+    "files": { "type": "array", "minItems": 1, "maxItems": 30, "items": { "type": "string", "minLength": 1, "maxLength": 300 } },
+    "scope": { "type": "array", "maxItems": 100, "items": { "type": "string", "maxLength": 300 } },
+    "riskTier": { "enum": ["R0", "R1", "R2", "R3"] },
+    "riskTags": { "type": "array", "maxItems": 10, "items": { "enum": ["auth", "tenancy", "financial", "destructive-migration", "security"] } },
+    "budget": { "enum": ["narrow", "standard", "complex"] },
+    "recipe": {
+      "type": "object", "additionalProperties": false, "required": ["path", "find", "replace"],
+      "properties": { "path": { "type": "string" }, "find": { "type": "string" }, "replace": { "type": "string" } }
+    },
+    "unresolvedQuestions": { "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 500 } }
+  }
+}
