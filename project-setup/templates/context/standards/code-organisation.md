@@ -17,7 +17,7 @@ When nothing fits, ask before creating a new top-level folder, and record the an
 
 - Files and folders are kebab-case ASCII: `invoice-repository.ts`, `use-invoices.ts`.
   Framework-reserved names are exempt (`page.tsx`, `[id]`, `(group)`, `_layout.tsx`){{#if TYPESCRIPT}};
-  Biome `useFilenamingConvention` enforces it{{/if}}.
+  {{#if OWN_LINTER}}oxlint `unicorn/filename-case`{{else}}Biome `useFilenamingConvention`{{/if}} enforces it{{/if}}.
 - A file has one primary export, named after the file: `void-invoice.ts` → `makeVoidInvoice`,
   `invoice-card.tsx` → `InvoiceCard`, `use-invoices.ts` → `useInvoices`.
 - Name for the domain, not the pattern or the technology: `invoice-repository.ts`, not
@@ -65,11 +65,12 @@ features/<feature>/
 ## Module entry points and imports
 
 - Every module and feature has one entry, `index.ts`, with explicit named exports. `export *` is
-  banned{{#if TYPESCRIPT}} (Biome `noReExportAll`){{/if}}; the entry lists exactly what is public.
-- From outside, import only the entry. Deep imports into another module fail the architecture
-  contract test.
+  banned{{#if TYPESCRIPT}} ({{#if OWN_LINTER}}oxlint `oxc/no-barrel-file`{{else}}Biome `noReExportAll`{{/if}}){{/if}}; the entry lists exactly what is public.
+- From outside, import only the entry{{#if TYPESCRIPT}} (fallow boundaries in `.fallowrc.json`){{/if}}.
+- An `index.ts` re-exports only its own folder (`./…`), never `../`{{#if TYPESCRIPT}} (lint
+  `no-restricted-imports` on `*/index.ts`){{/if}}; it is a door, not a shortcut into other modules.
 - Inside a module, import siblings by relative path. Never import your own `index.ts`; that is how
-  cycles start{{#if TYPESCRIPT}} (Biome `noImportCycles` fails on them){{/if}}.
+  cycles start{{#if TYPESCRIPT}} (fallow reports them){{/if}}.
 {{#if MONOREPO}}
 - Shared packages expose curated subpath exports — one per module (`<scope>/core/billing`) — listed
   explicitly in `package.json` `exports` and mirrored in tsconfig `paths`. Never a `"./*"` wildcard:
@@ -87,8 +88,8 @@ features/<feature>/
 
 ## Breaking up large files
 
-Split on a measured trigger (cognitive complexity > 30, or a function > 60 lines), not on a line
-count you eyeballed. Extract within the same file first; promote to a sibling file only when the
+Split on a measured trigger (cognitive complexity > 30, or a function > 60 lines{{#if TYPESCRIPT}};
+`fallow health` names them{{/if}}), not on a line count you eyeballed. Extract within the same file first; promote to a sibling file only when the
 unit is reused or large enough to stand alone{{#if TYPESCRIPT}}, and name it with a suffix from
 [the table](#suffixes){{/if}}.
 Don't split a function whose branches share mutable state, and don't extract a wrapper that is

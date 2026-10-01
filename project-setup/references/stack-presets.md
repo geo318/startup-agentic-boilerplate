@@ -38,8 +38,8 @@ packages/
   CLAUDE_CODE` on; `MULTI_TENANT`, `HAS_AI`, `HAS_JOBS`, `HAS_E2E` per brief.
 - **Reference stack line:** Bun + Turborepo · Next.js 16 App Router · Elysia on Bun · Expo SDK 54 ·
   Better Auth · Drizzle + Postgres (Neon) · Zod v4 · TanStack Query · Axios · Tailwind v4 +
-  shadcn-style primitives · Biome · Vitest + Playwright · Trigger.dev · TypeScript 7 (`tsgo`).
-- **Commands:** `bun install`, `bun run dev` (web + api together), `bun run lint` (= `biome check .`),
+  shadcn-style primitives · Biome + oxlint · fallow · Vitest + Playwright · Trigger.dev · TypeScript 7 (`tsgo`).
+- **Commands:** `bun install`, `bun run dev` (web + api together), `bun run lint` (= `biome check . && oxlint`), `bun run fallow`,
   `bun run format`, `bun run typecheck` (= `turbo run typecheck`), `bun run test`
   (`vitest run`), `bunx vitest run --changed origin/main`, `bun run test:e2e` (Playwright).
 - **Scaffold:**
@@ -58,8 +58,10 @@ packages/
      (`packages/core/src/shared/`: `DomainError`, `Clock`, `UnitOfWork`), `createUnitOfWork` and
      `createRepositories(executor)` in `packages/db`, and the composition root in `apps/api`. The
      first real module follows the module anatomy so later modules copy a working example.
-  7. `packages/core/src/architecture-contract.unit.test.ts` from `snippets/ts/`, rules edited to
-     this repo's scope and layers.
+  7. Architecture rules render as config: `.fallowrc.json` zones (`routes` = `apps/api/src/routes`,
+     `web` = `apps/web`, `db` = `packages/db/src`, one zone per `packages/core/src/<module>`,
+     reachable only through its `index.ts`) and `biome.json` overrides (no framework/ORM imports
+     and no raw `fetch` in `packages/core`). Edit the paths if the skeleton differs.
 - **Root `package.json` scripts to add:** `"prepare": "bun scripts/git/conventions.mjs install-hooks"`,
   `"docs:check": "bun scripts/checks/docs-check.mjs"`,
   `"git:check-current-branch": "bun scripts/git/conventions.mjs current"`, `lint`, `format`,
@@ -90,11 +92,11 @@ src/
 
 - **Request path:** `UI → feature hook → client DAL → route handler / server action → use case → repository`
 - **Flags:** `MONOREPO: false`, `apps: []`, `TYPESCRIPT, HAS_UI, NEXTJS, REQUEST_PATH_SET` on; others per brief.
-- **Commands:** from the package manager chosen (`pnpm`/`bun`); `lint` = `biome check .`.
+- **Commands:** from the package manager chosen (`pnpm`/`bun`); `lint` = `biome check . && oxlint`.
 - **Scaffold:** `create-next-app` at the root (before rendering docs), then the `src/server` and
-  `src/shared` skeleton, the snippets, and contract-test rules: `src/app` and `src/features` never
-  import `src/server/db` or the ORM; `src/server/modules` imports no framework or ORM; the entry
-  rule's `roots` are `src/server/modules` and `src/features`.
+  `src/shared` skeleton and the snippets. The rendered `.fallowrc.json` keeps `src/app` and
+  `src/features` out of `src/server/db` and `src/server/modules/<module>` internals; `biome.json`
+  keeps frameworks and the ORM out of `src/server/modules`.
 
 ---
 
@@ -115,7 +117,8 @@ src/
 - **Request path:** `route → use case → repository` (and `use case → adapter port` for vendors)
 - **Flags:** `MONOREPO: false`, `apps: []`, `HAS_UI: false`, `TYPESCRIPT, REQUEST_PATH_SET` on.
 - **Scaffold:** `bun init` / `npm init`, the framework (Elysia, Hono, Fastify), the snippets, a
-  `/health` slice, and the contract test (routes never import repositories or the ORM).
+  `/health` slice. The rendered `.fallowrc.json` keeps `src/routes` out of `src/db` and module
+  internals.
 
 ---
 
@@ -129,6 +132,6 @@ before choosing tools.
 - **Commands:** use the ecosystem's (`uv run ruff check`, `uv run pytest`, `go test ./...`, …).
   `CMD_TYPECHECK` may repeat the lint command if the language has no separate step
   (with `TYPESCRIPT: false` the typecheck rows are omitted anyway).
-- **Scaffold:** none. `biome.json`, `tsconfig.base.json` and `context/standards/typescript.md`
-  are not rendered; write the equivalent language standard as `context/standards/<language>.md`
+- **Scaffold:** none. `biome.json`, `.fallowrc.json`, `tsconfig.base.json` and
+  `context/standards/typescript.md` are not rendered; write the equivalent language standard as `context/standards/<language>.md`
   and link it from `code-standards.md`.

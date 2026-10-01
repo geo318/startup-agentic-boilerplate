@@ -30,7 +30,7 @@ names use its terms exactly; a new domain word goes into the glossary before it 
   owner's repository. It calls the owner's public API or reacts to its events.
 - A module's public API is its `index.ts`: explicit named exports of use cases, queries, public
   types, errors, and events. Everything else is internal. Importing past another module's
-  `index.ts` fails the architecture contract test.
+  `index.ts` is forbidden{{#if TYPESCRIPT}} (fallow `module-api` boundary zone){{/if}}.
 - Dependencies between modules point one way and never form a cycle. Two modules that need each
   other → one reacts to the other's events, or the shared concept moves to the one that owns it.
 - The shared kernel (`shared/` beside the modules) holds only stable cross-cutting pieces:
@@ -205,4 +205,8 @@ build use cases with fakes the same way.
 3. Add the package subpath export (`<scope>/core/<module>`) and its tsconfig path.
 {{/if}}
 4. Implement the repository and wire the use case in the composition root.
-5. Confirm the architecture contract test passes. It enforces module entry points automatically.
+{{#if TYPESCRIPT}}
+5. Run `{{CMD_FALLOW}}`. Its boundary zones pick up the new module automatically.
+{{else}}
+5. Run the lint and tests that enforce module boundaries.
+{{/if}}

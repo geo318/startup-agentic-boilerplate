@@ -20,6 +20,8 @@ instead. When unsure, leave it out.
 
 `memory.md` is a handoff note, not the plan. In the same pass:
 
+- `{{RUNTIME}} scripts/checks/docs-check.mjs` passes — a dependency added this session gets its
+  `context/library-docs.md` row (`/add-library-skill`);
 - work shipped or a milestone completed → `context/progress-tracker.md`;
 - priorities, blockers, or open gaps changed → `context/build-plan.md`;
 {{#if HAS_UI}}

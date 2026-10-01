@@ -48,6 +48,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+{{#if TYPESCRIPT}}
+          # fallow audit compares against the merge base.
+          fetch-depth: 0
+{{/if}}
           persist-credentials: false
 {{#if BUN}}
       - uses: oven-sh/setup-bun@v2
@@ -66,6 +70,8 @@ jobs:
       - name: Lint
         run: "{{CMD_LINT}}"
 {{#if TYPESCRIPT}}
+      - name: Architecture, dead code, duplication, complexity
+        run: "{{CMD_FALLOW}}"
       - name: Typecheck
         run: "{{CMD_TYPECHECK}}"
 {{/if}}

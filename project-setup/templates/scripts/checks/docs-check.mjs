@@ -4,6 +4,7 @@
 //   - every relative Markdown link points at a real file, and every #anchor at a real heading
 //   - entry points stay inside their line budgets (warnings; errors with --strict)
 //   - .agents/skills-index.md matches the installed skills (scripts/skills/index.mjs --check)
+//   - every package.json dependency is named in context/library-docs.md
 //
 //   docs-check.mjs [--root <dir>] [--strict]
 //
@@ -27,7 +28,14 @@ const SKIP_DIRS = new Set([
   "worktrees",
 ]);
 // Upstream skills are vendored as-is; only the project's own workflow skills are checked.
-const OWN_SKILLS = new Set(["architect", "review", "recover", "remember", "imprint"]);
+const OWN_SKILLS = new Set([
+  "architect",
+  "review",
+  "recover",
+  "remember",
+  "imprint",
+  "add-library-skill",
+]);
 const LINE_BUDGETS = {
   "AGENTS.md": 200,
   "context/README.md": 80,
@@ -81,7 +89,7 @@ function shouldSkip(relDir, name) {
   return inSkills && !OWN_SKILLS.has(name);
 }
 
-function markdownFiles(root) {
+function filesNamed(root, matches) {
   const found = [];
   const walk = (directory) => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -91,7 +99,7 @@ function markdownFiles(root) {
         if (!shouldSkip(relDir, entry.name)) {
           walk(full);
         }
-      } else if (entry.isFile() && entry.name.endsWith(".md")) {
+      } else if (entry.isFile() && matches(entry.name)) {
         found.push(full);
       }
     }
@@ -216,11 +224,40 @@ function checkSkillsIndex(root, errors) {
   }
 }
 
+// A dependency lands with its usage notes: each one is named in backticks in library-docs.md —
+// in a skill row, a docs-link row, or the tooling line. Workspace packages and @types are exempt.
+function checkLibraryDocs(root, errors) {
+  const docsPath = join(root, "context", "library-docs.md");
+  if (!existsSync(docsPath) || !existsSync(join(root, "package.json"))) {
+    return;
+  }
+  const docs = readFileSync(docsPath, "utf8");
+  const manifests = filesNamed(root, (name) => name === "package.json").map((file) => ({
+    rel: relative(root, file).split(sep).join("/"),
+    json: JSON.parse(readFileSync(file, "utf8")),
+  }));
+  const local = new Set(manifests.map(({ json }) => json.name));
+  const reported = new Set();
+  for (const { rel, json } of manifests) {
+    for (const name of Object.keys({ ...json.dependencies, ...json.devDependencies })) {
+      if (local.has(name) || name.startsWith("@types/") || reported.has(name)) {
+        continue;
+      }
+      reported.add(name);
+      if (!docs.includes(`\`${name}\``)) {
+        errors.push(
+          `${rel} — \`${name}\` is not in context/library-docs.md; run /add-library-skill ${name}`,
+        );
+      }
+    }
+  }
+}
+
 function main() {
   const { root, strict } = parseArgs(process.argv.slice(2));
   const errors = [];
   const warnings = [];
-  const files = markdownFiles(root);
+  const files = filesNamed(root, (name) => name.endsWith(".md"));
   for (const file of files) {
     const warning = checkFile(root, file, errors);
     if (warning) {
@@ -228,6 +265,7 @@ function main() {
     }
   }
   checkSkillsIndex(root, errors);
+  checkLibraryDocs(root, errors);
   for (const warning of warnings) {
     console.warn(`warning: ${warning}`);
   }

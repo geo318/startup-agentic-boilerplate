@@ -6,9 +6,9 @@
 `noImplicitOverride`, `noFallthroughCasesInSwitch`, `verbatimModuleSyntax`, and
 `isolatedModules`. Do not relax them per package to make an error go away.
 
-- No `any`, no unsafe `as`, no non-null `!`. Receive `unknown` at a boundary and narrow it with a
-  schema or a type guard. An assertion that is genuinely safe carries a `// SAFETY:` comment
-  explaining why.
+- No `any`, no unsafe `as`, no non-null `!` (lint and oxlint anti-slop fail on them). Receive
+  `unknown` at a boundary and narrow it with a schema or a type guard. An assertion that is
+  genuinely safe carries a `// SAFETY:` comment explaining why.
 - A TypeScript generic on an HTTP call (`get<User>()`) is not runtime validation. Request
   `unknown`, then parse with the shared schema.
 - Exported functions declare their return types when the inferred type would leak an internal

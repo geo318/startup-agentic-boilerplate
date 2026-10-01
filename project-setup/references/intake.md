@@ -67,6 +67,8 @@ Invariants: <n> selected (<short names>)
 Milestones: M0 Foundation · M1 <slice> · M2 …
 Open:       <n> questions recorded for the build plan
 Code:       docs + tooling only | + generators and skeleton
+Mode:       new | adopt | upgrade (from detect.mjs)
+Tooling:    adopt only — e.g. keep ESLint · husky · existing CI; checks plugged in, new code gated
 ```
 
 This is the one hard gate. Proceed only on explicit confirmation.
@@ -92,6 +94,7 @@ re-rendered). All `vars` values are strings; all `flags` are booleans.
     "CMD_INSTALL_CI": "bun install --frozen-lockfile",
     "CMD_DEV": "bun run dev",
     "CMD_LINT": "bun run lint",
+    "CMD_FALLOW": "bun run fallow",
     "CMD_TYPECHECK": "bun run typecheck",
     "CMD_TEST": "bun run test",
     "CMD_TEST_CHANGED": "bunx vitest run --changed origin/main",
@@ -113,7 +116,11 @@ re-rendered). All `vars` values are strings; all `flags` are booleans.
     "REQUEST_PATH_SET": true,
     "GITHUB": true,
     "CLAUDE_CODE": true,
-    "CLAUDE_SKILL_LINKS": true
+    "CLAUDE_SKILL_LINKS": true,
+    "ADOPT": false,
+    "OWN_LINTER": false,
+    "OWN_HOOKS": false,
+    "OWN_CI": false
   },
   "apps": [
     {
@@ -145,3 +152,9 @@ Notes:
   goes in a section of the root `AGENTS.md` instead of a scoped file. `APP_DIR` may never be `.`,
   absolute, or contain `..` (the renderer refuses).
 - `CMD_TEST_CHANGED` falls back to `CMD_TEST` when the runner has no changed-files mode.
+- `ADOPT` is true for an existing codebase: renders `context/plans/adoption.md`, and leaves
+  `.fallowrc.json` to be written from the real layout. `OWN_LINTER`, `OWN_HOOKS`, `OWN_CI` keep the
+  project's linter, git hooks, and CI: `biome.json`, `.githooks/`, and `ci.yml` are not rendered
+  and the checks are added to the existing tools ([adopt.md](adopt.md)). `detect.mjs` sets all four.
+- `CMD_FALLOW` is required when `TYPESCRIPT`: the package script that runs fallow (strict on a new
+  repo, `fallow audit` on adopt/upgrade — see SKILL.md step 7).

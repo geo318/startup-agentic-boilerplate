@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Renders ../templates into a target project from an answers file.
 //
-//   node scaffold.mjs --answers <answers.json> [--target <dir>] [--force] [--dry-run]
+//   node scaffold.mjs --answers <answers.json> [--target <dir>] [--force] [--dry-run] [--sync]
 //
 // Template syntax (deliberately tiny, no dependencies):
 //   {{VAR}}                         value from answers.vars (UPPER_SNAKE only, so
@@ -13,8 +13,16 @@
 //
 // A path segment `__APP_DIR__` renders once per app. Existing files are never
 // overwritten without --force; skipped paths are reported so they can be merged.
+//
+// Every write records sha256(rendered content) in docs/archive/project-setup.lock.json. --sync
+// uses it to bring a set-up project up to date with the current templates:
+//   file missing                       → created
+//   file unchanged since it was written → updated to the new render
+//   template unchanged since then       → left alone (the project's edits win)
+//   both changed, or no lock entry      → new render written to .project-setup/sync/<path> to merge
 
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   chmodSync,
   existsSync,
@@ -33,7 +41,13 @@ const templatesDir = join(skillDir, "templates");
 const manifest = JSON.parse(readFileSync(join(templatesDir, "manifest.json"), "utf8"));
 
 function parseArgs(argv) {
-  const args = { target: process.cwd(), force: false, dryRun: false, answers: undefined };
+  const args = {
+    target: process.cwd(),
+    force: false,
+    dryRun: false,
+    sync: false,
+    answers: undefined,
+  };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--answers") {
@@ -44,12 +58,19 @@ function parseArgs(argv) {
       args.force = true;
     } else if (arg === "--dry-run") {
       args.dryRun = true;
+    } else if (arg === "--sync") {
+      args.sync = true;
     } else {
       throw new Error(`unknown argument: ${arg}`);
     }
   }
   if (!args.answers) {
-    throw new Error("usage: scaffold.mjs --answers <file> [--target <dir>] [--force] [--dry-run]");
+    throw new Error(
+      "usage: scaffold.mjs --answers <file> [--target <dir>] [--force] [--dry-run] [--sync]",
+    );
+  }
+  if (args.sync && args.force) {
+    throw new Error("--sync and --force are exclusive: --sync never overwrites local edits");
   }
   return args;
 }
@@ -228,6 +249,32 @@ function generateSkillsIndex(target, report) {
   report.created.push(relative(target, index));
 }
 
+const LOCK_PATH = join("docs", "archive", "project-setup.lock.json");
+const SYNC_DIR = join(".project-setup", "sync");
+
+function sha256(text) {
+  return createHash("sha256").update(text).digest("hex");
+}
+
+function readLock(target) {
+  const path = join(target, LOCK_PATH);
+  return existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {};
+}
+
+// Which of the sync outcomes in the header applies to an existing file.
+function syncAction(current, rendered, locked) {
+  if (sha256(current) === sha256(rendered)) {
+    return "same";
+  }
+  if (locked === sha256(current)) {
+    return "update";
+  }
+  if (locked === sha256(rendered)) {
+    return "keep";
+  }
+  return "merge";
+}
+
 function lstatSafe(path) {
   try {
     lstatSync(path);
@@ -242,7 +289,8 @@ function main() {
   const target = resolve(args.target);
   const answers = loadAnswers(resolve(args.answers));
   const context = { vars: answers.vars, flags: answers.flags, apps: answers.apps };
-  const report = { created: [], skipped: [], excluded: 0, linked: [] };
+  const report = { created: [], updated: [], merge: [], skipped: [], excluded: 0, linked: [] };
+  const lock = readLock(target);
   const missing = new Set();
   const pending = [];
 
@@ -265,8 +313,9 @@ function main() {
 
     for (const item of targets) {
       const destination = join(target, outputPath(item.path));
-      const shown = relative(target, destination);
-      if (existsSync(destination) && !args.force) {
+      const shown = relative(target, destination).split(sep).join("/");
+      const exists = existsSync(destination);
+      if (exists && !args.force && !args.sync) {
         report.skipped.push(shown);
         continue;
       }
@@ -275,8 +324,22 @@ function main() {
       if (leftover) {
         missing.add(`unbalanced ${leftover[0]} in ${relPath}`);
       }
-      pending.push({ destination, content, executable: isExecutable(item.path) });
-      report.created.push(shown);
+      const executable = isExecutable(item.path);
+      if (!exists || args.force) {
+        pending.push({ destination, content, executable, lockKey: shown });
+        report.created.push(shown);
+        continue;
+      }
+      const action = syncAction(readFileSync(destination, "utf8"), content, lock[shown]);
+      if (action === "same") {
+        lock[shown] = sha256(content);
+      } else if (action === "update") {
+        pending.push({ destination, content, executable, lockKey: shown });
+        report.updated.push(shown);
+      } else if (action === "merge") {
+        pending.push({ destination: join(target, SYNC_DIR, shown), content, executable });
+        report.merge.push(shown);
+      }
     }
   }
 
@@ -293,7 +356,13 @@ function main() {
       if (item.executable) {
         chmodSync(item.destination, 0o755);
       }
+      if (item.lockKey) {
+        lock[item.lockKey] = sha256(item.content);
+      }
     }
+    const sorted = Object.fromEntries(Object.entries(lock).sort(([a], [b]) => a.localeCompare(b)));
+    mkdirSync(dirname(join(target, LOCK_PATH)), { recursive: true });
+    writeFileSync(join(target, LOCK_PATH), `${JSON.stringify(sorted, null, 2)}\n`);
   }
 
   if (answers.flags.CLAUDE_CODE === true && answers.flags.CLAUDE_SKILL_LINKS !== false) {
@@ -309,6 +378,20 @@ function main() {
   for (const path of report.created) {
     console.log(`  + ${path}`);
   }
+  if (report.updated.length > 0) {
+    console.log(`updated ${report.updated.length} files untouched since they were rendered:`);
+    for (const path of report.updated) {
+      console.log(`  ~ ${path}`);
+    }
+  }
+  if (report.merge.length > 0) {
+    console.log(
+      `\nmerge ${report.merge.length} files changed both here and in the templates — diff each against ${SYNC_DIR}/<path>, merge, then delete .project-setup/:`,
+    );
+    for (const path of report.merge) {
+      console.log(`  ! ${path}`);
+    }
+  }
   if (report.linked.length > 0) {
     console.log(`linked ${report.linked.length} skills into .claude/skills`);
   }
@@ -322,7 +405,9 @@ function main() {
   }
   console.log(`excluded ${report.excluded} templates by flags`);
   console.log(
-    "\nNext: replace every <!-- FILL: … --> marker, then run scripts/checks/docs-check.mjs.",
+    args.sync
+      ? "\nNext: merge the listed files, delete .project-setup/, then run scripts/checks/docs-check.mjs."
+      : "\nNext: replace every <!-- FILL: … --> marker, then run scripts/checks/docs-check.mjs.",
   );
 }
 

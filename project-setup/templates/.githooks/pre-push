@@ -1,3 +1,9 @@
 #!/bin/sh
 {{RUNTIME}} scripts/git/conventions.mjs current || exit 1
+{{#if TYPESCRIPT}}
+{{RUNTIME}} scripts/checks/docs-check.mjs || exit 1
+{{CMD_LINT}} || exit 1
+exec {{CMD_FALLOW}}
+{{else}}
 exec {{RUNTIME}} scripts/checks/docs-check.mjs
+{{/if}}

@@ -19,3 +19,4 @@ coverage/
 temp/
 .claude/settings.local.json
 .claude/worktrees/
+.project-setup/

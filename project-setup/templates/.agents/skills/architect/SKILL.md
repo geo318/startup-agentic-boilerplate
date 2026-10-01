@@ -49,7 +49,7 @@ For each layer the change touches, note what it owns and what it must not do. Al
 ## 2. Align on language
 
 Pick 3–5 terms from the request that could be read more than one way. State your reading of each
-and ask the developer to correct it. Do not continue until they agree. Add agreed terms to
+and ask the developer to correct it, then end the turn. Add agreed terms to
 `context/glossary.md` when the plan is confirmed.
 
 ## 3. Resolve the decisions that matter
@@ -93,7 +93,7 @@ decision is settled — not when every question is answered — and say **"Bluep
 - Failures: <typed errors, retries, idempotency, logging>
 
 ### Enforcement
-- <tests, contract-test rules, or baseline changes this needs>
+- <tests, and boundary zones (`.fallowrc.json`) or lint overrides (`{{#if OWN_LINTER}}oxlint.config.ts{{else}}biome.json{{/if}}`) this needs>
 
 ### Assumptions
 - <anything not explicitly confirmed>
@@ -102,7 +102,7 @@ decision is settled — not when every question is answered — and say **"Bluep
 1. <ordered, each small enough for one commit>
 ```
 
-Wait for explicit confirmation before building. For work spanning sessions, save the plan as
+Post the plan and end the turn; build only after the developer confirms. For work spanning sessions, save the plan as
 `context/plans/<feature>.md` and link it from the build plan.
 
 ## Stop conditions
