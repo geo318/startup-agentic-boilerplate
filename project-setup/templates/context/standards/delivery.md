@@ -14,7 +14,7 @@ Read before committing, pushing, opening a PR, or marking work complete.
 
 ## Git conventions
 
-Enforced locally by `.githooks/` (installed by `{{RUNTIME}} scripts/git/conventions.mjs install-hooks`){{#if GITHUB}} and
+Enforced locally by {{#if OWN_HOOKS}}the project's existing git hooks{{else}}`.githooks/` (installed by `{{RUNTIME}} scripts/git/conventions.mjs install-hooks`){{/if}}{{#if GITHUB}} and
 in CI on every PR{{/if}}.
 
 - **Branches:** `<type>/<kebab-case-description>`. Types: `feat`, `fix`, `docs`, `refactor`,

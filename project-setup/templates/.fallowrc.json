@@ -1,0 +1,46 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  "entry": ["scripts/**/*.mjs"],
+  "ignorePatterns": ["tools/oxlint/anti-slop/**"],
+  "boundaries": {
+{{#if MONOREPO}}
+    "zones": [
+      { "name": "routes", "patterns": ["apps/api/src/routes/**"] },
+      { "name": "web", "patterns": ["apps/web/**"] },
+      { "name": "db", "patterns": ["packages/db/src/**"] },
+      { "name": "kernel", "patterns": ["packages/core/src/shared/**"] },
+      { "name": "module-api", "patterns": ["packages/core/src/*/index.ts"] },
+      { "name": "modules", "autoDiscover": ["packages/core/src"] }
+    ],
+{{else}}
+{{#if HAS_UI}}
+    "zones": [
+      { "name": "routes", "patterns": ["src/app/**"] },
+      { "name": "web", "patterns": ["src/features/**"] },
+      { "name": "db", "patterns": ["src/server/db/**"] },
+      { "name": "kernel", "patterns": ["src/server/modules/shared/**"] },
+      { "name": "module-api", "patterns": ["src/server/modules/*/index.ts"] },
+      { "name": "modules", "autoDiscover": ["src/server/modules"] }
+    ],
+{{else}}
+    "zones": [
+      { "name": "routes", "patterns": ["src/routes/**"] },
+      { "name": "db", "patterns": ["src/db/**"] },
+      { "name": "kernel", "patterns": ["src/modules/shared/**"] },
+      { "name": "module-api", "patterns": ["src/modules/*/index.ts"] },
+      { "name": "modules", "autoDiscover": ["src/modules"] }
+    ],
+{{/if}}
+{{/if}}
+    "rules": [
+      { "from": "routes", "allow": ["module-api", "kernel"{{#unless MONOREPO}}{{#if HAS_UI}}, "web"{{/if}}{{/unless}}] },
+{{#if HAS_UI}}
+      { "from": "web", "allow": ["module-api", "kernel"] },
+{{/if}}
+      { "from": "db", "allow": ["module-api", "kernel"] },
+      { "from": "kernel", "allow": [] },
+      { "from": "modules", "allow": ["module-api", "kernel"] },
+      { "from": "module-api", "allow": ["modules", "kernel"] }
+    ]
+  }
+}

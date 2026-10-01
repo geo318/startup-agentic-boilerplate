@@ -19,9 +19,16 @@
 - Mock at architectural boundaries (the feature hook, the repository port, the HTTP client), not
   deep inside modules. Prefer dependency injection over module mocking.
 - A bug fix lands with a test that fails without the fix.
-- Architecture rules that matter (import boundaries, forbidden calls, curated exports) are enforced
-  by a contract test with an explicit baseline. Baseline entries are debt to shrink, never examples
-  to copy; adding one needs a written reason and the user's approval.
+{{#if TYPESCRIPT}}
+- Architecture rules live in config, not tests: boundary zones in `.fallowrc.json`, banned imports
+  and globals in {{#if OWN_LINTER}}`oxlint.config.ts`{{else}}`biome.json`{{/if}} overrides. An exception is an inline
+  `fallow-ignore-next-line` or {{#if OWN_LINTER}}`oxlint-disable-next-line`{{else}}`biome-ignore`{{/if}} comment with its reason, approved by the user —
+  debt to shrink, never an example.
+{{else}}
+- Architecture rules that matter (import boundaries, forbidden calls) are enforced by a lint rule
+  or a test, not prose. An exception carries a written reason and the user's approval — debt to
+  shrink, never an example.
+{{/if}}
 
 ## What counts as verified
 

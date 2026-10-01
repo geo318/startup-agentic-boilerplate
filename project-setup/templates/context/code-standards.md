@@ -5,10 +5,11 @@ their scope.
 
 ## Do
 
-- Keep transport handlers thin — authenticate, validate, map errors, delegate to a service.
+- Keep transport handlers thin — authenticate, validate, map errors, delegate to a use case.
 - Parse untrusted data at boundaries (env, request input, webhooks, third-party and AI responses)
   with a schema. Pass typed values inward.
-- Prefer boring, explicit code over clever abstractions. Three similar lines beat a premature helper.
+- Prefer boring, explicit code over clever abstractions. Three similar lines beat a premature
+  helper ([design principles](#design-principles)).
 - Load a library's skill from `.agents/skills/` before writing code against that library.
 <!-- FILL: 0–4 project-specific "do" bullets from the brief or chosen invariants. Delete this marker if none. -->
 
@@ -34,6 +35,23 @@ their scope.
   subtle invariant, a workaround for a specific bug.
 - Never describe *what* the code does; names do that.
 
+## Design principles
+
+Read [Design principles](standards/design-principles.md) when planning or reviewing a design:
+SOLID, DRY, YAGNI, and KISS as they apply here, and how to break ties between them.
+
+## Code organisation
+
+Read [Code organisation](standards/code-organisation.md) before creating a file or folder: where
+code goes, naming, module entry points, imports, and when to split a file.
+
+{{#if HAS_UI}}
+## React
+
+Read [React](standards/react.md) before writing React: where state lives, data fetching and
+caching, {{#if NEXTJS}}server and client rendering, {{/if}}and performance.
+
+{{/if}}
 {{#if TYPESCRIPT}}
 ## TypeScript
 

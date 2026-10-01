@@ -20,9 +20,15 @@ New and touched features follow this dependency direction:
 
 `{{REQUEST_PATH}}`
 
-<!-- FILL: one bullet per hop, stating its responsibility and its location in this repo (e.g. "Client DAL — `apps/web/src/features/<feature>/api.ts`; requests `unknown` and validates the response with a shared schema"). End with the approved-exceptions rule: where exceptions are recorded (architecture contract test baseline) and that baseline entries are debt, not precedent. -->
+<!-- FILL: one bullet per hop, stating its responsibility and its location in this repo (e.g. "Client DAL — `apps/web/src/features/<feature>/api.ts`; requests `unknown` and validates the response with a shared schema"). End with the approved-exceptions rule: exceptions are inline `fallow-ignore-next-line` / `biome-ignore` comments with a reason, and they are debt, not precedent. -->
 
 {{/if}}
+## Domain modules
+
+Read [Domain modules](architecture/domain-modules.md) before adding a module, use case, entity,
+port, repository, or adapter: bounded contexts, module anatomy, aggregates, the unit of work, and
+how modules talk to each other.
+
 {{#if MULTI_TENANT}}
 ## Tenant isolation
 

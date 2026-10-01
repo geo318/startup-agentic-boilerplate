@@ -30,17 +30,26 @@ Trace the change through every hop of the canonical request path:
 {{/if}}
 For each layer the change touches, note what it owns and what it must not do. Also check:
 
+- the owning module, the aggregate each command changes, and whether this needs a new module
+  (`context/architecture/domain-modules.md`);
+- where each new file goes and what it is called (`context/standards/code-organisation.md`);
 - data ownership{{#if MULTI_TENANT}} and tenant scope (where the actor context comes from){{/if}};
 - where input/output contracts live and who validates them;
 - transaction boundaries, concurrency, idempotency, and retry behaviour;
 - expected failures, typed errors, and observability;
-- the composition root that wires services to adapters;
+- the composition root that wires use cases to adapters, and any new port;
+{{#if HAS_UI}}
+- where the UI state lives, which queries and caches a mutation invalidates, and any
+  performance-sensitive path (`context/standards/react.md`);
+{{/if}}
+- the simplest design that meets this milestone: no option, abstraction, or extension point the
+  build plan does not ask for (`context/standards/design-principles.md`);
 - existing paths this replaces, so nothing is left duplicated or still connected.
 
 ## 2. Align on language
 
 Pick 3–5 terms from the request that could be read more than one way. State your reading of each
-and ask the developer to correct it. Do not continue until they agree. Add agreed terms to
+and ask the developer to correct it, then end the turn. Add agreed terms to
 `context/glossary.md` when the plan is confirmed.
 
 ## 3. Resolve the decisions that matter
@@ -75,12 +84,16 @@ decision is settled — not when every question is answered — and say **"Bluep
 ### Layer map
 - <layer>: <responsibility in this feature>
 
+### Modules and files
+- Module: <owning module>; aggregate(s) changed: <…>; new ports: <…>
+- New files: <path> — <purpose>
+
 ### Contracts and failure behaviour
 - Input / output: <schema and where it is validated>
 - Failures: <typed errors, retries, idempotency, logging>
 
 ### Enforcement
-- <tests, contract-test rules, or baseline changes this needs>
+- <tests, and boundary zones (`.fallowrc.json`) or lint overrides (`{{#if OWN_LINTER}}oxlint.config.ts{{else}}biome.json{{/if}}`) this needs>
 
 ### Assumptions
 - <anything not explicitly confirmed>
@@ -89,7 +102,7 @@ decision is settled — not when every question is answered — and say **"Bluep
 1. <ordered, each small enough for one commit>
 ```
 
-Wait for explicit confirmation before building. For work spanning sessions, save the plan as
+Post the plan and end the turn; build only after the developer confirms. For work spanning sessions, save the plan as
 `context/plans/<feature>.md` and link it from the build plan.
 
 ## Stop conditions

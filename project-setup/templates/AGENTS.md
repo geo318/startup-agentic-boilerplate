@@ -43,6 +43,11 @@ Not sure where a change belongs? Start with the [code map](context/code-map.md).
 - Before using a third-party library, load its skill from `.agents/skills/` (index:
   [library docs](context/library-docs.md)). Project rules here override generic skill examples.
 - Same problem after one corrective attempt → stop and run `/recover`.
+- Questions: ask in plain text and end the turn — never `AskUserQuestion` or plan-approval dialogs
+  (they block the session). Ask only when the answer changes the implementation and neither docs nor
+  code settle it; give your recommended option first. For small choices, don't ask: say
+  `Assumed: X (alternative: Y)` and continue. Irreversible actions (deleting data, force-push,
+  publishing, spending money) always need an explicit yes.
 
 ## Verification before handoff
 
@@ -58,7 +63,10 @@ A passing typecheck is not verification. Run every check relevant to the diff an
 {{#if HAS_E2E}}
 | End-to-end | `{{CMD_E2E}}` | user-facing flow changed |
 {{/if}}
-| Docs | `{{RUNTIME}} scripts/checks/docs-check.mjs` | any `.md` change |
+{{#if TYPESCRIPT}}
+| Architecture, dead code, duplication, complexity | `{{CMD_FALLOW}}` | any code change |
+{{/if}}
+| Docs | `{{RUNTIME}} scripts/checks/docs-check.mjs` | any `.md` or `package.json` change |
 {{#if HAS_UI}}
 | Runtime | drive the running app (see the app's `AGENTS.md`) | any UI or request-path change |
 {{/if}}
@@ -85,9 +93,12 @@ Read only the rows your task touches, and only the linked sections you need.
 | Task | Read |
 | --- | --- |
 | Any implementation | [architecture](context/architecture.md) + [code standards](context/code-standards.md) (routers: follow only matching links) |
+| New module, use case, entity, port, or repository | [domain modules](context/architecture/domain-modules.md) |
+| New file or folder; naming; where code goes | [code organisation](context/standards/code-organisation.md) |
 | Product orientation, package purposes | [project overview](context/project-overview.md), [glossary](context/glossary.md) |
 {{#if HAS_UI}}
 | UI work (components, styling, forms) | [UI rules](context/ui-rules.md), [UI tokens](context/ui-tokens.md) |
+| React state, data fetching, caching, performance | [React](context/standards/react.md) |
 | Building or matching a UI component | [UI registry](context/ui-registry.md), then `/imprint` after |
 {{/if}}
 {{#if HAS_DB}}
@@ -117,5 +128,10 @@ Read only the rows your task touches, and only the linked sections you need.
 {{/if}}
 - `/recover`: when something breaks after one failed correction.
 - `/remember save` / `/remember restore`: for work that spans sessions.
+- `/add-library-skill <package>`: only when docs-check names a package missing from library docs.
 
 Library and domain skills: [.agents/README.md](.agents/README.md).
+
+## Token tools
+
+<!-- FILL: one or two lines naming the token-saving tools installed on this machine and how agents use them, e.g. "Shell output is condensed by rtk; re-run as `rtk proxy <cmd>` only if it looks unusable. Keep diffs minimal (ponytail)." Subagents read this too. If none are installed, delete this whole section. -->

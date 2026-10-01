@@ -1,5 +1,6 @@
 {
   "permissions": {
+    "deny": ["AskUserQuestion"],
     "allow": [
       "Bash({{CMD_LINT}})",
       "Bash({{CMD_LINT}} *)",
@@ -12,10 +13,29 @@
       "Bash({{RUNTIME}} scripts/git/conventions.mjs *)",
       "Bash({{RUNTIME}} scripts/skills/index.mjs)",
       "Bash({{RUNTIME}} scripts/skills/index.mjs *)",
+{{#if TYPESCRIPT}}
+      "Bash({{CMD_FALLOW}})",
+      "Bash(npx fallow *)",
+      "Bash(bunx fallow *)",
+{{/if}}
+      "Bash(npx skills find *)",
+      "Bash(npx skills add *)",
       "Bash(git status)",
       "Bash(git diff *)",
       "Bash(git log *)",
       "Bash(git fetch *)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{RUNTIME}} \"$CLAUDE_PROJECT_DIR/scripts/checks/agent-stop.mjs\""
+          }
+        ]
+      }
     ]
   }
 }
