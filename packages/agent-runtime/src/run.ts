@@ -43,6 +43,7 @@ export type Policy = {
   requiredGates: string[];
   limits: Limits;
   isolation: Isolation;
+  egress: "local-only" | "hosted-allowed"; // hosted providers receive source: needs explicit consent
   dockerImage?: string; // required when isolation is "docker"; no default image
   riskTier: RiskTier;
 };
@@ -68,6 +69,9 @@ export class Run {
   #lastFingerprint = "";
 
   #dockerUp: () => boolean;
+  get egress() {
+    return this.#policy.egress;
+  }
 
   constructor(policy: Policy, opts: { ledger?: Ledger; dockerUp?: () => boolean } = {}) {
     const ledger = opts.ledger;
@@ -149,7 +153,15 @@ export class Run {
     const { workspace, protectedPaths } = this.#policy;
     switch (a.kind) {
       case "read": {
-        const content = readFileSync(resolveSafe(workspace, a.path), "utf8");
+        let content: string;
+        try {
+          content = readFileSync(resolveSafe(workspace, a.path), "utf8");
+        } catch (e) {
+          if ((e as { code?: string }).code === "ENOENT" || (e as { code?: string }).code === "EISDIR") {
+            throw Object.assign(new Error(`not found or not a file: ${a.path}`), { reason: "insufficient context" });
+          }
+          throw e;
+        }
         return { ok: true, data: { content, hash: sha256(content) } };
       }
       case "edit": {

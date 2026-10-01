@@ -12,6 +12,7 @@ export type OllamaProfile = {
 // validates semantics. Usage comes from the server's own counters, or null if absent.
 export class OllamaProvider implements GenerationProvider {
   readonly id: string;
+  readonly hosted = false; // local server; if baseUrl points off-box the user chose that
   #p: OllamaProfile;
   constructor(profile: OllamaProfile) {
     this.#p = profile;

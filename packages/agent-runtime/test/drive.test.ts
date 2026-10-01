@@ -16,7 +16,7 @@ function setup(tokens = 40_000) {
   writeFileSync(join(ws, "value.txt"), "bad");
   writeFileSync(join(ws, "check.mjs"), `import {readFileSync} from "node:fs"; console.log("tests 1"); process.exit(readFileSync("value.txt","utf8")==="good"?0:1)`);
   const policy: Policy = {
-    workspace: ws, stateDir: join(base, "state"), protectedPaths: ["check.mjs"], riskTier: "R1", isolation: "none",
+    workspace: ws, stateDir: join(base, "state"), protectedPaths: ["check.mjs"], riskTier: "R1", egress: "local-only", isolation: "none",
     gates: [{ id: "unit", argv: ["node", "check.mjs"], timeoutMs: 5000, discover: { regex: "tests (\\d+)", min: 1 } }],
     requiredGates: ["unit"], limits: { aggregateTokens: tokens, toolActions: 12, semanticRepairs: 1 },
   };
@@ -67,4 +67,13 @@ test("a model cannot self-accept through the driver", async () => {
   const { run, ws } = setup();
   await drive(run, new MockProvider(['{"id":"1","kind":"accept"}', '{"id":"2","kind":"accept"}']), ws, task, 2);
   assert.notEqual(run.state, "ACCEPTED");
+});
+
+test("repeated request for missing material → NEEDS_INPUT, not budget burn", async () => {
+  const { run, ws } = setup();
+  const read = '{"id":"x","kind":"read","path":"docs/spec.md"}';
+  const p = new MockProvider([read, read, read, read]);
+  await drive(run, p, ws, task);
+  assert.equal(run.state, "NEEDS_INPUT");
+  assert.equal(p.calls.length, 2);
 });

@@ -101,7 +101,7 @@ test("driver blocks (not truncates) when mandatory context cannot fit", async ()
 function mkRun(base: string, ws: string, check: string, over: Partial<Policy> = {}) {
   writeFileSync(join(ws, "check.mjs"), check);
   const run = new Run({
-    workspace: ws, stateDir: join(base, "state"), protectedPaths: ["check.mjs"], riskTier: "R1", isolation: "none",
+    workspace: ws, stateDir: join(base, "state"), protectedPaths: ["check.mjs"], riskTier: "R1", egress: "local-only", isolation: "none",
     gates: [{ id: "unit", argv: ["node", "check.mjs"], timeoutMs: 5000, discover: { regex: "tests (\\d+)", min: 1 } }],
     requiredGates: ["unit"], limits: { aggregateTokens: 40_000, toolActions: 12, semanticRepairs: 1 }, ...over,
   });

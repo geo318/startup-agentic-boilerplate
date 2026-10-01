@@ -5,15 +5,18 @@ export type GenerateResult = {
   finishReason: "stop" | "length" | "error";
   usage: Usage;
   latencyMs: number;
+  costUsd?: number; // hosted spend as reported by the provider; absent = unknown
 };
 export interface GenerationProvider {
   readonly id: string; // exact model/profile identity, never a bare alias
+  readonly hosted: boolean; // true = prompt content leaves this machine
   generate(req: GenerateRequest): Promise<GenerateResult>;
 }
 
 // Deterministic replay for engine tests. Proves the controller, not any model's coding ability.
 export class MockProvider implements GenerationProvider {
   readonly id = "mock/replay";
+  readonly hosted = false;
   calls: GenerateRequest[] = [];
   #script: Array<string | Partial<GenerateResult>>;
   constructor(script: Array<string | Partial<GenerateResult>>) {

@@ -29,7 +29,7 @@ function setup(over: Partial<Policy> = {}, checkSource?: string) {
   );
   const policy: Policy = {
     workspace, stateDir: join(base, "state"), protectedPaths: ["acceptance", "check.mjs"],
-    gates: [gate], requiredGates: ["unit"], limits, isolation: "none", riskTier: "R1", ...over,
+    gates: [gate], requiredGates: ["unit"], limits, isolation: "none", riskTier: "R1", egress: "local-only", ...over,
   };
   const run = new Run(policy);
   run.start();

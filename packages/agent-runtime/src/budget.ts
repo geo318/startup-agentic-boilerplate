@@ -9,6 +9,7 @@ export class Ledger {
   tokens = 0;
   actions = 0;
   repairs = 0;
+  costUsd = 0; // hosted spend as reported; calls with no report are in unknownUsageCalls
   unknownUsageCalls = 0; // unknown usage is unknown, not zero
   readonly limits: Limits;
   constructor(limits: Limits) {
