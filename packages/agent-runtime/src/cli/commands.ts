@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Ledger, type Limits } from "../budget.ts";
 import { ChatCompletionsProvider } from "../chat.ts";
@@ -64,8 +64,29 @@ type Contract = {
   id: string; goal: string; acceptance: string[]; files: string[]; scope?: string[]; riskTier: RiskTier; riskTags?: string[];
   budget: "narrow" | "standard" | "complex"; recipe?: { path: string; find: string; replace: string }; unresolvedQuestions?: string[];
 };
-type ProjectPolicy = { protectedPaths: string[]; gates: Policy["gates"]; requiredGates: string[]; egress: Policy["egress"]; dockerImage?: string };
+type ProjectPolicy = {
+  protectedPaths: string[]; gates: Policy["gates"]; requiredGates: string[]; egress: Policy["egress"]; dockerImage?: string;
+  bootstrap?: { argv: string[]; timeoutMs: number; env?: Record<string, string> }; baseline?: "require-pass" | "record" | "off";
+};
 type Models = { profiles: Record<string, Record<string, any>>; roles: { worker: string; architect?: string; reviewer?: string } };
+
+// Copies what git considers part of the project (tracked + untracked, minus ignored): no build output, no .env.
+// Without git it falls back to excluding the usual heavy directories.
+function copyProject(src: string, dest: string): void {
+  const r = spawnSync("git", ["ls-files", "-z", "-co", "--exclude-standard"], { cwd: src, maxBuffer: 256 * 1024 * 1024 });
+  if (r.status !== 0) {
+    cpSync(src, dest, { recursive: true, filter: (p) => !/(^|\/)(\.git|node_modules|\.next|dist|build|\.agentic)(\/|$)/.test(p.slice(src.length)) });
+    return;
+  }
+  mkdirSync(dest, { recursive: true });
+  for (const rel of r.stdout.toString("utf8").split("\0").filter(Boolean)) {
+    const from = join(src, rel);
+    if (!existsSync(from) && !lstatExists(from)) continue; // tracked but deleted in the working tree
+    mkdirSync(dirname(join(dest, rel)), { recursive: true });
+    cpSync(from, join(dest, rel), { dereference: false });
+  }
+}
+const lstatExists = (p: string) => { try { lstatSync(p); return true; } catch { return false; } };
 
 const taskDir = (env: Env, id: string) => join(env.home, "tasks", id);
 const stateOf = (env: Env, id: string) => join(taskDir(env, id), "state");
@@ -142,6 +163,8 @@ function load(env: Env, id: string) {
     workspace: candidate, stateDir, protectedPaths: pp.protectedPaths, gates: pp.gates, requiredGates: pp.requiredGates,
     limits: budget.limits, isolation, egress: pp.egress, ...(pp.dockerImage ? { dockerImage: pp.dockerImage } : {}),
     riskTier: tier, ...(contract.riskTags?.length ? { riskTags: contract.riskTags } : {}),
+    baseline: pp.baseline ?? "require-pass", // a candidate is only judged against a green starting point
+    ...(pp.bootstrap ? { bootstrap: { id: "bootstrap", argv: pp.bootstrap.argv, timeoutMs: pp.bootstrap.timeoutMs, discover: { regex: "", min: 0 }, ...(pp.bootstrap.env ? { env: pp.bootstrap.env } : {}) } } : {}),
   });
   return { ...base, policy };
 }
@@ -189,12 +212,14 @@ export async function taskRun(env: Env, id: string): Promise<number> {
     }
   }
 
-  if (fresh) cpSync(env.project, t.candidate, { recursive: true, filter: (s) => !/(^|\/)(\.git|node_modules|\.agentic)(\/|$)/.test(s.slice(env.project.length)) });
+  if (fresh) copyProject(env.project, t.candidate);
   const run = new Run(t.policy(iso), env.dockerUp ? { dockerUp: env.dockerUp } : {});
   env.onRun?.(run);
   try {
-    if (fresh) run.start();
-    else run.resume();
+    if (fresh) {
+      await run.prepare();
+      run.start();
+    } else run.resume();
     if (run.state === "VERIFYING") await run.reverify();
     const planFile = join(t.dir, "plan.json");
     const ctxText = () => render(compile(t.candidate, t.contract.files, t.contract.goal, t.budget.maxContext));

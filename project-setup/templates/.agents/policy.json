@@ -15,6 +15,7 @@
     }
   ],
   "requiredGates": ["tests"],
+  "baseline": "require-pass",
   "egress": {{#if AGENTIC_HOSTED_OK}}"hosted-allowed"{{else}}"local-only"{{/if}}{{#if AGENTIC_DOCKER_IMAGE_SET}},
   "dockerImage": "{{AGENTIC_DOCKER_IMAGE}}"{{/if}}
 }

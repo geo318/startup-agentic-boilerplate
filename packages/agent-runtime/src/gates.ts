@@ -9,7 +9,8 @@ export type GateSpec = {
   argv: string[];
   timeoutMs: number;
   // Applicable gates must discover work: `regex` capture group 1 is a count read from stdout.
-  discover: { regex: string; min: number };
+  discover: { regex: string; min: number }; // min 0 = no discovery needed (bootstrap commands)
+  env?: Record<string, string>; // extra environment fixed by trusted policy, e.g. a package cache location
 };
 
 export type GateStatus = "pass" | "fail" | "error" | "timeout" | "incomplete";
@@ -60,7 +61,7 @@ export function runGate(spec: GateSpec, cwd: string, snapshot: string, docker?: 
     const home = docker ? (process.env.HOME ?? "") : mkdtempSync(join(tmpdir(), "gate-home-"));
     const child = spawn(cmd, args, {
       cwd,
-      env: { PATH: process.env.PATH ?? "", HOME: home, CI: "1" },
+      env: { PATH: process.env.PATH ?? "", HOME: home, CI: "1", ...(docker ? {} : spec.env ?? {}) },
       detached: true,
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -92,6 +93,7 @@ export function runGate(spec: GateSpec, cwd: string, snapshot: string, docker?: 
     child.on("error", () => finish("error", null, null, null));
     child.on("close", (code, signal) => {
       if (timedOut) return finish("timeout", code, signal, null);
+      if (code === 0 && spec.discover.min === 0) return finish("pass", code, signal, null);
       const m = new RegExp(spec.discover.regex).exec(out);
       const discovered = m ? Number(m[1]) : 0;
       if (code !== 0) return finish("fail", code, signal, discovered);

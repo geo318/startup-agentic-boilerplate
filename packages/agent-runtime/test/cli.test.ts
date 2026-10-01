@@ -29,7 +29,7 @@ function world(over: { policy?: object; roles?: object; extraProfiles?: object }
   };
   writeFileSync(join(project, ".agents/models.json"), J({ schemaVersion: 1, profiles, roles: { worker: "worker", architect: "architect", reviewer: "reviewer", ...(over.roles ?? {}) } }));
   writeFileSync(join(project, ".agents/policy.json"), J({
-    schemaVersion: 1, protectedPaths: ["check.mjs", ".agents"], egress: "local-only",
+    schemaVersion: 1, protectedPaths: ["check.mjs", ".agents"], egress: "local-only", baseline: "off",
     gates: [{ id: "unit", argv: ["node", "check.mjs"], timeoutMs: 8000, discover: { regex: "tests (\\d+)", min: 1 } }], requiredGates: ["unit"], ...(over.policy ?? {}),
   }));
   const out: string[] = [];

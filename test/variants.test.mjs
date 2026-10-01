@@ -241,6 +241,7 @@ test("fresh scaffold → pin → create → run with a replay worker → awaitin
   // the check script is the gate: point the generated policy's gate at it (a maintenance edit by the project owner)
   const pol = JSON.parse(readFileSync(join(t, ".agents/policy.json"), "utf8"));
   pol.gates[0].argv = ["node", "check.mjs"];
+  pol.baseline = "off"; // this fixture starts red on purpose
   pol.protectedPaths.push("check.mjs");
   writeFileSync(join(t, ".agents/policy.json"), JSON.stringify(pol));
   const contract = join(t, "contract.json");

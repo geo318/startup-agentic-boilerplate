@@ -3,27 +3,136 @@
   "title": "ProjectPolicy",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "protectedPaths", "gates", "requiredGates", "egress"],
+  "required": [
+    "schemaVersion",
+    "protectedPaths",
+    "gates",
+    "requiredGates",
+    "egress"
+  ],
   "properties": {
-    "schemaVersion": { "const": 1 },
-    "protectedPaths": { "type": "array", "maxItems": 200, "items": { "type": "string", "minLength": 1, "maxLength": 300 } },
-    "gates": {
-      "type": "array", "minItems": 1, "maxItems": 30,
+    "schemaVersion": {
+      "const": 1
+    },
+    "protectedPaths": {
+      "type": "array",
+      "maxItems": 200,
       "items": {
-        "type": "object", "additionalProperties": false, "required": ["id", "argv", "timeoutMs", "discover"],
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 300
+      }
+    },
+    "gates": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 30,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "argv",
+          "timeoutMs",
+          "discover"
+        ],
         "properties": {
-          "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,40}$" },
-          "argv": { "type": "array", "minItems": 1, "maxItems": 30, "items": { "type": "string", "maxLength": 500 } },
-          "timeoutMs": { "type": "integer", "minimum": 1000, "maximum": 3600000 },
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,40}$"
+          },
+          "argv": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 30,
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 3600000
+          },
           "discover": {
-            "type": "object", "additionalProperties": false, "required": ["regex", "min"],
-            "properties": { "regex": { "type": "string", "minLength": 1, "maxLength": 300 }, "min": { "type": "integer", "minimum": 1 } }
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "regex",
+              "min"
+            ],
+            "properties": {
+              "regex": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "min": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
           }
         }
       }
     },
-    "requiredGates": { "type": "array", "minItems": 1, "maxItems": 30, "items": { "type": "string" } },
-    "egress": { "enum": ["local-only", "hosted-allowed"] },
-    "dockerImage": { "type": "string", "minLength": 3, "maxLength": 300 }
+    "requiredGates": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 30,
+      "items": {
+        "type": "string"
+      }
+    },
+    "egress": {
+      "enum": [
+        "local-only",
+        "hosted-allowed"
+      ]
+    },
+    "dockerImage": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 300
+    },
+    "bootstrap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "argv",
+        "timeoutMs"
+      ],
+      "properties": {
+        "argv": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 3600000
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      }
+    },
+    "baseline": {
+      "enum": [
+        "require-pass",
+        "record",
+        "off"
+      ]
+    }
   }
 }

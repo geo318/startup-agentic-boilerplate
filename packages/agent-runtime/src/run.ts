@@ -58,6 +58,8 @@ export type Policy = {
   isolation: Isolation;
   egress: "local-only" | "hosted-allowed"; // hosted providers receive source: needs explicit consent
   dockerImage?: string; // required when isolation is "docker"; no default image
+  bootstrap?: GateSpec; // trusted dependency setup (e.g. install from the lockfile); not applied under docker yet
+  baseline?: "require-pass" | "record" | "off"; // run required gates on the untouched candidate first
   riskTier: RiskTier;
   riskTags?: string[]; // sensitive-operation tags from the approved contract (auth, tenancy, financial, ...)
 };
@@ -68,6 +70,7 @@ export type Evidence = {
   isolation: Isolation;
   gates: GateResult[];
   limitations: string[];
+  baseline?: Array<{ gateId: string; status: string }>;
   tier: RiskTier; // effective tier, recomputed from the actual diff
   planHash?: string;
   findings?: Finding[];
@@ -88,6 +91,8 @@ export class Run {
   #planHash: string | undefined;
   #draft: Evidence | undefined;
   #viaRecipe = false;
+  #prepStop: { to: "NEEDS_INPUT" | "BLOCKED"; why: string } | undefined;
+  #baselineResults: Array<{ gateId: string; status: string }> | undefined;
   #abort = new AbortController();
   uncertainBilling = false; // set on resume when a billable provider call was in flight at the crash
   get signal() {
@@ -117,24 +122,55 @@ export class Run {
     this.state = to;
   }
 
-  // Preflight. The isolation choice is the user's: unanswered → stop and ask; "none" is allowed only
-  // for R0–R2; "docker" is verified up front and never silently falls back to the host.
+  // Why this run may not start, if so. Shared by prepare() and start(): nothing executes before it passes.
+  #preflightProblem(): { to: "NEEDS_INPUT" | "BLOCKED"; why: string } | undefined {
+    const { isolation, riskTier, dockerImage } = this.#policy;
+    if (isolation === "unset") return { to: "NEEDS_INPUT", why: "isolation not chosen: ask the user (docker yes/no)" };
+    if (isolation === "none" && riskTier === "R3") return { to: "BLOCKED", why: "policy violation: R3 work requires isolation or human-run checks" };
+    if (isolation === "docker" && (!dockerImage || !this.#dockerUp())) {
+      return { to: "BLOCKED", why: "environment failure: docker chosen but image unset or daemon unreachable" };
+    }
+    if (isolation === "docker" && this.#policy.bootstrap) return { to: "BLOCKED", why: "unsupported capability: dependency bootstrap under docker isolation" };
+    return undefined;
+  }
+
+  // Optional async setup before start(): trusted dependency bootstrap, then the baseline gate run on the untouched
+  // candidate. A failure is recorded and applied by start(); nothing runs unless preflight already passes.
+  async prepare(): Promise<void> {
+    if (this.state !== "RECEIVED" || this.#preflightProblem()) return;
+    const { workspace, bootstrap, baseline, requiredGates, gates } = this.#policy;
+    if (bootstrap) {
+      const b = await runGate(bootstrap, workspace, "bootstrap");
+      this.#log.append("bootstrap", { argv: b.argv, status: b.status, exitCode: b.exitCode, durationMs: b.durationMs, tail: b.outputTail.slice(-2000) });
+      if (b.status !== "pass") {
+        this.#prepStop = { to: "BLOCKED", why: `environment failure: bootstrap ${b.status}` };
+        return;
+      }
+    }
+    if ((baseline ?? "off") === "off") return;
+    const results: Array<{ gateId: string; status: string }> = [];
+    for (const id of requiredGates) {
+      const spec = gates.find((g) => g.id === id);
+      if (!spec) throw new Error(`required gate not defined: ${id}`);
+      const r = await runGate(spec, workspace, "baseline", this.#sandbox());
+      this.#log.append("baseline", { gateId: id, status: r.status, discovered: r.discovered, tail: r.status === "pass" ? "" : r.outputTail.slice(-1500) });
+      results.push({ gateId: id, status: r.status });
+    }
+    this.#baselineResults = results;
+    const bad = results.filter((r) => r.status !== "pass");
+    if (baseline === "require-pass" && bad.length) {
+      this.#prepStop = { to: "NEEDS_INPUT", why: `pre-existing failures: ${bad.map((r) => `${r.gateId}=${r.status}`).join(", ")} — fix or provide a reviewed baseline` };
+    }
+  }
+
   start(): void {
     this.#go("PREFLIGHT");
-    const { isolation, riskTier, dockerImage } = this.#policy;
-    if (isolation === "unset") {
-      this.#go("NEEDS_INPUT", "isolation not chosen: ask the user (docker yes/no)");
+    const problem = this.#preflightProblem() ?? this.#prepStop;
+    if (problem) {
+      this.#go(problem.to, problem.why);
       return;
     }
-    if (isolation === "none" && riskTier === "R3") {
-      this.#go("BLOCKED", "policy violation: R3 work requires isolation or human-run checks");
-      return;
-    }
-    if (isolation === "docker" && (!dockerImage || !this.#dockerUp())) {
-      this.#go("BLOCKED", "environment failure: docker chosen but image unset or daemon unreachable");
-      return;
-    }
-    const { workspace, protectedPaths } = this.#policy;
+    const { workspace, protectedPaths, riskTier } = this.#policy;
     this.#base = snapshot(workspace);
     this.#protectedBase = snapshot(workspace, protectedPaths);
     for (const rel of listFiles(workspace)) this.#baseFiles.set(rel, readText(workspace, rel));
@@ -361,6 +397,7 @@ export class Run {
     this.#draft = {
       base: this.#base, candidate, policyHash: sha256(canonical(this.#policy)),
       isolation: this.#policy.isolation, gates: results, tier,
+      ...(this.#baselineResults ? { baseline: this.#baselineResults } : {}),
       ...(this.#planHash ? { planHash: this.#planHash } : {}),
       limitations: this.#policy.isolation === "none" ? ["user declined docker: candidate code ran on the host with the user's permissions"] : [],
     };
