@@ -5,6 +5,7 @@ import { createInterface } from "node:readline/promises";
 import type { Run } from "../run.ts";
 import { fileURLToPath } from "node:url";
 import { pinProject } from "../pin.ts";
+import { loadSecrets } from "../secrets.ts";
 import * as c from "./commands.ts";
 
 const USAGE = `agentic <command>
@@ -12,6 +13,7 @@ const USAGE = `agentic <command>
   doctor | validate [contract.json...]
   qualify <profile> [--owner-declare architecture|review|action-protocol]
   task create <contract.json> | run <id> | status <id> | approve <id> | accept <id> | cancel <id> | verify <id> | export <id>
+  jev status | report | calibrate --family <f> --labels <file>
   report <id>
 Options: --project <dir> (default: cwd). Controller state: $AGENTIC_HOME (default ~/.agentic).`;
 
@@ -26,6 +28,7 @@ const env: c.Env = {
   operatorTty: Boolean(process.stdin.isTTY && process.stdout.isTTY),
   ask: (q) => rl.question(q),
   user: userInfo().username,
+  secrets: (() => { try { return loadSecrets(process.env.AGENTIC_HOME ?? join(homedir(), ".agentic")); } catch (e) { console.error(String((e as Error).message)); return {}; } })(),
   onRun: (r) => { active = r; },
 };
 process.on("SIGINT", () => { active?.cancel(); process.exit(130); });
@@ -42,6 +45,10 @@ async function main(): Promise<number> {
     case "validate": return c.validateFiles(env, argv.slice(1).filter((a) => !a.startsWith("--") && a !== env.project));
     case "qualify": return c.qualify(env, sub ?? "", flag("--owner-declare") as any);
     case "report": return c.report(env, sub ?? "");
+    case "jev":
+      if (sub === "status") return c.jevStatus(env);
+      if (sub === "report") return c.jevReport(env);
+      if (sub === "calibrate") return c.jevCalibrate(env, (flag("--family") ?? "") as any, flag("--labels") ?? "");
     case "task":
       if (sub === "create") return c.taskCreate(env, resolve(arg ?? ""));
       if (sub === "run") return c.taskRun(env, arg ?? "");

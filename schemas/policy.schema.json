@@ -133,6 +133,57 @@
         "record",
         "off"
       ]
+    },
+    "jev": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "modes": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "workflow-select": {
+              "enum": [
+                "disabled",
+                "shadow",
+                "enabled"
+              ]
+            },
+            "skill-select": {
+              "enum": [
+                "disabled",
+                "shadow",
+                "enabled"
+              ]
+            },
+            "retrieval-rerank": {
+              "enum": [
+                "disabled",
+                "shadow",
+                "enabled"
+              ]
+            }
+          }
+        },
+        "allowSource": {
+          "type": "boolean"
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "pinnedModel": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 500,
+          "maximum": 60000
+        }
+      }
     }
   }
 }

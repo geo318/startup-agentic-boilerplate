@@ -20,6 +20,10 @@ import { architect, review, RoleFailed } from "../roles.ts";
 import { runGate } from "../gates.ts";
 import { type Policy, Run, type RiskTier, snapshot } from "../run.ts";
 import { validate } from "../schema.ts";
+import { JevClient, type DecisionTransport } from "../jev/client.ts";
+import { calibrate } from "../jev/calibrate.ts";
+import { type Family, Fabric, type Item, loadCalibrations, type Mode, readTelemetry, saveCalibrations } from "../jev/fabric.ts";
+import { readdirSync } from "node:fs";
 
 export type Env = {
   home: string; // controller state (tasks, qualifications): outside every project
@@ -29,6 +33,8 @@ export type Env = {
   ask: (q: string) => Promise<string>;
   user: string;
   dockerUp?: () => boolean;
+  secrets?: Record<string, string>; // loaded by main from $AGENTIC_HOME/secrets.env; never passed to workers
+  jevTransport?: DecisionTransport; // tests inject a fake
   onRun?: (run: Run) => void; // lets main wire SIGINT → run.cancel()
 };
 
@@ -68,6 +74,7 @@ type Contract = {
 type ProjectPolicy = {
   protectedPaths: string[]; gates: Policy["gates"]; requiredGates: string[]; egress: Policy["egress"]; dockerImage?: string;
   bootstrap?: { argv: string[]; timeoutMs: number; env?: Record<string, string> }; baseline?: "require-pass" | "record" | "off";
+  jev?: { modes?: Partial<Record<Family, Mode>>; allowSource?: boolean; model?: string; pinnedModel?: string; timeoutMs?: number };
 };
 type Models = { profiles: Record<string, Record<string, any>>; roles: { worker: string; architect?: string; reviewer?: string } };
 
@@ -111,6 +118,67 @@ function makeProvider(env: Env, name: string, models: Models): GenerationProvide
     case "replay": return Object.assign(new MockProvider(JSON.parse(readFileSync(p.file, "utf8"))), { id: `mock/replay:${basename(p.file)}` });
   }
   throw new CliError(`unsupported profile kind: ${p.kind}`);
+}
+
+// ---------------- Jev decision fabric (optional) ----------------
+
+const telemetryFile = (env: Env) => join(env.home, "telemetry", "jev.jsonl");
+const calibrationFile = (env: Env) => join(env.home, "calibration.json");
+
+function makeFabric(env: Env, pp: ProjectPolicy): Fabric | undefined {
+  const j = pp.jev;
+  if (!j?.modes || Object.values(j.modes).every((m) => !m || m === "disabled")) return undefined; // off unless configured
+  const transport = env.jevTransport ?? new JevClient({ apiKey: env.secrets?.JEV_API_KEY, ...(j.model ? { model: j.model } : {}), ...(j.timeoutMs ? { timeoutMs: j.timeoutMs } : {}) });
+  return new Fabric({
+    transport, telemetryFile: telemetryFile(env), calibrations: loadCalibrations(calibrationFile(env)),
+    policy: { egress: pp.egress, allowSource: j.allowSource ?? false, modes: j.modes, ...(j.pinnedModel ? { pinnedModel: j.pinnedModel } : {}) },
+  });
+}
+
+const skillsOf = (root: string): Array<{ name: string; description: string }> => {
+  const dir = join(root, ".agents", "skills");
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+    const f = join(dir, e.name, "SKILL.md");
+    const m = existsSync(f) ? /^description:\s*(.+)$/m.exec(readFileSync(f, "utf8")) : null;
+    return e.isDirectory() && m ? [{ name: e.name, description: m[1]!.slice(0, 300) }] : [];
+  });
+};
+
+// Decisions are minimized: the goal, acceptance and metadata, never source (except the retrieval family, which
+// needs allowSource). In shadow mode nothing here changes what the run does. Returns "ask" only when an
+// ENABLED, calibrated workflow decision says the request cannot be implemented from the information given.
+async function jevDecisions(env: Env, t: ReturnType<typeof load>, taskId: string, fabric: Fabric): Promise<"ask" | undefined> {
+  const state = `GOAL: ${t.contract.goal}\nACCEPTANCE:\n${t.contract.acceptance.map((a) => `- ${a}`).join("\n")}\nFILES: ${t.contract.files.join(", ")}\nRISK TIER: ${t.tier}`;
+  let ask: "ask" | undefined;
+  if (t.tier !== "R3" && !(t.tier === "R0" && t.contract.recipe)) { // rules already determine R0 recipes and R3 blocks
+    const route: Item = {
+      id: "route", rulesDefault: "standard-worker",
+      instructions: "Decide how to route this software task. Choose standard-worker if a developer could implement and verify it from the goal, acceptance criteria and listed files alone. Choose ask-clarification if it depends on information that is not provided (a referenced document, a decision) or its requirements contradict each other or established facts.",
+      options: { "standard-worker": "Implementable and verifiable from the information given.", "ask-clarification": "Needs missing information or has contradictory requirements; a person must clarify first." },
+    };
+    const [r] = await fabric.decide("workflow-select", { taskId, state, items: [route] });
+    if (r?.source === "jev" && r.chosen === "ask-clarification") ask = "ask";
+  }
+  const skills = skillsOf(env.project).slice(0, 12);
+  if (skills.length >= 2) {
+    await fabric.decide("skill-select", {
+      taskId, state,
+      items: skills.map((s) => ({ id: `skill:${s.name}`, rulesDefault: "not_needed", instructions: `Is the workflow skill "${s.name}" (${s.description}) needed to do this task well?`, options: { needed: "Load this skill for the task.", not_needed: "Not needed for this task." } })),
+    });
+  }
+  if (fabric.mode("retrieval-rerank") !== "disabled") {
+    const p = compile(t.candidate, t.contract.files, t.budget.maxContext);
+    const items: Item[] = p.omitted.slice(0, 12).map((o) => ({
+      id: `file:${o.path}`, rulesDefault: "skip", instructions: `Is the file ${o.path} needed to implement the task?`,
+      options: { include: "Include this file in the worker's context.", skip: "Not needed." },
+    }));
+    if (items.length) {
+      const heads = p.omitted.slice(0, 12).map((o) => `--- ${o.path}\n${readFileSync(join(t.candidate, o.path), "utf8").slice(0, 400)}`).join("\n");
+      await fabric.decide("retrieval-rerank", { taskId, state: `${state}\nCANDIDATE FILES (excerpts):\n${heads}`, items });
+    }
+  }
+  return ask;
 }
 
 // ---------------- commands ----------------
@@ -230,6 +298,10 @@ export async function taskRun(env: Env, id: string): Promise<number> {
     if (fresh) {
       await run.prepare();
       run.start();
+      const fabric = makeFabric(env, t.pp);
+      if (fabric && run.state === "IMPLEMENTING" && (await jevDecisions(env, t, id, fabric)) === "ask") {
+        run.stop("NEEDS_INPUT", "jev (calibrated, enabled): the request needs clarification before any model call");
+      }
     } else run.resume();
     if (run.state === "VERIFYING") await run.reverify();
     const planFile = join(t.dir, "plan.json");
@@ -415,4 +487,44 @@ export async function qualify(env: Env, profileName: string, ownerDeclare?: "arc
   const q = await probeActionProtocol(provider, store);
   env.out(`${provider.id} action-protocol: ${q.passed ? "PASSED" : "FAILED"} ${JSON.stringify(q.detail)}`);
   return q.passed ? 0 : 1;
+}
+
+export async function jevStatus(env: Env): Promise<number> {
+  const pp = loadValidated<ProjectPolicy>(projectFile(env, "policy.json"), "policy");
+  const j = pp.jev;
+  env.out(`credential: ${env.secrets?.JEV_API_KEY ? "present (user-level store)" : "absent"}   egress: ${pp.egress}   allowSource: ${j?.allowSource ?? false}`);
+  for (const f of ["workflow-select", "skill-select", "retrieval-rerank"] as const) {
+    const cal = loadCalibrations(calibrationFile(env)).find((c) => c.family === f);
+    env.out(`${f.padEnd(17)} mode ${j?.modes?.[f] ?? "disabled"}   calibration ${cal ? `${cal.id} n=${cal.n} threshold=${cal.threshold ?? "none (unusable)"}` : "none"}`);
+  }
+  return 0;
+}
+
+// Shadow report: what Jev would have changed, how often it failed, what it cost. Not an accuracy claim without labels.
+export async function jevReport(env: Env): Promise<number> {
+  const recs = readTelemetry(telemetryFile(env));
+  const fams = [...new Set(recs.map((r) => r.family as string))];
+  if (!fams.length) env.out("no Jev telemetry yet");
+  for (const f of fams) {
+    const rs = recs.filter((r) => r.family === f);
+    const decided = rs.filter((r) => r.qid), skipped = rs.filter((r) => r.skipped), failed = rs.filter((r) => r.error);
+    const changes = decided.filter((r) => r.jevChoice !== r.rulesDefault);
+    const tok = decided.reduce((a, r) => a + (r.usage ? r.usage.input + r.usage.output : 0), 0);
+    const models = [...new Set(decided.map((r) => r.resolvedModel))].join(", ") || "n/a";
+    env.out(`${f}: ${decided.length} decisions · would change the rules' choice ${changes.length} · skipped ${skipped.length} · failed ${failed.length} · Jev tokens ${tok} · resolved model(s): ${models}`);
+    const lat = decided.map((r) => r.latencyMs as number).filter(Boolean);
+    if (lat.length) env.out(`  mean latency ${(lat.reduce((a, b) => a + b, 0) / lat.length).toFixed(0)} ms · confidence is a distribution statistic, not a measured probability of being right`);
+  }
+  return 0;
+}
+
+// labels file: { "<stateHash>": "<correct option>" } from a human or a graded eval. Writes a per-family calibration.
+export async function jevCalibrate(env: Env, family: Family, labelsFile: string, target = 0.95, minN = 30): Promise<number> {
+  const labels = JSON.parse(readFileSync(labelsFile, "utf8")) as Record<string, string>;
+  const rows = readTelemetry(telemetryFile(env)).filter((r) => r.family === family && r.qid && labels[r.stateHash]).map((r) => ({ confidence: r.confidence as number, jevChoice: r.jevChoice as string, truth: labels[r.stateHash]! }));
+  const cal = calibrate(family, rows, target, minN);
+  saveCalibrations(calibrationFile(env), [...loadCalibrations(calibrationFile(env)).filter((c) => c.family !== family), { id: cal.id, family, threshold: cal.threshold, n: cal.n, target }]);
+  env.out(`${family}: n=${cal.n} labelled, threshold ${cal.threshold ?? "none: not enough accurate high-confidence data, so Jev cannot act"}  (target ${target}, min n ${minN})`);
+  for (const b of cal.bins.filter((x) => x.n)) env.out(`  confidence ${b.lo.toFixed(1)}-${b.hi.toFixed(1)}: n=${b.n} accuracy ${(b.accuracy! * 100).toFixed(0)}%`);
+  return 0;
 }

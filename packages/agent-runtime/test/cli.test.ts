@@ -207,3 +207,92 @@ test("verify: re-runs the gates on the exact candidate; detects tampering afterw
   assert.equal(await c.verifyTask(w.env(), "fix-value"), 1);
   assert.match(w.out.at(-1)!, /candidate changed/);
 });
+
+// ---------- Jev decision fabric through the CLI ----------
+const ESC = ["other", "unknown", "need_more_context"];
+const jevFake = (choiceFor: (q: string) => string, p = 0.97, calls: { n: number } = { n: 0 }) => ({
+  async choice(req: { state: string; questions: Record<string, { criteria: Record<string, string> }> }) {
+    calls.n++;
+    return { model: "jev-fake-1", usage: { input: 80, output: 4 }, latencyMs: 5, answers: Object.fromEntries(Object.entries(req.questions).map(([id, q]) => {
+      const opts = Object.keys(q.criteria), win = choiceFor(id);
+      return [id, { choice: win, confidence: p, probabilities: Object.fromEntries(opts.map((o) => [o, o === win ? p : (1 - p) / (opts.length - 1)])) }];
+    })) };
+  },
+});
+const jevPolicy = (mode: string, extra: object = {}) => ({ egress: "hosted-allowed", jev: { modes: { "workflow-select": mode }, ...extra } });
+
+test("jev shadow: records what Jev would do, the run proceeds exactly as it would without it; telemetry has no source", async () => {
+  const calls = { n: 0 };
+  const w = world({ policy: jevPolicy("shadow") });
+  w.qualifyAll();
+  await c.taskCreate(w.env(), w.contract());
+  w.answers.push("no");
+  assert.equal(await c.taskRun(w.env({ jevTransport: jevFake(() => "ask-clarification", 0.99, calls) }), "fix-value"), 0); // Jev says "ask"; the run still goes ahead
+  assert.equal(c.statusOf(w.env(), "fix-value").state, "AWAITING_ACCEPTANCE");
+  assert.equal(calls.n, 1);
+  const tel = readFileSync(join(w.home, "telemetry/jev.jsonl"), "utf8");
+  assert.match(tel, /"mode":"shadow"/);
+  assert.doesNotMatch(tel, /make value\.txt say good/); // the goal text itself is never stored
+  await c.jevReport(w.env());
+  assert.match(w.out.at(-2)!, /would change the rules' choice 1/);
+});
+
+test("jev enabled but uncalibrated: no effect. Enabled + calibrated + confident: stops BEFORE any model call, never skips a check", async () => {
+  const w = world({ policy: jevPolicy("enabled") });
+  w.qualifyAll();
+  await c.taskCreate(w.env(), w.contract());
+  w.answers.push("no");
+  assert.equal(await c.taskRun(w.env({ jevTransport: jevFake(() => "ask-clarification") }), "fix-value"), 0); // uncalibrated → rules decide
+  const w2 = world({ policy: jevPolicy("enabled") });
+  w2.qualifyAll();
+  writeFileSync(join(w2.home, "calibration.json"), JSON.stringify([{ id: "c1", family: "workflow-select", threshold: 0.9, n: 60, target: 0.95 }]));
+  await c.taskCreate(w2.env(), w2.contract());
+  w2.answers.push("no");
+  assert.equal(await c.taskRun(w2.env({ jevTransport: jevFake(() => "ask-clarification", 0.97) }), "fix-value"), 2);
+  const st = c.statusOf(w2.env(), "fix-value");
+  assert.equal(st.state, "NEEDS_INPUT");
+  assert.equal(st.ledger.tokens, 0); // no worker call happened
+});
+
+test("jev down or local-only: the task runs normally with the same checks", async () => {
+  const down = world({ policy: jevPolicy("enabled") });
+  down.qualifyAll();
+  await c.taskCreate(down.env(), down.contract());
+  down.answers.push("no");
+  const boom = { async choice() { throw new Error("jev unreachable"); } };
+  assert.equal(await c.taskRun(down.env({ jevTransport: boom }), "fix-value"), 0);
+  const local = world({ policy: { egress: "local-only", jev: { modes: { "workflow-select": "shadow" } } } });
+  local.qualifyAll();
+  await c.taskCreate(local.env(), local.contract());
+  local.answers.push("no");
+  const calls = { n: 0 };
+  assert.equal(await c.taskRun(local.env({ jevTransport: jevFake(() => "ask-clarification", 0.99, calls) }), "fix-value"), 0);
+  assert.equal(calls.n, 0);
+});
+
+test("jev not configured: nothing is called and no telemetry exists (local-only projects need no Jev)", async () => {
+  const w = world();
+  w.qualifyAll();
+  await c.taskCreate(w.env(), w.contract());
+  w.answers.push("no");
+  const calls = { n: 0 };
+  await c.taskRun(w.env({ jevTransport: jevFake(() => "ask-clarification", 0.99, calls) }), "fix-value");
+  assert.equal(calls.n, 0);
+  assert.equal(existsSync(join(w.home, "telemetry/jev.jsonl")), false);
+});
+
+test("jev calibrate from labels writes a per-family calibration; too few labels → unusable", async () => {
+  const w = world({ policy: jevPolicy("shadow") });
+  w.qualifyAll();
+  await c.taskCreate(w.env(), w.contract());
+  w.answers.push("no");
+  await c.taskRun(w.env({ jevTransport: jevFake(() => "standard-worker", 0.97) }), "fix-value");
+  const rec = JSON.parse(readFileSync(join(w.home, "telemetry/jev.jsonl"), "utf8").trim().split("\n").at(-1)!);
+  const labels = join(w.home, "labels.json");
+  writeFileSync(labels, JSON.stringify({ [rec.stateHash]: "standard-worker" }));
+  await c.jevCalibrate(w.env(), "workflow-select", labels);
+  assert.match(w.out.at(-2) ?? w.out.at(-1)!, /threshold none/);
+  await c.jevStatus(w.env({ secrets: { JEV_API_KEY: "x" } }));
+  assert.match(w.out.join("\n"), /credential: present \(user-level store\)/);
+  assert.ok(!w.out.join("\n").includes('"x"'));
+});
