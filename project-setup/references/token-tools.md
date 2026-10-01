@@ -41,6 +41,11 @@ node <skill-dir>/scripts/token-audit.mjs --target <target>
 rtk gain   # if rtk is installed: measured savings so far
 ```
 
+This audit inventories shared skills and instruction files, but MCP/plugin usage is Claude-only.
+For other harnesses, usage is unknown; do not recommend removal from missing Claude usage.
+Only recommend tool integrations supported by the active harness (the plugin commands above
+are Claude-specific).
+
 Then, in the final report, give at most five suggestions, ordered by tokens saved, each naming
 the exact file or setting. Look for:
 

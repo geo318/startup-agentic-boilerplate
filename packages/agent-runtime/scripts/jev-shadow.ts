@@ -71,23 +71,16 @@ for (let t = 1; t <= trials; t++) {
       home,
       project,
       out: (s) => out.push(s),
-      operatorTty: false,
-      ask: async () => "",
+
       user: "shadow",
-      dockerUp: () => false,
+
       secrets,
     };
     const id = `${c.id}-t${t}`;
     writeFileSync(join(project, "contract.json"), JSON.stringify({ schemaVersion: 1, id, ...c.contract }));
     await cli.taskCreate(env, join(project, "contract.json"));
     mkdirSync(join(home, "tasks", id, "state"), { recursive: true });
-    writeFileSync(
-      join(home, "tasks", id, "state", "isolation-consent.json"),
-      JSON.stringify({
-        isolation: "none",
-        decidedAt: new Date().toISOString(),
-      }),
-    );
+
     try {
       await cli.taskRun(env, id);
     } catch (e) {
@@ -126,8 +119,7 @@ await cli.jevReport({
   home,
   project: "",
   out: console.log,
-  operatorTty: false,
-  ask: async () => "",
+
   user: "x",
 });
 await cli.jevCalibrate(
@@ -135,8 +127,7 @@ await cli.jevCalibrate(
     home,
     project: "",
     out: console.log,
-    operatorTty: false,
-    ask: async () => "",
+
     user: "x",
   },
   "workflow-select",

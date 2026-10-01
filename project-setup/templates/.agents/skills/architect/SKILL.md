@@ -48,9 +48,9 @@ For each layer the change touches, note what it owns and what it must not do. Al
 
 ## 2. Align on language
 
-Pick 3–5 terms from the request that could be read more than one way. State your reading of each
-and ask the developer to correct it, then end the turn. Add agreed terms to
-`context/glossary.md` when the plan is confirmed.
+Clarify terms only when ambiguity changes the implementation. Use terms already settled in the
+request or glossary; do not reopen them. For unresolved terms, state your recommended reading
+and ask for correction. Add new agreed terms to `context/glossary.md` when the plan is confirmed.
 
 ## 3. Resolve the decisions that matter
 
@@ -102,7 +102,9 @@ decision is settled — not when every question is answered — and say **"Bluep
 1. <ordered, each small enough for one commit>
 ```
 
-Post the plan and end the turn; build only after the developer confirms. For work spanning sessions, save the plan as
+Use the sections relevant to the feature; omit empty sections. Build when the developer has
+confirmed the plan, including confirmation already given in this conversation. Otherwise post
+the concrete plan for confirmation. For work spanning sessions, save the plan as
 `context/plans/<feature>.md` and link it from the build plan.
 
 ## Stop conditions
@@ -116,4 +118,4 @@ Do not approve a plan that breaks an invariant in `AGENTS.md`. In particular:
 
 When `node scripts/agentic.mjs doctor` passes and reports the workflow ON, write the agreed plan as a task contract (R2/R3 need
 an approved plan before code) and hand it over: `node scripts/agentic.mjs task create <contract.json>`,
-then `task run <id>`. Approval is given by the person, from their own terminal, never by the model.{{/if}}
+then `task run <id>`. When authorized in chat, run `task approve <id>` and continue; no terminal prompt is required.{{/if}}

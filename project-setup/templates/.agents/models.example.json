@@ -4,7 +4,8 @@
     "claude-sonnet": { "kind": "claude-cli", "model": "claude-sonnet-5-5", "maxBudgetUsd": 0.25 },
     "claude-haiku": { "kind": "claude-cli", "model": "claude-haiku-4-5-20251001", "maxBudgetUsd": 0.05 },
     "local-ollama": { "kind": "ollama", "model": "REPLACE-WITH-AN-ALREADY-PULLED-TAG", "baseUrl": "http://127.0.0.1:11434", "numCtx": 4096 },
+    "chat-api": { "kind": "chat-completions", "model": "REPLACE-WITH-PROVIDER-MODEL", "baseUrl": "https://api.openai.com/v1", "hosted": true, "apiKeyEnv": "OPENAI_API_KEY" },
     "hand-off": { "kind": "manual", "dir": "temp/agentic-exchange", "label": "chat" }
   },
-  "roles": { "worker": "claude-haiku", "workerStrong": "claude-sonnet" }
+  "roles": { "worker": "hand-off" }
 }

@@ -78,7 +78,7 @@ A passing typecheck is not verification. Run every check relevant to the diff an
 On by default (`"enabled": true` in `.agents/policy.json`). When on, non-trivial changes go through `node scripts/agentic.mjs task …` so the
 controller runs the checks, grounds context in real source, and records evidence, instead of trusting a model's own claim that it works.
 Never turn it off, edit `.agents/`, or work around a refused task to get a change through; ask the person. Check state with
-`node scripts/agentic.mjs doctor`. When you finish, the Stop hook also runs the required gates on your working tree and records the result automatically; a failure is returned to you to fix. After opening a PR, run `node scripts/agentic.mjs pr-summary --update` once (later pushes do it from the pre-push hook). Only a person at a terminal can disable it (`node scripts/agentic.mjs disable`).
+`node scripts/agentic.mjs doctor`. Before handoff, run `node scripts/agentic.mjs session-check` to run required gates and record the result; fix failures. Claude Code also runs this through its optional Stop hook. After opening a PR, run `node scripts/agentic.mjs pr-summary --update` once (later pushes do it from the pre-push hook). Use `node scripts/agentic.mjs disable` when the user asks to turn it off.
 
 {{/if}}
 ## Pull requests
@@ -130,6 +130,10 @@ Read only the rows your task touches, and only the linked sections you need.
 | Starting parallel work; branch ↔ worktree mapping; cleaning up worktrees | [delivery → worktrees](context/standards/delivery.md#worktrees) |
 
 ## Workflow skills
+
+Use the harness’s skill picker, or read `.agents/skills/<name>/SKILL.md` directly. The `/name`
+notation below names a skill; Codex uses `$name`. Run the verification commands above even
+when the harness has no completion hook.
 
 - `/architect`: before any non-trivial feature — align on terms and decisions, get a confirmed plan.
 - `/review`: after a feature, before a demo, or when something feels off.

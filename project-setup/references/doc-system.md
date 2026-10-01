@@ -59,3 +59,25 @@ breaking the design. Read this before writing FILL content or adding docs the te
 | Plans said "open" for shipped work and memory said "next" for done work | `/remember save` syncs the plan docs first; delivery hygiene checklist |
 | A green typecheck was reported as "works" | Verification table in `AGENTS.md`; PR template's runtime row |
 | Library skills contradicted project rules | `library-docs.md` "Project notes" column; project rules win |
+
+## Writing and adapting skills
+
+- Keep `SKILL.md` focused on the goal, constraints, prerequisites, and when to read each reference.
+  Link skill reference files directly from it; long references (over 100 lines) start with a
+  contents list matching their headings. Split by task or domain when unrelated detail would load.
+  Prefer a short entrypoint; 500 lines is a ceiling to avoid, not a target.
+- Match detail to consequences: review and design allow judgment; output templates give a
+  preferred shape; fragile writes use validated scripts and explicit commands. Preserve input
+  validation, authorization, and checks. Do not add a rigid sequence where order does not matter.
+- For processes with real dependencies between steps, use a short checklist. A failed check
+  returns to correction and verification; never mark an unrun or failing step complete. If the
+  same correction fails again, use `recover` to gather new evidence instead of looping forever.
+- Name required tools and versions beside script usage, with installation guidance when needed.
+  Check availability first; existing tools need no reinstall. Scripts save repeated reasoning,
+  but their execution output still consumes context.
+- Test a representative task on each intended model/harness before claiming support is validated.
+  Record the model, harness, task, checks, and observed failures in the progress tracker. Compare
+  against a run without the skill when instructions appear to hurt results. Keep compatibility
+  claims separate from measured results; do not invent model restrictions in frontmatter.
+- Change guidance only for an observed failure or explicit requirement. Prefer clearer wording,
+  a deterministic check, or deletion over accumulating instructions for hypothetical failures.

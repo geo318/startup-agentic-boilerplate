@@ -1,7 +1,7 @@
 // Live pilot against a REAL provider. Not part of `npm test`; spends money when PROVIDER=claude.
 //   PROVIDER=claude MODEL=claude-haiku-4-5-20251001 CASE=fix|blocked node scripts/live.ts
 //   PROVIDER=ollama MODEL=<already-pulled tag> ...        (optional; needs a local Ollama)
-// Pulls nothing. Gates run on the host (isolation "none", R1) in a temp dir. Hosted egress is the
+// Pulls nothing. Gates run on the host (R1) in a temp dir. Hosted egress is the
 // user's explicit choice via PROVIDER=claude, recorded as policy egress "hosted-allowed".
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -58,7 +58,7 @@ const run = new Run({
   protectedPaths: ["check.mjs"],
   riskTier: "R1",
   egress: kind === "claude" ? "hosted-allowed" : "local-only",
-  isolation: "none",
+
   gates: [{ id: "unit", argv: ["node", "check.mjs"], timeoutMs: 10_000, discover: { regex: "tests (\\d+)", min: 1 } }],
   requiredGates: ["unit"],
   limits: { aggregateTokens: 12_000, toolActions: 6, semanticRepairs: 1 },

@@ -157,24 +157,16 @@ export async function runSuite(o: RunOpts): Promise<CaseResult[]> {
         home,
         project,
         out: (s) => out.push(s),
-        operatorTty: false,
-        ask: async () => "",
+
         user: "eval-harness",
-        dockerUp: () => false,
+
         ...(o.lessons ? { lessons: o.lessons } : {}),
       };
       const contractFile = join(project, "contract.json");
       writeFileSync(contractFile, JSON.stringify({ schemaVersion: 1, id, family: c.family, ...c.contract }));
       await cli.taskCreate(env, contractFile);
       mkdirSync(join(home, "tasks", id, "state"), { recursive: true });
-      writeFileSync(
-        join(home, "tasks", id, "state", "isolation-consent.json"),
-        JSON.stringify({
-          isolation: "none",
-          decidedAt: new Date().toISOString(),
-          note: "recorded by the eval harness for an owner-approved suite",
-        }),
-      );
+
       const started = Date.now();
       let refusal: string | undefined;
       try {

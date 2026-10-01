@@ -255,7 +255,7 @@ function mk(over: Partial<Policy> = {}) {
     protectedPaths: ["check.mjs"],
     riskTier: "R2",
     egress: "local-only",
-    isolation: "none",
+
     gates: [{ id: "unit", argv: ["node", "check.mjs"], timeoutMs: 5000, discover: { regex: "tests (\\d+)", min: 1 } }],
     requiredGates: ["unit"],
     limits: { aggregateTokens: 50_000, toolActions: 12, semanticRepairs: 1 },

@@ -5,7 +5,7 @@ import { EventLog } from "../events.ts";
 import type { CaseResult } from "../eval.ts";
 import { summarize, type Summary } from "../eval.ts";
 
-// Controlled learning. Lessons only ever reach a worker through an ACTIVE release created by a human-only
+// Controlled learning. Lessons only ever reach a worker through an ACTIVE release created by a explicit
 // promotion after an evaluation passed. Everything before that sits in quarantine, outside any worker's reach.
 export type Lesson = { id: string; topic: string; text: string; families?: string[]; expiresAt?: string };
 export type Incident = {
@@ -327,7 +327,7 @@ function activate(
   return rel;
 }
 
-// Human-only at the CLI (needs a terminal). Requires a passing evaluation of exactly this lesson text.
+// Explicit CLI command. Requires a passing evaluation of exactly this lesson text.
 export function promote(home: string, proposalId: string, approver: string): Release {
   const p = getProposal(home, proposalId);
   if (p.state !== "evaluated" || p.evaluation?.verdict !== "pass")

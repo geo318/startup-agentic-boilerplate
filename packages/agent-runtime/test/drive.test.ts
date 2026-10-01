@@ -24,7 +24,7 @@ function setup(tokens = 40_000) {
     protectedPaths: ["check.mjs"],
     riskTier: "R1",
     egress: "local-only",
-    isolation: "none",
+
     gates: [{ id: "unit", argv: ["node", "check.mjs"], timeoutMs: 5000, discover: { regex: "tests (\\d+)", min: 1 } }],
     requiredGates: ["unit"],
     limits: { aggregateTokens: tokens, toolActions: 12, semanticRepairs: 1 },

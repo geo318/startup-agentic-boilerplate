@@ -150,7 +150,9 @@ function detectMode(root) {
   if (existsSync(join(root, "AGENTS.md")) || existsSync(join(root, "context"))) {
     return "upgrade";
   }
-  const meaningful = listDir(root).filter((entry) => ![".git", ".claude"].includes(entry.name));
+  const meaningful = listDir(root).filter(
+    (entry) => ![".git", ".claude", ".agents", ".codex", ".cursor"].includes(entry.name),
+  );
   return meaningful.length === 0 ? "new" : "adopt";
 }
 
@@ -251,6 +253,7 @@ function main() {
     ".cursor/rules",
     ".agents",
     ".claude/settings.json",
+    ".codex/config.toml",
     "skills-lock.json",
     "context",
   ].filter(has);
@@ -322,8 +325,8 @@ function main() {
     HAS_E2E: uses(E2E_DEPS),
     REQUEST_PATH_SET: false,
     GITHUB: has(".github") || git(root, ["remote", "get-url", "origin"]).includes("github.com"),
-    CLAUDE_CODE: true,
-    CLAUDE_SKILL_LINKS: true,
+    CLAUDE_CODE: has(".claude"),
+    CLAUDE_SKILL_LINKS: has(".claude"),
     ADOPT: mode === "adopt" || mode === "upgrade",
     OWN_LINTER: ownLinter,
     OWN_HOOKS: ownHooks,

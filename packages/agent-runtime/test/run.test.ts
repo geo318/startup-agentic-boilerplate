@@ -5,8 +5,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { Ledger } from "../src/budget.ts";
-import { askIsolation, loadChoice, saveChoice } from "../src/consent.ts";
-import { dockerArgv } from "../src/gates.ts";
 import { EventLog } from "../src/events.ts";
 import { sha256 } from "../src/hash.ts";
 import { type Policy, Run } from "../src/run.ts";
@@ -34,7 +32,7 @@ function setup(over: Partial<Policy> = {}, checkSource?: string) {
     gates: [gate],
     requiredGates: ["unit"],
     limits,
-    isolation: "none",
+
     riskTier: "R1",
     egress: "local-only",
     ...over,
@@ -59,56 +57,9 @@ test("end to end: fix → verify → human accepts exact candidate", async () =>
   assert.equal(run.state, "ACCEPTED");
 });
 
-test("isolation unanswered → NEEDS_INPUT; nothing runs", async () => {
-  const { run } = setup({ isolation: "unset" });
-  assert.equal(run.state, "NEEDS_INPUT");
-  assert.equal((await run.handle({ id: "a1", kind: "finish" })).ok, false);
-});
-
-test("'none' is refused for R3", () => {
-  assert.equal(setup({ riskTier: "R3" }).run.state, "BLOCKED");
-});
-
-test("docker chosen but daemon down or image unset → BLOCKED, never host fallback", () => {
-  const mk = (over: Partial<Policy>, up: boolean) => {
-    const { policy } = setup();
-    const p = { ...policy, stateDir: join(policy.stateDir, "..", `s${Math.random()}`), ...over };
-    const r = new Run(p, { dockerUp: () => up });
-    r.start();
-    return r;
-  };
-  assert.equal(mk({ isolation: "docker", dockerImage: "node:22" }, false).state, "BLOCKED");
-  assert.equal(mk({ isolation: "docker" }, true).state, "BLOCKED");
-  assert.equal(mk({ isolation: "docker", dockerImage: "node:22" }, true).state, "IMPLEMENTING");
-});
-
-test("docker argv is locked down", () => {
-  const a = dockerArgv(gate, "/w", "node:22", "n").join(" ");
-  for (const must of [
-    "--network none",
-    "--read-only",
-    "--cap-drop ALL",
-    "no-new-privileges",
-    "--user 65534:65534",
-    "--pids-limit",
-  ]) {
-    assert.match(a, new RegExp(must));
-  }
-  assert.doesNotMatch(a, /privileged|docker\.sock/);
-});
-
-test("consent: only explicit yes/no; anything else is unanswered", async () => {
-  const seq =
-    (...xs: string[]) =>
-    async () =>
-      xs.shift() ?? "";
-  assert.equal(await askIsolation(seq("yes")), "docker");
-  assert.equal(await askIsolation(seq("maybe", "N")), "none");
-  assert.equal(await askIsolation(seq("", "?", "sure")), undefined);
-  const dir = mkdtempSync(join(tmpdir(), "consent-"));
-  assert.equal(loadChoice(dir), undefined);
-  saveChoice(dir, "none");
-  assert.equal(loadChoice(dir), "none");
+test("R3 starts on the host and still requires plan approval", () => {
+  const { run } = setup({ riskTier: "R3" });
+  assert.equal(run.state, "AWAITING_PLAN_APPROVAL");
 });
 
 test("forged success: model-printed PASS does not beat the exit code", async () => {

@@ -33,5 +33,6 @@ step that settles the package, so most packages never reach a search.
      how this repo differs from its defaults;
    - `.agents/README.md`: a bullet under its area (installed skills only);
    - the catalog: `{{RUNTIME}} scripts/skills/index.mjs`.
-7. Run `{{RUNTIME}} scripts/checks/docs-check.mjs`, then report in one line: installed `<skill>`
+7. Run `{{RUNTIME}} scripts/checks/docs-check.mjs`. Fix failures in the skill/catalog/docs
+   changes and rerun; do not report completion while it fails. Then report in one line: installed `<skill>`
    from `<source>`, docs link only (why), or "needs no notes".

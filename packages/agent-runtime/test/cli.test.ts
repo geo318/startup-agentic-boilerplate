@@ -62,15 +62,13 @@ function world(over: { policy?: object; roles?: object; extraProfiles?: object }
     }),
   );
   const out: string[] = [];
-  const answers: string[] = [];
   const env = (o: Partial<c.Env> = {}): c.Env => ({
     home,
     project,
     out: (s) => out.push(s),
-    operatorTty: true,
-    ask: async () => answers.shift() ?? "",
+
     user: "tester",
-    dockerUp: () => false,
+
     ...o,
   });
   const qual = (id: string, family: "action-protocol" | "architecture" | "review") =>
@@ -104,7 +102,7 @@ function world(over: { policy?: object; roles?: object; extraProfiles?: object }
     qual("mock/replay:architect.replay.json", "architecture");
     qual("mock/replay:reviewer.replay.json", "review");
   };
-  return { project, home, out, answers, env, contract, qual, qualifyAll };
+  return { project, home, out, env, contract, qual, qualifyAll };
 }
 
 test("schema validator: closed objects, enums, patterns; unknown keywords refuse to load", () => {
@@ -130,14 +128,11 @@ test("validate: good files pass; bad contracts reported; doctor runs", async () 
   assert.equal(await c.doctor(w.env()), 0);
 });
 
-test("R1 happy path: needs isolation answer; routes only qualified; operator-only accept; isolated candidate; patch applies", async () => {
+test("R1 happy path: no prompts; routes only qualified; explicit accept; separate candidate; patch applies", async () => {
   const w = world();
   assert.equal(await c.taskCreate(w.env(), w.contract()), 0);
-  // no terminal: nothing runs, nothing created
-  assert.equal(await c.taskRun(w.env({ operatorTty: false }), "fix-value"), 2);
-  assert.equal(existsSync(join(w.home, "tasks/fix-value/candidate")), false);
   // unqualified worker → refused before any state exists
-  w.answers.push("no");
+
   await assert.rejects(c.taskRun(w.env(), "fix-value"), /unsupported capability.*qualify/);
   assert.equal(existsSync(join(w.home, "tasks/fix-value/candidate")), false);
   w.qualifyAll();
@@ -145,11 +140,6 @@ test("R1 happy path: needs isolation answer; routes only qualified; operator-onl
   assert.equal(c.statusOf(w.env(), "fix-value").state, "AWAITING_ACCEPTANCE");
   assert.equal(readFileSync(join(w.project, "value.txt"), "utf8"), "bad"); // project untouched
   assert.equal(readFileSync(join(w.home, "tasks/fix-value/candidate/value.txt"), "utf8"), "good");
-  // acceptance needs a human at a terminal, and a literal yes
-  await assert.rejects(c.taskAccept(w.env({ operatorTty: false }), "fix-value"), (e: any) => e.code === 3);
-  w.answers.push("sure");
-  assert.equal(await c.taskAccept(w.env(), "fix-value"), 1);
-  w.answers.push("yes");
   assert.equal(await c.taskAccept(w.env(), "fix-value"), 0);
   assert.equal(c.statusOf(w.env(), "fix-value").state, "ACCEPTED");
   // export → a patch that applies to the original project
@@ -165,7 +155,7 @@ test("re-running a finished task resumes, does not repeat work or spend", async 
   const w = world();
   w.qualifyAll();
   await c.taskCreate(w.env(), w.contract());
-  w.answers.push("no");
+
   await c.taskRun(w.env(), "fix-value");
   const before = c.statusOf(w.env(), "fix-value");
   assert.equal(await c.taskRun(w.env(), "fix-value"), 0);
@@ -178,14 +168,10 @@ test("R2: plan written, no code until a human approves; then worker → review �
   const w = world();
   w.qualifyAll();
   await c.taskCreate(w.env(), w.contract({ riskTier: "R2", budget: "standard" }));
-  w.answers.push("no");
+
   assert.equal(await c.taskRun(w.env(), "fix-value"), 2);
   assert.equal(c.statusOf(w.env(), "fix-value").state, "AWAITING_PLAN_APPROVAL");
   assert.equal(readFileSync(join(w.home, "tasks/fix-value/candidate/value.txt"), "utf8"), "bad");
-  await assert.rejects(c.taskApprove(w.env({ operatorTty: false }), "fix-value"), (e: any) => e.code === 3);
-  w.answers.push("no");
-  assert.equal(await c.taskApprove(w.env(), "fix-value"), 1); // declined
-  w.answers.push("yes");
   assert.equal(await c.taskApprove(w.env(), "fix-value"), 0);
   assert.equal(await c.taskRun(w.env(), "fix-value"), 0);
   assert.equal(c.statusOf(w.env(), "fix-value").state, "AWAITING_ACCEPTANCE");
@@ -198,22 +184,22 @@ test("plan file tampering after it was written is detected at approval", async (
   const w = world();
   w.qualifyAll();
   await c.taskCreate(w.env(), w.contract({ riskTier: "R2", budget: "standard" }));
-  w.answers.push("no");
+
   await c.taskRun(w.env(), "fix-value");
   const f = join(w.home, "tasks/fix-value/plan.json");
   const p = JSON.parse(readFileSync(f, "utf8"));
   writeFileSync(f, J({ ...p, text: p.text.replace("fix value", "delete everything") }));
-  w.answers.push("yes");
+
   await assert.rejects(c.taskApprove(w.env(), "fix-value"), /modified after/);
 });
 
-test("risk floor from declared scope raises the tier; R3 + no isolation is blocked", async () => {
+test("risk floor from declared scope raises the tier; R3 requires plan approval", async () => {
   const w = world();
   w.qualifyAll();
   await c.taskCreate(w.env(), w.contract({ scope: ["db/migrations/002.sql"] }));
-  w.answers.push("no");
-  assert.equal(await c.taskRun(w.env(), "fix-value"), 1);
-  assert.equal(c.statusOf(w.env(), "fix-value").state, "BLOCKED");
+
+  assert.equal(await c.taskRun(w.env(), "fix-value"), 2);
+  assert.equal(c.statusOf(w.env(), "fix-value").state, "AWAITING_PLAN_APPROVAL");
 });
 
 test("hosted profile under local-only policy is blocked before anything leaves", async () => {
@@ -223,7 +209,7 @@ test("hosted profile under local-only policy is blocked before anything leaves",
   });
   w.qual("manual/chat", "action-protocol");
   await c.taskCreate(w.env(), w.contract());
-  w.answers.push("no");
+
   assert.equal(await c.taskRun(w.env(), "fix-value"), 1);
   assert.match(String(c.statusOf(w.env(), "fix-value").why), /hosted but the policy is local-only/);
 });
@@ -237,7 +223,7 @@ test("unresolved questions stop the run; cancel is final; unknown task is an err
   const w2 = world();
   w2.qualifyAll();
   await c.taskCreate(w2.env(), w2.contract({ riskTier: "R2", budget: "standard" }));
-  w2.answers.push("no");
+
   await c.taskRun(w2.env(), "fix-value");
   assert.equal(await c.taskCancel(w2.env(), "fix-value"), 0);
   assert.equal(await c.taskRun(w2.env(), "fix-value"), 1);
@@ -250,17 +236,13 @@ test("R0 recipe runs with no model configured at all", async () => {
     w.env(),
     w.contract({ riskTier: "R0", scope: ["value.txt"], recipe: { path: "value.txt", find: "bad", replace: "good" } }),
   );
-  w.answers.push("no");
+
   assert.equal(await c.taskRun(w.env(), "fix-value"), 0);
   assert.equal(c.statusOf(w.env(), "fix-value").ledger.tokens, 0);
 });
 
-test("qualify: owner-declared needs a terminal and a literal yes", async () => {
+test("qualify: explicit owner declaration works without prompts", async () => {
   const w = world();
-  await assert.rejects(c.qualify(w.env({ operatorTty: false }), "reviewer", "review"), (e: any) => e.code === 3);
-  w.answers.push("no");
-  assert.equal(await c.qualify(w.env(), "reviewer", "review"), 1);
-  w.answers.push("yes");
   assert.equal(await c.qualify(w.env(), "reviewer", "review"), 0);
   assert.equal(
     new QualStore(join(w.home, "qualifications.json")).has("mock/replay:reviewer.replay.json", "review"),
@@ -272,7 +254,7 @@ test("verify: re-runs the gates on the exact candidate; detects tampering afterw
   const w = world();
   w.qualifyAll();
   await c.taskCreate(w.env(), w.contract());
-  w.answers.push("no");
+
   await c.taskRun(w.env(), "fix-value");
   const before = c.statusOf(w.env(), "fix-value");
   assert.equal(await c.verifyTask(w.env(), "fix-value"), 0);
@@ -318,7 +300,7 @@ test("jev shadow: records what Jev would do, the run proceeds exactly as it woul
   const w = world({ policy: jevPolicy("shadow") });
   w.qualifyAll();
   await c.taskCreate(w.env(), w.contract());
-  w.answers.push("no");
+
   assert.equal(
     await c.taskRun(w.env({ jevTransport: jevFake(() => "ask-clarification", 0.99, calls) }), "fix-value"),
     0,
@@ -336,7 +318,7 @@ test("jev enabled but uncalibrated: no effect. Enabled + calibrated + confident:
   const w = world({ policy: jevPolicy("enabled") });
   w.qualifyAll();
   await c.taskCreate(w.env(), w.contract());
-  w.answers.push("no");
+
   assert.equal(await c.taskRun(w.env({ jevTransport: jevFake(() => "ask-clarification") }), "fix-value"), 0); // uncalibrated → rules decide
   const w2 = world({ policy: jevPolicy("enabled") });
   w2.qualifyAll();
@@ -345,7 +327,7 @@ test("jev enabled but uncalibrated: no effect. Enabled + calibrated + confident:
     JSON.stringify([{ id: "c1", family: "workflow-select", threshold: 0.9, n: 60, target: 0.95 }]),
   );
   await c.taskCreate(w2.env(), w2.contract());
-  w2.answers.push("no");
+
   assert.equal(await c.taskRun(w2.env({ jevTransport: jevFake(() => "ask-clarification", 0.97) }), "fix-value"), 2);
   const st = c.statusOf(w2.env(), "fix-value");
   assert.equal(st.state, "NEEDS_INPUT");
@@ -356,7 +338,7 @@ test("jev down or local-only: the task runs normally with the same checks", asyn
   const down = world({ policy: jevPolicy("enabled") });
   down.qualifyAll();
   await c.taskCreate(down.env(), down.contract());
-  down.answers.push("no");
+
   const boom = {
     async choice() {
       throw new Error("jev unreachable");
@@ -366,7 +348,7 @@ test("jev down or local-only: the task runs normally with the same checks", asyn
   const local = world({ policy: { egress: "local-only", jev: { modes: { "workflow-select": "shadow" } } } });
   local.qualifyAll();
   await c.taskCreate(local.env(), local.contract());
-  local.answers.push("no");
+
   const calls = { n: 0 };
   assert.equal(
     await c.taskRun(local.env({ jevTransport: jevFake(() => "ask-clarification", 0.99, calls) }), "fix-value"),
@@ -379,7 +361,7 @@ test("jev not configured: nothing is called and no telemetry exists (local-only 
   const w = world();
   w.qualifyAll();
   await c.taskCreate(w.env(), w.contract());
-  w.answers.push("no");
+
   const calls = { n: 0 };
   await c.taskRun(w.env({ jevTransport: jevFake(() => "ask-clarification", 0.99, calls) }), "fix-value");
   assert.equal(calls.n, 0);
@@ -390,7 +372,7 @@ test("jev calibrate from labels writes a per-family calibration; too few labels 
   const w = world({ policy: jevPolicy("shadow") });
   w.qualifyAll();
   await c.taskCreate(w.env(), w.contract());
-  w.answers.push("no");
+
   await c.taskRun(w.env({ jevTransport: jevFake(() => "standard-worker", 0.97) }), "fix-value");
   const rec = JSON.parse(readFileSync(join(w.home, "telemetry/jev.jsonl"), "utf8").trim().split("\n").at(-1)!);
   const labels = join(w.home, "labels.json");
@@ -403,32 +385,26 @@ test("jev calibrate from labels writes a per-family calibration; too few labels 
 });
 
 // ---------- on/off switch ----------
-test("workflow switch: default ON; OFF runs nothing and spends nothing; disable needs a terminal and a literal yes; enable works anywhere", async () => {
+test("workflow switch: default ON; OFF runs nothing and spends nothing and a literal yes; enable works anywhere", async () => {
   const w = world();
   w.qualifyAll();
   await c.taskCreate(w.env(), w.contract());
   assert.equal(c.workflowEnabled(w.env()), true); // no "enabled" key in the policy = on
   await c.doctor(w.env());
   assert.match(w.out.join("\n"), /workflow\s+ON/);
-  await assert.rejects(c.disableWorkflow(w.env({ operatorTty: false })), (e: any) => e.code === 3);
-  assert.equal(c.workflowEnabled(w.env()), true);
-  w.answers.push("maybe");
-  assert.equal(await c.disableWorkflow(w.env()), 1);
-  assert.equal(c.workflowEnabled(w.env()), true);
-  w.answers.push("yes");
   assert.equal(await c.disableWorkflow(w.env()), 0);
   assert.equal(c.workflowEnabled(w.env()), false);
   assert.equal(JSON.parse(readFileSync(join(w.project, ".agents/policy.json"), "utf8")).enabled, false);
-  w.answers.push("no");
+
   assert.equal(await c.taskRun(w.env(), "fix-value"), 2); // refused: no state, no candidate, no model call
   assert.equal(existsSync(join(w.home, "tasks/fix-value/candidate")), false);
   assert.equal(c.statusOf(w.env(), "fix-value").state, "NOT_STARTED");
   await assert.rejects(c.qualify(w.env(), "worker"), /turned off/);
   await c.doctor(w.env());
   assert.match(w.out.join("\n"), /workflow\s+OFF/);
-  assert.equal(await c.enableWorkflow(w.env({ operatorTty: false })), 0); // turning ON never needs a terminal
+  assert.equal(await c.enableWorkflow(w.env({})), 0);
   assert.equal(c.workflowEnabled(w.env()), true);
-  w.answers.push("no");
+
   assert.equal(await c.taskRun(w.env(), "fix-value"), 0);
 });
 
@@ -436,7 +412,7 @@ test("an agent cannot flip the switch from inside a task: .agents/ is a protecte
   const w = world();
   w.qualifyAll();
   await c.taskCreate(w.env(), w.contract());
-  w.answers.push("no");
+
   await c.taskRun(w.env(), "fix-value");
   const cand = join(w.home, "tasks/fix-value/candidate/.agents/policy.json");
   // the policy copy inside the candidate is protected, and the real policy lives in the project (never edited by tasks)
@@ -459,7 +435,7 @@ test("jev auto: a key in the user-level store turns it on with no jev section in
   const w = world({ policy: { egress: "hosted-allowed" } }); // note: no "jev" key at all
   w.qualifyAll();
   await c.taskCreate(w.env(), w.contract());
-  w.answers.push("no");
+
   assert.equal(
     await c.taskRun(
       w.env({ secrets: { JEV_API_KEY: "k" }, jevTransport: jevFake(() => "ask-clarification", 0.99, calls) }),
@@ -474,7 +450,6 @@ test("jev auto: a key in the user-level store turns it on with no jev section in
   const none = world({ policy: { egress: "hosted-allowed" } });
   none.qualifyAll();
   await c.taskCreate(none.env(), none.contract());
-  none.answers.push("no");
   const calls2 = { n: 0 };
   await c.taskRun(none.env({ jevTransport: jevFake(() => "ask-clarification", 0.99, calls2) }), "fix-value"); // no secrets
   assert.equal(calls2.n, 0);
@@ -485,7 +460,6 @@ test("jev auto: opt-out and explicit modes win; local-only egress means key pres
   const optOut = world({ policy: { egress: "hosted-allowed", jev: { auto: false } } });
   optOut.qualifyAll();
   await c.taskCreate(optOut.env(), optOut.contract());
-  optOut.answers.push("no");
   const calls = { n: 0 };
   await c.taskRun(
     optOut.env({ secrets: { JEV_API_KEY: "k" }, jevTransport: jevFake(() => "x", 0.9, calls) }),
@@ -530,7 +504,7 @@ test("process level: an unknown subcommand prints usage and runs NOTHING (regres
 test("do: derives the contract from --files or the changed tree, refuses to guess scope, runs the task", async () => {
   const w = world();
   w.qualifyAll();
-  w.answers.push("no"); // isolation: no docker
+
   await assert.rejects(c.doTask(w.env(), "make value.txt say good"), /no files in scope/); // not a git repo → nothing changed
   assert.equal(await c.doTask(w.env(), "make value.txt say good", { files: ["value.txt"] }), 0);
   const id = w.out.join("\n").match(/created task (make-value-txt-say-[a-z0-9-]+)/)![1]!;

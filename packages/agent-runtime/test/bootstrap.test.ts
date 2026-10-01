@@ -19,7 +19,7 @@ function setup(check: string, over: Partial<Policy> = {}) {
     protectedPaths: ["check.mjs"],
     riskTier: "R1",
     egress: "local-only",
-    isolation: "none",
+
     gates: [{ id: "unit", argv: ["node", "check.mjs"], timeoutMs: 8000, discover: { regex: "tests (\\d+)", min: 1 } }],
     requiredGates: ["unit"],
     limits: { aggregateTokens: 1000, toolActions: 5, semanticRepairs: 1 },
@@ -80,20 +80,17 @@ test("baseline: pre-existing failure stops the task; 'record' keeps going and re
   assert.deepEqual(rb.evidence?.baseline, [{ gateId: "unit", status: "fail" }]);
 });
 
-test("nothing executes before isolation is decided or for R3-without-isolation", async () => {
-  const marker = "bootstrap-ran";
-  for (const over of [{ isolation: "unset" as const }, { riskTier: "R3" as const }]) {
-    const { policy, ws } = setup(`console.log("tests 1")`, {
-      ...over,
-      bootstrap: boot(`require("fs").writeFileSync("${marker}","x")`),
-      baseline: "require-pass",
-    });
-    const run = new Run(policy);
-    await run.prepare();
-    assert.equal(existsSync(join(ws, marker)), false, JSON.stringify(over));
-    run.start();
-    assert.notEqual(run.state, "IMPLEMENTING");
-  }
+test("R3 bootstrap runs without prompts, then implementation waits for its plan", async () => {
+  const { policy, ws } = setup(`console.log("tests 1")`, {
+    riskTier: "R3",
+    bootstrap: boot('require("fs").writeFileSync("bootstrap-ran","x")'),
+    baseline: "require-pass",
+  });
+  const run = new Run(policy);
+  await run.prepare();
+  assert.equal(existsSync(join(ws, "bootstrap-ran")), true);
+  run.start();
+  assert.equal(run.state, "AWAITING_PLAN_APPROVAL");
 });
 
 test("project copy follows git: ignored files (.env, build output) are not copied; untracked files are", async () => {
@@ -158,10 +155,8 @@ test("project copy follows git: ignored files (.env, build output) are not copie
     home,
     project,
     out: (s) => out.push(s),
-    operatorTty: true,
-    ask: async () => "no",
+
     user: "t",
-    dockerUp: () => false,
   });
   new (await import("../src/qualify.ts")).QualStore(join(home, "qualifications.json")).record({
     profileId: "mock/replay:w.json",

@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { homedir, userInfo } from "node:os";
 import { join, resolve } from "node:path";
-import { createInterface } from "node:readline/promises";
 import type { Run } from "../run.ts";
 import { fileURLToPath } from "node:url";
 import { pinProject } from "../pin.ts";
@@ -13,8 +12,8 @@ const USAGE = `agentic <command>
   doctor | validate [contract.json...]
   qualify <profile> [--owner-declare architecture|review|action-protocol]
   task create <contract.json> | run <id> | status <id> | approve <id> | accept <id> | cancel <id> | verify <id> | export <id>
-  learn capture <task> | propose <file> | list | promote <proposal> | rollback [release] | retire <lesson> | purge <lesson>   (promote/rollback/retire/purge need a terminal)
-  enable | disable   (switch the managed workflow; default on; disable needs a terminal)
+  learn capture <task> | propose <file> | list | promote <proposal> | rollback [release] | retire <lesson> | purge <lesson>
+  enable | disable   (switch the managed workflow; default on)
   arch check   (layer boundaries from .agents/architecture.json, TypeScript-compiler backed)
   do "<goal>" [--files a,b]   (one step: derive the contract, create and run the task; scope = --files or the changed files)
   session-check   (Stop hook: run the required gates on the working tree and record the result; exit 2 = failed)
@@ -27,13 +26,11 @@ Options: --project <dir> (default: cwd). Controller state: $AGENTIC_HOME (defaul
 const argv = process.argv.slice(2);
 const flag = (n: string) => (argv.includes(n) ? argv[argv.indexOf(n) + 1] : undefined);
 let active: Run | undefined;
-const rl = createInterface({ input: process.stdin, output: process.stdout });
 const env: c.Env = {
   home: process.env.AGENTIC_HOME ?? join(homedir(), ".agentic"),
   project: resolve(flag("--project") ?? process.cwd()),
   out: (s) => console.log(s),
-  operatorTty: Boolean(process.stdin.isTTY && process.stdout.isTTY),
-  ask: (q) => rl.question(q),
+
   user: userInfo().username,
   secrets: (() => {
     try {
@@ -127,12 +124,10 @@ async function main(): Promise<number> {
 
 main().then(
   (code) => {
-    rl.close();
     process.exit(code);
   },
   (e) => {
     console.error(e instanceof c.CliError ? e.message : e);
-    rl.close();
     process.exit(e instanceof c.CliError ? e.code : 1);
   },
 );

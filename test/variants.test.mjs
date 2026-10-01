@@ -9,6 +9,8 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  realpathSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
@@ -142,11 +144,17 @@ const sh = (args, env = {}) =>
 test("install.sh: project install copies; --link symlinks; reinstall refused; bad dir and no args fail", () => {
   const p = tmp();
   assert.equal(sh([p]).status, 0);
-  assert.ok(existsSync(join(p, ".claude/skills/project-setup/SKILL.md")));
+  assert.ok(lstatSync(join(p, ".agents/skills/project-setup")).isDirectory());
+  assert.ok(lstatSync(join(p, ".claude/skills/project-setup")).isSymbolicLink());
+  assert.equal(
+    realpathSync(join(p, ".claude/skills/project-setup")),
+    realpathSync(join(p, ".agents/skills/project-setup")),
+  );
   assert.notEqual(sh([p]).status, 0);
   const l = tmp();
   assert.equal(sh([l, "--link"]).status, 0);
-  assert.ok(lstatSync(join(l, ".claude/skills/project-setup")).isSymbolicLink());
+  assert.ok(lstatSync(join(l, ".agents/skills/project-setup")).isSymbolicLink());
+  assert.equal(realpathSync(join(l, ".claude/skills/project-setup")), realpathSync(join(root, "project-setup")));
   assert.notEqual(sh(["/nonexistent/dir"]).status, 0);
   assert.notEqual(sh([]).status, 0);
 });
@@ -154,7 +162,8 @@ test("install.sh: project install copies; --link symlinks; reinstall refused; ba
 test("install.sh --global writes only under HOME", () => {
   const home = tmp();
   assert.equal(sh(["--global"], { HOME: home }).status, 0);
-  assert.ok(existsSync(join(home, ".claude/skills/project-setup/SKILL.md")));
+  assert.ok(existsSync(join(home, ".agents/skills/project-setup/SKILL.md")));
+  assert.ok(lstatSync(join(home, ".claude/skills/project-setup")).isSymbolicLink());
 });
 
 // ---------- repository protection report ----------
@@ -203,7 +212,13 @@ const schemasDir = join(root, "schemas");
 
 test("runtime disabled: no runtime files, skills carry no managed section", () => {
   const { t } = render({});
-  for (const f of [".agents/policy.json", ".agents/models.json", ".agents/models.example.json", "scripts/agentic.mjs", ".agents/skills/stats"])
+  for (const f of [
+    ".agents/policy.json",
+    ".agents/models.json",
+    ".agents/models.example.json",
+    "scripts/agentic.mjs",
+    ".agents/skills/stats",
+  ])
     assert.ok(!existsSync(join(t, f)), f);
   assert.doesNotMatch(readFileSync(join(t, "AGENTS.md"), "utf8"), /Managed workflow/);
   assert.doesNotMatch(readFileSync(join(t, ".agents/skills/architect/SKILL.md"), "utf8"), /Managed mode/);
@@ -227,19 +242,17 @@ test("runtime enabled: policy.json validates against the schema; launcher execut
   noLeftovers(t);
 });
 
-test("runtime: hosted and docker options flow into policy; bad inputs refuse before writing", () => {
+test("runtime: hosted options flow into policy; bad inputs refuse before writing", () => {
   const ok = render({
     flags: { ...runtimeFlags.flags, AGENTIC_ALLOW_HOSTED: true },
-    vars: { ...runtimeFlags.vars, AGENTIC_DOCKER_IMAGE: "node:22-slim" },
+    vars: runtimeFlags.vars,
   });
   const p = JSON.parse(readFileSync(join(ok.t, ".agents/policy.json"), "utf8"));
   assert.equal(p.egress, "hosted-allowed");
-  assert.equal(p.dockerImage, "node:22-slim");
   for (const vars of [
     { GATE_DISCOVER_REGEX: undefined },
     { GATE_DISCOVER_REGEX: "no capture group" },
     { GATE_DISCOVER_REGEX: "(unclosed" },
-    { AGENTIC_DOCKER_IMAGE: 'bad"image' },
   ]) {
     const bad = render({ flags: runtimeFlags.flags, vars: { ...runtimeFlags.vars, ...vars } });
     assert.notEqual(bad.r.status, 0, JSON.stringify(vars));
@@ -300,7 +313,7 @@ test("launcher: refuses without a pin and when the runtime changed after pinning
   assert.match(r.stderr, /differs from the pinned version/);
 });
 
-test("fresh scaffold → pin → create → run with a replay worker → awaiting acceptance; accept refused without a terminal", () => {
+test("fresh scaffold → pin → create → run with a replay worker → awaiting acceptance; accept works without prompts", () => {
   const { t } = pinned();
   const home = homeOf(t);
   const h = createHash("sha256").update("bad").digest("hex");
@@ -352,12 +365,6 @@ test("fresh scaffold → pin → create → run with a replay worker → awaitin
   const v = launch(t, ["validate", contract]);
   assert.equal(v.status, 0, v.stdout + v.stderr);
   assert.equal(launch(t, ["task", "create", contract]).status, 0);
-  // the user's recorded decisions (what an interactive session would have written)
-  mkdirSync(join(home, "tasks/fix-value/state"), { recursive: true });
-  writeFileSync(
-    join(home, "tasks/fix-value/state/isolation-consent.json"),
-    JSON.stringify({ isolation: "none", decidedAt: "t" }),
-  );
   writeFileSync(
     join(home, "qualifications.json"),
     JSON.stringify([
@@ -374,9 +381,8 @@ test("fresh scaffold → pin → create → run with a replay worker → awaitin
   const run = launch(t, ["task", "run", "fix-value"]);
   assert.equal(run.status, 0, run.stdout + run.stderr);
   assert.match(run.stdout, /AWAITING_ACCEPTANCE/);
-  const acc = launch(t, ["task", "accept", "fix-value"]); // stdin is not a terminal here
-  assert.equal(acc.status, 3);
-  assert.match(acc.stderr, /interactive terminal/);
+  const acc = launch(t, ["task", "accept", "fix-value"]);
+  assert.equal(acc.status, 0, acc.stdout + acc.stderr);
   assert.equal(readFileSync(join(t, "value.txt"), "utf8"), "bad"); // the project tree was never touched
 });
 
@@ -505,4 +511,62 @@ test("runtime hooks: Stop hook runs session-check; pre-push updates the PR summa
   assert.match(readFileSync(join(t, "scripts/checks/agent-stop.mjs"), "utf8"), /agentic\.mjs", "session-check"/);
   assert.match(readFileSync(join(t, ".githooks/pre-push"), "utf8"), /agentic\.mjs pr-summary --update .*\|\| true/);
   assert.doesNotMatch(readFileSync(join(render({}).t, ".githooks/pre-push"), "utf8"), /pr-summary/);
+});
+
+test("installer refuses existing Claude installs and dangling links before writing", () => {
+  for (const dangling of [false, true]) {
+    const p = tmp();
+    mkdirSync(join(p, ".claude/skills"), { recursive: true });
+    const path = join(p, ".claude/skills/project-setup");
+    if (dangling) symlinkSync("missing", path);
+    else mkdirSync(path);
+    assert.notEqual(sh([p]).status, 0);
+    assert.equal(existsSync(join(p, ".agents")), false);
+  }
+});
+
+test("shared skills work without Claude configuration; runtime default validates", async () => {
+  const { t, r } = render({ ...runtimeFlags, flags: { ...runtimeFlags.flags, CLAUDE_CODE: false } });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(existsSync(join(t, ".claude")), false);
+  assert.ok(existsSync(join(t, ".agents/skills/architect/SKILL.md")));
+  const models = JSON.parse(readFileSync(join(t, ".agents/models.json"), "utf8"));
+  const { validate } = await import("../packages/agent-runtime/src/schema.ts");
+  assert.deepEqual(validate(JSON.parse(readFileSync(join(root, "schemas/models.schema.json"), "utf8")), models), []);
+  assert.equal(models.profiles[models.roles.worker].kind, "manual");
+});
+
+test("detector recognizes a fresh harness-only project without enabling Claude", () => {
+  const p = tmp();
+  mkdirSync(join(p, ".agents/skills"), { recursive: true });
+  mkdirSync(join(p, ".codex"));
+  const r = spawnSync(process.execPath, [join(root, "project-setup/scripts/detect.mjs"), "--target", p], {
+    encoding: "utf8",
+  });
+  assert.equal(r.status, 0, r.stderr);
+  const detected = JSON.parse(r.stdout);
+  assert.equal(detected.mode, "new");
+  assert.equal(detected.draftAnswers.flags.CLAUDE_CODE, false);
+  mkdirSync(join(p, ".claude"));
+  const claude = spawnSync(process.execPath, [join(root, "project-setup/scripts/detect.mjs"), "--target", p], {
+    encoding: "utf8",
+  });
+  assert.equal(JSON.parse(claude.stdout).draftAnswers.flags.CLAUDE_CODE, true);
+});
+
+test("token audit counts canonical skills once across Claude symlinks", () => {
+  const p = tmp(),
+    home = tmp();
+  mkdirSync(join(p, ".agents/skills/example"), { recursive: true });
+  writeFileSync(join(p, ".agents/skills/example/SKILL.md"), "---\nname: example\ndescription: Example\n---\n");
+  mkdirSync(join(p, ".claude/skills"), { recursive: true });
+  symlinkSync("../../.agents/skills/example", join(p, ".claude/skills/example"));
+  const r = spawnSync(process.execPath, [join(root, "project-setup/scripts/token-audit.mjs"), "--target", p], {
+    encoding: "utf8",
+    env: { ...process.env, HOME: home },
+  });
+  assert.equal(r.status, 0, r.stderr);
+  const audit = JSON.parse(r.stdout);
+  assert.equal(audit.skills.count, 1);
+  assert.equal(audit.usageSource, "claude-code-only");
 });

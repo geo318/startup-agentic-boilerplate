@@ -37,61 +37,17 @@ export function killAllGates(): void {
   for (const kill of [...active]) kill();
 }
 
-// `install`: trusted dependency bootstrap only. It gets network (to fetch from the lockfile) and the host uid so the
-// mounted workspace is writable; every other gate keeps no network and an unprivileged user.
-export type DockerSandbox = { image: string; install?: boolean };
-
-// Throwaway container: no network, non-root, read-only root, no capabilities, bounded memory/pids.
-// Only the workspace is mounted. Never privileged, never the host Docker socket.
-export function dockerArgv(spec: GateSpec, cwd: string, image: string, name: string, install = false): string[] {
-  return [
-    "run",
-    "--rm",
-    "--name",
-    name,
-    "--network",
-    install ? "bridge" : "none",
-    "--user",
-    install ? `${process.getuid?.() ?? 65534}:${process.getgid?.() ?? 65534}` : "65534:65534",
-    "--read-only",
-    "--tmpfs",
-    `/tmp:rw,size=${install ? 1024 : 64}m`,
-    "--cap-drop",
-    "ALL",
-    "--security-opt",
-    "no-new-privileges",
-    "--memory",
-    "512m",
-    "--pids-limit",
-    "256",
-    "-v",
-    `${cwd}:/work`,
-    "-w",
-    "/work",
-    "-e",
-    "HOME=/tmp",
-    "-e",
-    "CI=1",
-    image,
-    ...spec.argv,
-  ];
-}
-
-export function runGate(spec: GateSpec, cwd: string, snapshot: string, docker?: DockerSandbox): Promise<GateResult> {
+export function runGate(spec: GateSpec, cwd: string, snapshot: string): Promise<GateResult> {
   const started = Date.now();
   return new Promise((resolve) => {
     let out = "";
     let timedOut = false;
-    const name = `agentic-${spec.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const [cmd, args] = docker
-      ? (["docker", dockerArgv(spec, cwd, docker.image, name, docker.install)] as const)
-      : ([spec.argv[0]!, spec.argv.slice(1)] as const);
-    // Minimal env: no host credentials leak into candidate code (scratch HOME, not the user's).
-    // The docker client itself needs the real HOME to find its context; the container never sees it.
-    const home = docker ? (process.env.HOME ?? "") : mkdtempSync(join(tmpdir(), "gate-home-"));
+    const [cmd, args] = [spec.argv[0]!, spec.argv.slice(1)];
+    // Minimal env: candidate code receives a scratch HOME, not host credentials.
+    const home = mkdtempSync(join(tmpdir(), "gate-home-"));
     const child = spawn(cmd, args, {
       cwd,
-      env: { PATH: process.env.PATH ?? "", HOME: home, CI: "1", NO_COLOR: "1", ...(docker ? {} : (spec.env ?? {})) },
+      env: { PATH: process.env.PATH ?? "", HOME: home, CI: "1", NO_COLOR: "1", ...(spec.env ?? {}) },
       detached: true,
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -99,11 +55,6 @@ export function runGate(spec: GateSpec, cwd: string, snapshot: string, docker?: 
       try {
         process.kill(-child.pid!, "SIGKILL");
       } catch {}
-      if (docker)
-        spawn("docker", ["kill", name], { stdio: "ignore", env: { PATH: process.env.PATH ?? "", HOME: home } }).on(
-          "error",
-          () => {},
-        );
     };
     active.add(killGroup);
     const timer = setTimeout(() => {

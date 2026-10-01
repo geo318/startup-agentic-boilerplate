@@ -46,8 +46,7 @@
         "src/run.ts",
         "src/drive.ts",
         "src/roles.ts",
-        "src/qualify.ts",
-        "src/consent.ts"
+        "src/qualify.ts"
       ],
       "mayImport": [
         "foundation",

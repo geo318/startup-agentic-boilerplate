@@ -6,7 +6,7 @@
 //
 // Sizes are bytes / 4, an estimate. Usage is counted from this project's Claude Code transcripts.
 
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -30,15 +30,29 @@ const instructionFiles = [
   join(home, ".claude/RTK.md"),
   join(root, "CLAUDE.md"),
   join(root, "AGENTS.md"),
+  join(home, ".codex/AGENTS.md"),
 ]
   .filter(existsSync)
   .map((path) => ({ path, tokens: tokens(read(path)) }));
 
 // Skills: only the frontmatter description is always loaded.
-const skillRoots = [join(root, ".claude/skills"), join(home, ".claude/skills")];
+const skillRoots = [
+  join(root, ".agents/skills"),
+  join(home, ".agents/skills"),
+  join(root, ".claude/skills"),
+  join(home, ".claude/skills"),
+];
+const seenSkills = new Set();
 const skills = skillRoots.flatMap((base) =>
   dirs(base)
-    .filter((name) => existsSync(join(base, name, "SKILL.md")))
+    .filter((name) => {
+      const path = join(base, name, "SKILL.md");
+      if (!existsSync(path)) return false;
+      const real = realpathSync(path);
+      if (seenSkills.has(real)) return false;
+      seenSkills.add(real);
+      return true;
+    })
     .map((name) => {
       const text = read(join(base, name, "SKILL.md"));
       const description = /^description:\s*(.*)$/m.exec(text)?.[1] ?? "";
@@ -80,6 +94,7 @@ const unusedSkills = skills.filter((s) => !used.skills[s.name]).sort((a, b) => b
 console.log(
   JSON.stringify(
     {
+      usageSource: "claude-code-only",
       instructionFiles,
       skills: {
         count: skills.length,

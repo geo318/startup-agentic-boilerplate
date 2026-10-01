@@ -96,7 +96,7 @@ function runWith(egress: Policy["egress"]) {
     protectedPaths: [],
     riskTier: "R1",
     egress,
-    isolation: "none",
+
     gates: [],
     requiredGates: [],
     limits: { aggregateTokens: 10_000, toolActions: 5, semanticRepairs: 1 },

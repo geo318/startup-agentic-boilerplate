@@ -4,7 +4,6 @@ import { type Action, InvalidAction, parseAction } from "./actions.ts";
 import { Ledger, type Limits } from "./budget.ts";
 import { applyEdits } from "./edits.ts";
 import { EventLog } from "./events.ts";
-import { spawnSync } from "node:child_process";
 import { type GateResult, type GateSpec, killAllGates, runGate } from "./gates.ts";
 import { canonical, sha256 } from "./hash.ts";
 import { canMove, type State } from "./machine.ts";
@@ -47,8 +46,6 @@ const readText = (root: string, rel: string): string | null => {
   return b.length <= TEXT_LIMIT && !b.includes(0) ? b.toString("utf8") : null;
 };
 
-// "unset" = the user has not answered the isolation question yet; the run stops and asks.
-export type Isolation = "unset" | "none" | "docker";
 export type Policy = {
   workspace: string;
   stateDir: string; // controller state: must be outside the workspace
@@ -56,10 +53,8 @@ export type Policy = {
   gates: GateSpec[];
   requiredGates: string[];
   limits: Limits;
-  isolation: Isolation;
   egress: "local-only" | "hosted-allowed"; // hosted providers receive source: needs explicit consent
-  dockerImage?: string; // required when isolation is "docker"; no default image
-  bootstrap?: GateSpec; // trusted dependency setup (e.g. install from the lockfile); under docker it alone gets network
+  bootstrap?: GateSpec; // trusted dependency setup (e.g. install from the lockfile)
   baseline?: "require-pass" | "record" | "off"; // run required gates on the untouched candidate first
   riskTier: RiskTier;
   riskTags?: string[]; // sensitive-operation tags from the approved contract (auth, tenancy, financial, ...)
@@ -68,7 +63,6 @@ export type Evidence = {
   base: string;
   candidate: string;
   policyHash: string;
-  isolation: Isolation;
   gates: GateResult[];
   limitations: string[];
   baseline?: Array<{ gateId: string; status: string }>;
@@ -101,15 +95,12 @@ export class Run {
     return this.#abort.signal;
   }
 
-  #dockerUp: () => boolean;
   get egress() {
     return this.#policy.egress;
   }
 
-  constructor(policy: Policy, opts: { ledger?: Ledger; dockerUp?: () => boolean } = {}) {
+  constructor(policy: Policy, opts: { ledger?: Ledger } = {}) {
     const ledger = opts.ledger;
-    this.#dockerUp =
-      opts.dockerUp ?? (() => spawnSync("docker", ["info"], { stdio: "ignore", timeout: 10_000 }).status === 0);
     if (policy.stateDir === policy.workspace || policy.stateDir.startsWith(policy.workspace + sep)) {
       throw new Error("stateDir must be outside the workspace");
     }
@@ -131,25 +122,13 @@ export class Run {
     this.state = to;
   }
 
-  // Why this run may not start, if so. Shared by prepare() and start(): nothing executes before it passes.
-  #preflightProblem(): { to: "NEEDS_INPUT" | "BLOCKED"; why: string } | undefined {
-    const { isolation, riskTier, dockerImage } = this.#policy;
-    if (isolation === "unset") return { to: "NEEDS_INPUT", why: "isolation not chosen: ask the user (docker yes/no)" };
-    if (isolation === "none" && riskTier === "R3")
-      return { to: "BLOCKED", why: "policy violation: R3 work requires isolation or human-run checks" };
-    if (isolation === "docker" && (!dockerImage || !this.#dockerUp())) {
-      return { to: "BLOCKED", why: "environment failure: docker chosen but image unset or daemon unreachable" };
-    }
-    return undefined;
-  }
-
   // Optional async setup before start(): trusted dependency bootstrap, then the baseline gate run on the untouched
-  // candidate. A failure is recorded and applied by start(); nothing runs unless preflight already passes.
+  // candidate. A failure is recorded and applied by start(); nothing runs after a setup failure.
   async prepare(): Promise<void> {
-    if (this.state !== "RECEIVED" || this.#preflightProblem()) return;
+    if (this.state !== "RECEIVED") return;
     const { workspace, bootstrap, baseline, requiredGates, gates } = this.#policy;
     if (bootstrap) {
-      const b = await runGate(bootstrap, workspace, "bootstrap", this.#sandbox(true));
+      const b = await runGate(bootstrap, workspace, "bootstrap");
       this.#log.append("bootstrap", {
         argv: b.argv,
         status: b.status,
@@ -167,7 +146,7 @@ export class Run {
     for (const id of requiredGates) {
       const spec = gates.find((g) => g.id === id);
       if (!spec) throw new Error(`required gate not defined: ${id}`);
-      const r = await runGate(spec, workspace, "baseline", this.#sandbox());
+      const r = await runGate(spec, workspace, "baseline");
       this.#log.append("baseline", {
         gateId: id,
         status: r.status,
@@ -189,7 +168,7 @@ export class Run {
 
   start(): void {
     this.#go("PREFLIGHT");
-    const problem = this.#preflightProblem() ?? this.#prepStop;
+    const problem = this.#prepStop;
     if (problem) {
       this.#go(problem.to, problem.why);
       return;
@@ -288,7 +267,7 @@ export class Run {
     this.#log.append(type, data);
   }
 
-  // Operator-only. Binds the plan text; a different plan later means a new run/approval.
+  // Explicit approval command. Binds the plan text; a different plan later means a new run/approval.
   approvePlan(approver: string, plan: string): void {
     if (this.state !== "AWAITING_PLAN_APPROVAL") throw new Error("no plan awaiting approval");
     this.#planHash = sha256(plan);
@@ -375,7 +354,7 @@ export class Run {
       case "run_gate": {
         const spec = this.#policy.gates.find((g) => g.id === a.gateId);
         if (!spec) throw new InvalidAction(`unknown gate: ${a.gateId}`);
-        const result = await runGate(spec, workspace, snapshot(workspace), this.#sandbox());
+        const result = await runGate(spec, workspace, snapshot(workspace));
         this.#log.append("gate", result);
         return { ok: true, data: { status: result.status, discovered: result.discovered } }; // informational only
       }
@@ -387,12 +366,6 @@ export class Run {
     }
   }
 
-  #sandbox(install = false) {
-    return this.#policy.isolation === "docker"
-      ? { image: this.#policy.dockerImage!, ...(install ? { install } : {}) }
-      : undefined;
-  }
-
   async #verify(): Promise<Outcome> {
     if (this.state === "AWAITING_ACCEPTANCE") return { ok: true, data: { state: this.state } };
     if (this.state !== "VERIFYING") this.#go("VERIFYING");
@@ -402,7 +375,7 @@ export class Run {
       const spec = gates.find((g) => g.id === id);
       if (!spec) throw new Error(`required gate not defined: ${id}`);
       const before = snapshot(workspace);
-      let r = await runGate(spec, workspace, before, this.#sandbox());
+      let r = await runGate(spec, workspace, before);
       // A gate that rewrites the candidate certifies bytes it never tested.
       if (r.status === "pass" && snapshot(workspace) !== before)
         r = { ...r, status: "fail", note: "gate modified the candidate; evidence would not match the tested bytes" };
@@ -465,15 +438,11 @@ export class Run {
       base: this.#base,
       candidate,
       policyHash: sha256(canonical(this.#policy)),
-      isolation: this.#policy.isolation,
       gates: results,
       tier,
       ...(this.#baselineResults ? { baseline: this.#baselineResults } : {}),
       ...(this.#planHash ? { planHash: this.#planHash } : {}),
-      limitations:
-        this.#policy.isolation === "none"
-          ? ["user declined docker: candidate code ran on the host with the user's permissions"]
-          : [],
+      limitations: ["candidate checks run on the host in a separate project copy"],
     };
     if (tier === "R2" || tier === "R3") {
       writeFileSync(join(this.#policy.stateDir, "draft.json"), JSON.stringify(this.#draft));
@@ -518,7 +487,7 @@ export class Run {
     return this.#finalize(findings);
   }
 
-  // Operator-only: deliberately not an Action kind, so a model cannot reach it.
+  // Explicit acceptance command; worker JSON actions cannot accept a candidate.
   accept(approver: string): void {
     if (this.state !== "AWAITING_ACCEPTANCE" || !this.evidence) throw new Error("nothing to accept");
     if (snapshot(this.#policy.workspace) !== this.evidence.candidate) {

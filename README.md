@@ -15,7 +15,7 @@ It has two parts. You can use the first without the second.
 
 | Part | What it does | Needs |
 | --- | --- | --- |
-| **1. Setup skill** (`project-setup`) | Writes the rules, docs and checks into your project. | Claude Code, Node 22+ (or Bun). No keys, no model setup. |
+| **1. Setup skill** (`project-setup`) | Writes the rules, docs and checks into your project. | Claude Code, Codex, or another coding harness; Node 22+ (or Bun). No keys, no model setup. |
 | **2. Optional runtime** (`agentic`) | Lets an AI *propose* code while a program *runs the tests and keeps the proof*. The AI cannot say "it works". Only the checks can. | Node 22.18+. A model of your choice. |
 
 ## Quick start
@@ -26,11 +26,20 @@ git clone <this repo> && cd startup-agentic-boilerplate
 # or: ./install.sh ~/apps/my-project  # only inside one project
 ```
 
-Then, in an empty folder (or an existing repo), in Claude Code:
+The installer writes `.agents/skills/project-setup` and creates a `.claude/skills/project-setup`
+symlink to it. Existing installations are never overwritten; move an old Claude-only install
+aside before reinstalling. `--link` makes the canonical directory a symlink to this checkout.
+
+Then, in an empty folder (or an existing repo), invoke the skill in your harness:
 
 ```
-/project-setup ./plan.md
+/project-setup ./plan.md       # Claude Code
+$project-setup ./plan.md      # Codex
 ```
+
+Other harnesses can read `project-setup/SKILL.md` from the installed directory and follow it
+with your plan. Generated rules and skills are shared; Claude settings are optional.
+Run the documented checks before handoff in every harness; only Claude has the generated Stop hook.
 
 Or paste the plan. The skill asks only what it cannot work out, shows **one summary**, waits for your yes, then writes everything,
 fills in the blanks from your plan, runs the checks, and ends with your first task.
@@ -79,10 +88,10 @@ The skill reads your repo first (package manager, apps, linter, hooks, CI, agent
 The AI cannot approve its own work.
 
 ```bash
-node scripts/agentic.mjs doctor                      # is everything ready? (shows ON/OFF, Jev, Docker)
+node scripts/agentic.mjs doctor                      # is everything ready? (shows ON/OFF, Jev)
 node scripts/agentic.mjs task create task.json       # describe one task
 node scripts/agentic.mjs task run <id>               # run it on a COPY of your project
-node scripts/agentic.mjs task accept <id>            # you say yes (needs a real terminal)
+node scripts/agentic.mjs task accept <id>            # accept the verified candidate
 node scripts/agentic.mjs task export <id>            # get a patch to apply yourself
 node scripts/agentic.mjs stats                       # usage, cost, outcomes
 ```
@@ -90,19 +99,19 @@ node scripts/agentic.mjs stats                       # usage, cost, outcomes
 What it will and will not do:
 
 - It works on a **copy**. Your files are never touched. You get a patch. It never commits, pushes, merges or deploys.
-- **You** decide: Docker or not (asked per task), approving a plan, accepting a result. These need a person at a terminal. A flag cannot do it.
+- Approve plans and accept verified results with explicit commands, from your terminal or an authorized agent in chat. No interactive prompts.
 - Risky work (login, money, migrations, CI, dependencies) needs an approved plan and a review. If the change touches more than it said, it stops and asks again.
 - A task that cannot be done safely **stops and says why**. It does not guess.
 
 ### Turn the runtime on or off
 
 - **At setup:** answer yes to the runtime question (`AGENTIC_RUNTIME`).
-- **Switch:** `"enabled"` in `.agents/policy.json`. Missing = **on**. `node scripts/agentic.mjs disable` turns it off (needs a terminal). `enable` turns it on.
+- **Switch:** `"enabled"` in `.agents/policy.json`. Missing = **on**. `node scripts/agentic.mjs disable` turns it off. `enable` turns it on.
   When off, tasks and model probes refuse to run.
 
 ### Models and keys
 
-- Copy `.agents/models.example.json` to `.agents/models.json` and pick a model (Claude CLI, Ollama, a chat API, or manual copy-paste). **No keys in this file.**
+- The generated `.agents/models.json` defaults to manual packet exchange for any model/harness. Pick a provider from `.agents/models.example.json` (Claude CLI, Ollama, a chat API, or manual copy-paste). **No keys in this file.** Manual exchange also needs hosted-egress consent; for local-only runs, select a local provider.
 - Hosted models (anything off your machine) only run if `.agents/policy.json` says `"egress": "hosted-allowed"`. Default is `local-only`.
 - Each model must pass a small test first: `node scripts/agentic.mjs qualify <profile>`.
 
@@ -155,7 +164,7 @@ Files depend on your choices (UI, Next.js, database, auth, multi-tenant, AI, job
 **Tested:** the renderer and all setup variants, the install script, the runtime (about 160 tests), type checking, formatting, the architecture check, worktree safety, and real
 runs with Claude Haiku (small samples).
 
-**Not tested or not proven:** a real Docker run, Ollama or Codex against a real model, GitHub branch protection on this repo (the free plan cannot set it), success rates beyond small samples, and "savings".
+**Not tested or not proven:** Ollama or Codex against a real model, GitHub branch protection on this repo (the free plan cannot set it), success rates beyond small samples, and "savings".
 Details and numbers: `docs/evaluation.md`, `docs/jev.md`, `docs/learning.md`, `docs/threat-model.md`.
 
 ## This repo

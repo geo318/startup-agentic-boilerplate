@@ -39,8 +39,8 @@ For skills outside these common workflows, use the [complete skill catalog](skil
 - `stats`: how the managed workflow has been used here (measured spend and outcomes, no savings claims).
 
 `node scripts/agentic.mjs doctor` checks the pinned runtime. Gates and protected paths live in
-`policy.json`; model profiles in `models.json` (a cheap-worker/strong-worker default is generated; `models.example.json` shows other kinds; never put keys in either). Each profile must pass `agentic qualify <profile>` once before it can run (this spends a little); `architect`/`reviewer` need `qualify <profile> --owner-declare architecture|review`.
-Plan approval, acceptance, and the Docker yes/no are given by the person at their own terminal.
+`policy.json`; model profiles in `models.json` (a manual hand-off default works with any harness; choose a provider from `models.example.json`; never put keys in either). Each profile must pass `agentic qualify <profile>` once before it can run (this spends a little); `architect`/`reviewer` need `qualify <profile> --owner-declare architecture|review`.
+Plan approval and acceptance use explicit commands from the active harness, including chat.
 Changes to `.agents/`, CI, hooks, lockfiles, and test configs are protected: the runtime refuses them
 inside a task, so make them as ordinary reviewed changes.
 {{/if}}

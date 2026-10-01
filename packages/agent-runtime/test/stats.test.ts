@@ -130,10 +130,8 @@ test("stats from real task runs: scoped to the repo, --since filters, --all span
       home,
       project,
       out: (s) => out.push(s),
-      operatorTty: true,
-      ask: async () => "no",
+
       user: "u",
-      dockerUp: () => false,
     };
     const f = join(tmp(), "c.json");
     writeFileSync(

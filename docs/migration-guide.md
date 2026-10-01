@@ -3,7 +3,7 @@
 ## Documentation mode → runtime enabled
 
 1. In `docs/archive/project-setup.answers.json` set `flags.AGENTIC_RUNTIME: true`, add `vars.GATE_DISCOVER_REGEX`
-   (one capture group: tests discovered) and, if wanted, `flags.AGENTIC_ALLOW_HOSTED` / `vars.AGENTIC_DOCKER_IMAGE`.
+   (one capture group: tests discovered) and, if wanted, `flags.AGENTIC_ALLOW_HOSTED`.
 2. Preview: `node project-setup/scripts/scaffold.mjs --answers <file> --target <repo> --sync --dry-run`.
 3. Apply without `--dry-run`. Only new files are created (`.agents/policy.json`, `.agents/models.example.json`,
    `scripts/agentic.mjs`); skills that you have not edited are updated, edited ones land in `.project-setup/sync/`.

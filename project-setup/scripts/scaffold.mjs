@@ -133,12 +133,10 @@ function withRuntimeDerivations({ vars, flags, apps }) {
       AGENTIC_INSTALL_ARGV_JSON: JSON.stringify((vars.CMD_INSTALL_CI ?? "").trim().split(/\s+/)),
       AGENTIC_TEST_ARGV_JSON: JSON.stringify(vars.CMD_TEST.trim().split(/\s+/)),
       AGENTIC_DISCOVER_REGEX_JSON: JSON.stringify(vars.GATE_DISCOVER_REGEX),
-      AGENTIC_DOCKER_IMAGE: vars.AGENTIC_DOCKER_IMAGE ?? "",
     },
     flags: {
       ...flags,
       AGENTIC_HOSTED_OK: flags.AGENTIC_ALLOW_HOSTED === true,
-      AGENTIC_DOCKER_IMAGE_SET: Boolean(vars.AGENTIC_DOCKER_IMAGE),
     },
     apps,
   };
@@ -147,7 +145,7 @@ function withRuntimeDerivations({ vars, flags, apps }) {
 // Values rendered into .claude/settings.json, workflow YAML, and JS string literals. The
 // templates quote them, so only characters that break a double-quoted string are refused.
 // AUTH_PACKAGE_PATTERNS is deliberately absent: its value is YAML list content with quotes.
-const STRUCTURED_VARS = new Set(["RUNTIME", "DEFAULT_BRANCH", "AGENTIC_DOCKER_IMAGE"]);
+const STRUCTURED_VARS = new Set(["RUNTIME", "DEFAULT_BRANCH"]);
 const UNSAFE_VALUE_CHARACTERS = ['"', "\\", "\n", "\r"];
 const LEFTOVER_BLOCK_TAG = /\{\{(?:[#/](?:if|unless|each)\b[^}]*|else)\}\}/;
 

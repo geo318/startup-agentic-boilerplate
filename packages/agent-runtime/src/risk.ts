@@ -12,7 +12,7 @@ const R3_PATHS: RegExp[] = [
   /^\.agents\//,
   /^\.githooks\//,
   /^scripts\/(checks|git|skills)\//,
-  /(^|\/)(package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|Dockerfile|docker-compose[^/]*)$/,
+  /(^|\/)(package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?)$/,
   /(^|\/)(agentic|policy|routing|models)[^/]*\.json$/,
 ];
 export const SENSITIVE_TAGS = ["auth", "tenancy", "financial", "destructive-migration", "security"] as const;

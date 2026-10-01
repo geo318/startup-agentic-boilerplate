@@ -1,6 +1,6 @@
 ---
 name: project-setup
-description: Turn a product plan into a ready-to-build project — agent rules (AGENTS.md/CLAUDE.md), a context/ documentation system (overview, code map, architecture, code standards, invariants, glossary, build plan, progress tracker, decisions), workflow skills (architect, review, recover, remember, imprint, add-library-skill), deterministic checks (Biome, oxlint, fallow boundaries/dead code, docs-check, a Claude Code Stop hook), git conventions with hooks, CI with a merge gate, and optionally the stack's code skeleton. Use when starting a new project from a brief/plan/PRD, bootstrapping or scaffolding a repo for agentic development, or retrofitting this documentation system onto an existing codebase.
+description: Turn a product plan into a ready-to-build project — agent rules (AGENTS.md/CLAUDE.md), a context/ documentation system (overview, code map, architecture, code standards, invariants, glossary, build plan, progress tracker, decisions), workflow skills (architect, review, recover, remember, imprint, add-library-skill), deterministic checks (Biome, oxlint, fallow boundaries/dead code, docs-check, optional harness hooks), git conventions with hooks, CI with a merge gate, and optionally the stack's code skeleton. Use when starting a new project from a brief/plan/PRD, bootstrapping or scaffolding a repo for agentic development, or retrofitting this documentation system onto an existing codebase.
 ---
 
 # Project setup
@@ -10,6 +10,25 @@ The output is a repository where any coding agent knows the product, the rules, 
 what is next, and how to verify its work.
 
 Paths below are relative to this skill's directory unless they start with the target repo.
+
+## Harness compatibility
+
+Use this skill with Claude Code, Codex, or any harness that can read Markdown and run shell commands.
+`.agents/skills/` is canonical; Claude reads symlinks in `.claude/skills/`. Invoke through the
+harness's skill picker (`$project-setup` in Codex, `/project-setup` in Claude), or read this file
+and follow it directly. Slash commands below mean the named skill, not a required command syntax.
+Use the active harness's available tools; do not assume Claude tools, plugins, or scheduling exist.
+Confirm agents used during intake. Set `CLAUDE_CODE` and `CLAUDE_SKILL_LINKS` only when Claude
+compatibility is wanted; other harnesses use `AGENTS.md`, shared skills, git hooks, and CI.
+Claude's Stop hook is optional convenience: every harness must run step 8 before handoff.
+
+## Prerequisites
+
+The renderer, detector, and token audit use Node built-ins only: Node 22+ (or Bun), no package
+install required. Check `node --version` (or `bun --version`) and `git --version` first; use
+Node 22.18+ for the optional runtime. If a required tool is missing, report the prerequisite
+and its official install instructions. Library/tooling installs belong to the confirmed setup;
+do not assume harness plugins or global tools are present.
 
 ## Ground rules
 
@@ -33,7 +52,7 @@ Paths below are relative to this skill's directory unless they start with the ta
 - Run `node <skill-dir>/scripts/detect.mjs --target <target>` and read its JSON before anything
   else. It gives the `mode`, a draft answers file, existing tooling, layer folders, conflicts, and
   unknowns:
-  - **new** (empty, or only `.git`/`.claude`): the full workflow below.
+  - **new** (empty, or only git/harness configuration directories): the full workflow below.
   - **adopt** (code, no `AGENTS.md`) or **upgrade** (has `AGENTS.md`/`context/`): the system fits
     the project — follow [references/adopt.md](references/adopt.md) alongside the steps below.
     Read the README and any agent docs too; the code is the source of truth.
@@ -156,12 +175,12 @@ workflows (`bunx yaml-lint` or `python3 -c "import yaml,sys;yaml.safe_load(open(
 - Fill the progress tracker's setup entry with what was created and which checks passed.
 - Offer (do not do unasked) a first commit on a branch such as `chore/project-setup`.
 - GitHub projects: offer to schedule `.agents/routines/docs-audit.md` as a weekly cloud agent
-  (`/schedule`). It audits docs against code and opens a PR; do not create it unasked.
+  if the active harness supports scheduling. It audits docs against code and opens a PR; do not create it unasked.
 - Run the post-setup token audit from [references/token-tools.md](references/token-tools.md)
   (`scripts/token-audit.mjs`) and add its suggestions (max five) to the report; change nothing.
 - Report in a short list: what was generated, open questions recorded, and the next step —
   usually `/architect` on the first M1 task in the build plan.
-- If this skill was installed inside the project (`.claude/skills/project-setup`), offer to
+- If this skill was installed inside the project (`.agents/skills/project-setup`, with a possible Claude symlink), offer to
   remove it; it is not needed after setup.
 
 ## Optional: controlled runtime
@@ -172,8 +191,8 @@ changes. Intake details, extra answers, and enabling it later are in
 
 - Never put a key in the answers file, and never turn `AGENTIC_ALLOW_HOSTED` on without the user's say-so.
 - The runtime is pinned from its own checkout (`pin`); do not copy its source into the project.
-- Plan approval, acceptance, and the Docker yes/no are the person's decisions at their own terminal.
-  Do not run those commands for them or work around the terminal requirement.
+- Plan approval and acceptance use explicit CLI commands; run them from the active harness when
+  authorized by the user, including authorization in chat. No terminal prompt is required.
 - After rendering, run `node scripts/agentic.mjs doctor`; report what it says instead of assuming it works.
 
 ## Sync

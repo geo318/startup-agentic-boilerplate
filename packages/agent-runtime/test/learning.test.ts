@@ -24,7 +24,7 @@ async function incidentHome() {
     protectedPaths: [],
     riskTier: "R1",
     egress: "local-only",
-    isolation: "none",
+
     gates: [],
     requiredGates: [],
     limits: { aggregateTokens: 1000, toolActions: 5, semanticRepairs: 1 },
@@ -301,15 +301,14 @@ test("active lessons: expired advice dropped, duplicates removed, family-scoped,
   ); // cap drops the long one
 });
 
-test("CLI: promote/rollback/retire/purge need a person at a terminal; capture/propose/list do not", async () => {
+test("CLI: explicit commands work without prompts; promotion still requires evaluation", async () => {
   const home = await incidentHome();
   const out: string[] = [];
   const env = (o: Partial<c.Env> = {}): c.Env => ({
     home,
     project: tmp(),
     out: (s) => out.push(s),
-    operatorTty: false,
-    ask: async () => "yes",
+
     user: "t",
     ...o,
   });
@@ -319,18 +318,10 @@ test("CLI: promote/rollback/retire/purge need a person at a terminal; capture/pr
   writeFileSync(file, JSON.stringify(proposalOf([inc.id])));
   assert.equal(await c.learnPropose(env(), file), 0);
   const pid = L.listProposals(home)[0]!.id;
-  for (const fn of [
-    () => c.learnPromote(env(), pid),
-    () => c.learnRollback(env()),
-    () => c.learnRetire(env(), "x"),
-    () => c.learnRetire(env(), "x", true),
-  ]) {
-    await assert.rejects(fn(), (e: any) => e.code === 3);
-  }
   await c.learnList(env());
   assert.match(out.join("\n"), /quarantined/);
   // an unevaluated proposal cannot be promoted even by a person
-  await assert.rejects(c.learnPromote(env({ operatorTty: true }), pid), /evaluation passed/);
+  await assert.rejects(c.learnPromote(env({}), pid), /evaluation passed/);
 });
 
 test("pinning: lessons are fixed when a task starts; promotions later do not change a task already started", async () => {
@@ -401,10 +392,8 @@ test("pinning: lessons are fixed when a task starts; promotions later do not cha
     home,
     project,
     out: () => {},
-    operatorTty: true,
-    ask: async () => "no",
+
     user: "t",
-    dockerUp: () => false,
   });
   const mkContract = (id: string) => {
     const f = join(tmp(), "c.json");
@@ -452,7 +441,7 @@ test("the worker sees pinned lessons as guidance that never overrides the rules"
     protectedPaths: [],
     riskTier: "R1",
     egress: "local-only",
-    isolation: "none",
+
     gates: [],
     requiredGates: [],
     limits: { aggregateTokens: 10_000, toolActions: 5, semanticRepairs: 1 },
@@ -487,7 +476,7 @@ test("a deliberately harmful lesson that made it into the active set still canno
     protectedPaths: ["check.mjs"],
     riskTier: "R1",
     egress: "local-only",
-    isolation: "none",
+
     baseline: "off",
     gates: [{ id: "unit", argv: ["node", "check.mjs"], timeoutMs: 5000, discover: { regex: "tests (\\d+)", min: 1 } }],
     requiredGates: ["unit"],

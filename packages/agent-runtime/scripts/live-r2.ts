@@ -63,7 +63,7 @@ if (phase === "plan") {
       protectedPaths: ["check.mjs"],
       riskTier: "R2",
       egress: "hosted-allowed",
-      isolation: "none",
+
       gates: [
         {
           id: "unit",

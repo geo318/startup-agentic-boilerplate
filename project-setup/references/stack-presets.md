@@ -1,5 +1,12 @@
 # Stack presets
 
+## Contents
+
+- [ts-monorepo — multi-app monorepo](#ts-monorepo--multi-app-monorepo)
+- [next-fullstack — single Next.js app](#next-fullstack--single-nextjs-app)
+- [api-service — single backend service](#api-service--single-backend-service)
+- [docs-only — any stack, or not decided yet](#docs-only--any-stack-or-not-decided-yet)
+
 A preset fixes the repository shape, the request path, default flags, commands, and which code
 scaffolding to run. Pick one at intake; the brief may override any part of it. Versions below are
 the reference production stack ran in 2026-09 — **check the current stable release of each before scaffolding** and
@@ -8,7 +15,7 @@ record what you actually installed.
 Always scaffold code with the framework's official generator (it knows current versions), then
 add the skeleton by hand. Generators refuse non-empty directories: run them **before** rendering
 the docs, into a sub-folder (`apps/web`), or — for a root-level app, or when the skill itself is
-installed in the project's `.claude/` — into a temporary sibling directory whose contents you
+installed in the project's `.agents/skills/` — into a temporary sibling directory whose contents you
 then move in (never overwrite files that already exist; merge `.gitignore` and `package.json`).
 
 ---
@@ -34,8 +41,7 @@ packages/
 ```
 
 - **Request path:** `UI → feature hook → client DAL → shared HTTP client → route → core service → repository`
-- **Flags:** `MONOREPO, TYPESCRIPT, BUN, HAS_UI, NEXTJS, HAS_DB, HAS_AUTH, REQUEST_PATH_SET, GITHUB,
-  CLAUDE_CODE` on; `MULTI_TENANT`, `HAS_AI`, `HAS_JOBS`, `HAS_E2E` per brief.
+- **Flags:** `MONOREPO, TYPESCRIPT, BUN, HAS_UI, NEXTJS, HAS_DB, HAS_AUTH, REQUEST_PATH_SET, GITHUB` on; `CLAUDE_CODE` only when Claude Code is used; `MULTI_TENANT`, `HAS_AI`, `HAS_JOBS`, `HAS_E2E` per brief.
 - **Reference stack line:** Bun + Turborepo · Next.js 16 App Router · Elysia on Bun · Expo SDK 54 ·
   Better Auth · Drizzle + Postgres (Neon) · Zod v4 · TanStack Query · Axios · Tailwind v4 +
   shadcn-style primitives · Biome + oxlint · fallow · Vitest + Playwright · Trigger.dev · TypeScript 7 (`tsgo`).

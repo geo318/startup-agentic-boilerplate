@@ -1,5 +1,15 @@
 # Intake: from a brief to an answers file
 
+## Contents
+
+- [1. Extract before asking](#1-extract-before-asking)
+- [2. Ask in small batches](#2-ask-in-small-batches)
+- [3. Align on language](#3-align-on-language)
+- [4. Choose invariants](#4-choose-invariants)
+- [5. Confirm one summary](#5-confirm-one-summary)
+- [answers.json schema](#answersjson-schema)
+- [Optional: controlled runtime (AGENTIC_RUNTIME)](#optional-controlled-runtime-agentic_runtime)
+
 Goal: turn the user's plan into `answers.json` plus a short list of confirmed decisions, asking
 only what the brief does not already answer.
 
@@ -137,6 +147,8 @@ re-rendered). All `vars` values are strings; all `flags` are booleans.
 
 Notes:
 
+- `CLAUDE_CODE` enables Claude settings and its Stop hook; `CLAUDE_SKILL_LINKS` enables compatibility symlinks. Set them for the confirmed harnesses, not the model provider. Codex and other agents use `AGENTS.md` and `.agents/skills/` without these flags.
+
 - `RUNTIME` runs the generated `.mjs` scripts: `bun` when `BUN`, else `node`.
 - `AUTH_PACKAGE_PATTERNS` is required when `HAS_AUTH`: the auth library's packages as YAML list
   items, e.g. `"better-auth", "@better-auth/*"`. Dependabot keeps them out of grouped PRs.
@@ -163,11 +175,11 @@ Notes:
 
 ## Optional: controlled runtime (`AGENTIC_RUNTIME`)
 
-Off by default; documentation mode needs no model keys, GPU, Docker, or runtime. Ask only if the user
+Off by default; documentation mode needs no model keys, GPU, or runtime. Ask only if the user
 wants managed execution (a controller that runs models, tools, and checks and records evidence). It is a
 development-workflow choice, separate from `HAS_AI` (a product feature) and from `CLAUDE_CODE` (a host).
 
-When `AGENTIC_RUNTIME` is true the renderer adds `.agents/policy.json`, `.agents/models.json` (Haiku worker, Sonnet strong worker), `.agents/models.example.json`,
+When `AGENTIC_RUNTIME` is true the renderer adds `.agents/policy.json`, `.agents/models.json` (manual hand-off, any model/harness), `.agents/models.example.json`,
 and `scripts/agentic.mjs`, and the skills gain a short "Managed mode" section. It also needs:
 
 - `CMD_TEST` (already required): split on whitespace into the gate's argv. No shell, so no pipes or `&&`.
@@ -176,10 +188,10 @@ and `scripts/agentic.mjs`, and the skills gain a short "Managed mode" section. I
   vitest `(\\d+) passed` · jest `Tests:.*?(\\d+) passed` · bun test `(\\d+) pass` · node:test `# pass (\\d+)`.
 - `AGENTIC_ALLOW_HOSTED` (flag, default false): true lets hosted providers receive source. Leave false for
   local-only data.
-- `AGENTIC_DOCKER_IMAGE` (optional var): image for Docker isolation. Docker itself is chosen per task by the
-  user at run time; there is no default image.
 
 Never put keys in the answers file: provider profiles name an environment variable (`apiKeyEnv`), and the
-real `.agents/models.json` is copied from the example by the user. After rendering, pin the runtime from its
+real `.agents/models.json` starts with manual hand-off; the user selects another provider from the example.
+Manual hand-off is treated as hosted because the runtime cannot know where packets are sent; it
+requires explicit hosted-egress consent too. With `local-only`, configure a local provider before running. After rendering, pin the runtime from its
 checkout: `node <runtime>/src/cli/main.ts pin --project <repo>`. To enable the runtime on an existing project,
 set the flag and rerun with `--sync`: only new files are added, and edited files are never overwritten.

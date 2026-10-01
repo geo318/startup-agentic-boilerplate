@@ -22,7 +22,7 @@ existing project's `.agents/skills/<name>` or your own skill collection (ask the
 lives). **Local (project-adapted)** copies mention another project's names, paths, and package
 scope — search the copy for them and rewrite each to this project's before using it.
 
-After installing, symlink each into `.claude/skills/` (the scaffold script does this for skills
+When Claude Code is used, symlink each into `.claude/skills/` (the scaffold script does this for skills
 present at render time; for later installs:
 `ln -s ../../.agents/skills/<name> .claude/skills/<name>`), add a bullet to `.agents/README.md`,
 a row to `context/library-docs.md`, and regenerate the catalog with
@@ -65,7 +65,10 @@ agents will still load.
 | Parallel work | `swarm` | local | Fan-out of independent tasks to subagents |
 | Skill tuning | `skill-optimizer` | local | Tuning project skills against scenarios |
 
-## MCP servers worth wiring (`.mcp.json`)
+## MCP servers worth wiring
+
+Use the active harness’s MCP configuration (`.mcp.json` for Claude Code, `.codex/config.toml`
+for Codex). Do not assume one harness reads another’s configuration.
 
 | Server | When |
 | --- | --- |

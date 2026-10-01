@@ -18,7 +18,6 @@ import { fileURLToPath } from "node:url";
 import type { Limits } from "../budget.ts";
 import { ChatCompletionsProvider } from "../chat.ts";
 import { ClaudeCliProvider } from "../claude.ts";
-import { askIsolation, loadChoice, saveChoice } from "../consent.ts";
 import { compile, render } from "../context.ts";
 import { drive } from "../drive.ts";
 import { EventLog } from "../events.ts";
@@ -54,10 +53,8 @@ export type Env = {
   home: string; // controller state (tasks, qualifications): outside every project
   project: string;
   out: (s: string) => void;
-  operatorTty: boolean; // true only when a human is at an interactive terminal
-  ask: (q: string) => Promise<string>;
+
   user: string;
-  dockerUp?: () => boolean;
   secrets?: Record<string, string>; // loaded by main from $AGENTIC_HOME/secrets.env; never passed to workers
   jevTransport?: DecisionTransport; // tests inject a fake
   lessons?: Lesson[]; // evaluation only: replaces the active release for this process
@@ -121,7 +118,6 @@ type ProjectPolicy = {
   gates: Policy["gates"];
   requiredGates: string[];
   egress: Policy["egress"];
-  dockerImage?: string;
   bootstrap?: { argv: string[]; timeoutMs: number; env?: Record<string, string> };
   baseline?: "require-pass" | "record" | "off";
   jev?: {
@@ -340,12 +336,6 @@ export async function doctor(env: Env): Promise<number> {
         : `FAIL ${process.versions.node} (need ≥22.18)`,
     ],
     ["git", spawnSync("git", ["--version"], { encoding: "utf8" }).status === 0 ? "ok" : "missing"],
-    [
-      "docker (optional)",
-      (env.dockerUp ?? (() => spawnSync("docker", ["info"], { stdio: "ignore", timeout: 10_000 }).status === 0))()
-        ? "daemon reachable"
-        : "not available (only needed if you choose Docker isolation)",
-    ],
   ];
   rows.push([
     "workflow",
@@ -445,16 +435,14 @@ function load(env: Env, id: string) {
     : contract.riskTier;
   const tier = maxTier(contract.riskTier, scopeFloor);
   const base = { contract, pp, models, budget, dir, candidate, stateDir, tier };
-  const policy = (isolation: Policy["isolation"]): Policy => ({
+  const policy = (): Policy => ({
     workspace: candidate,
     stateDir,
     protectedPaths: pp.protectedPaths,
     gates: pp.gates,
     requiredGates: pp.requiredGates,
     limits: budget.limits,
-    isolation,
     egress: pp.egress,
-    ...(pp.dockerImage ? { dockerImage: pp.dockerImage } : {}),
     riskTier: tier,
     ...(contract.riskTags?.length ? { riskTags: contract.riskTags } : {}),
     baseline: pp.baseline ?? "require-pass", // a candidate is only judged against a green starting point
@@ -508,24 +496,6 @@ export async function taskRun(env: Env, id: string): Promise<number> {
     throw new CliError(`unresolved design decision: ${t.contract.unresolvedQuestions.join("; ")}`);
   const fresh = !existsSync(join(t.stateDir, "events.jsonl"));
 
-  let iso = loadChoice(t.stateDir);
-  if (!iso) {
-    if (!env.operatorTty) {
-      env.out(
-        "Isolation choice needed. Run `agentic task run " +
-          id +
-          "` from an interactive terminal to answer (Docker yes/no). Nothing was run.",
-      );
-      return 2;
-    }
-    iso = await askIsolation(env.ask);
-    if (!iso) {
-      env.out("No valid answer (yes/no). Nothing was run.");
-      return 2;
-    }
-    saveChoice(t.stateDir, iso);
-  }
-
   // Providers and qualifications are checked before any state is created: a task we cannot route has no side effects.
   const store = new QualStore(join(env.home, "qualifications.json"));
   const usesModel = !(t.tier === "R0" && t.contract.recipe);
@@ -566,7 +536,7 @@ export async function taskRun(env: Env, id: string): Promise<number> {
     rmSync(t.candidate, { recursive: true, force: true }); // a crashed earlier copy must not leak into this one
     copyProject(env.project, t.candidate);
   }
-  const run = new Run(t.policy(iso), env.dockerUp ? { dockerUp: env.dockerUp } : {});
+  const run = new Run(t.policy());
   env.onRun?.(run);
   try {
     // Lessons are pinned per task at its first start: later promotions never change a run midway.
@@ -619,9 +589,7 @@ export async function taskRun(env: Env, id: string): Promise<number> {
           run.endCall();
           const text = JSON.stringify(plan, null, 2);
           writeFileSync(planFile, JSON.stringify({ text, hash: sha256(text) }));
-          env.out(
-            `Plan written (hash ${sha256(text).slice(0, 12)}). Review and approve from an interactive terminal: agentic task approve ${id}`,
-          );
+          env.out(`Plan written (hash ${sha256(text).slice(0, 12)}). Review and approve: agentic task approve ${id}`);
         } else env.out(`Awaiting plan approval: agentic task approve ${id}`);
         break;
       }
@@ -694,20 +662,14 @@ export async function taskRun(env: Env, id: string): Promise<number> {
   }
 }
 
-function requireOperator(env: Env, what: string) {
-  // Human decisions are never taken from flags or env vars: they need a person at a terminal.
-  if (!env.operatorTty) throw new CliError(`${what} is an operator decision: run it from an interactive terminal`, 3);
-}
-
 async function withRun<T>(
   env: Env,
   id: string,
   fn: (run: Run, t: ReturnType<typeof load>) => Promise<T> | T,
 ): Promise<T> {
   const t = load(env, id);
-  const iso = loadChoice(t.stateDir);
-  if (!iso) throw new CliError("task has not been run yet");
-  const run = new Run(t.policy(iso));
+  if (!existsSync(join(t.stateDir, "events.jsonl"))) throw new CliError("task has not been run yet");
+  const run = new Run(t.policy());
   try {
     run.resume();
     return await fn(run, t);
@@ -717,7 +679,6 @@ async function withRun<T>(
 }
 
 export async function taskApprove(env: Env, id: string): Promise<number> {
-  requireOperator(env, "plan approval");
   return withRun(env, id, async (run, t) => {
     if (run.state !== "AWAITING_PLAN_APPROVAL") throw new CliError(`task is ${run.state}, not awaiting plan approval`);
     const f = join(t.dir, "plan.json");
@@ -725,11 +686,6 @@ export async function taskApprove(env: Env, id: string): Promise<number> {
     const { text, hash } = JSON.parse(readFileSync(f, "utf8"));
     if (sha256(text) !== hash) throw new CliError("plan file was modified after it was written");
     env.out(`${text}\n\nplan hash: ${hash}`);
-    const a = (await env.ask("Approve this exact plan? (yes/no): ")).trim().toLowerCase();
-    if (a !== "yes") {
-      env.out("not approved");
-      return 1;
-    }
     run.approvePlan(`operator:${env.user}`, text);
     env.out("plan approved; continue with: agentic task run " + id);
     return 0;
@@ -737,19 +693,13 @@ export async function taskApprove(env: Env, id: string): Promise<number> {
 }
 
 export async function taskAccept(env: Env, id: string): Promise<number> {
-  requireOperator(env, "acceptance");
   return withRun(env, id, async (run) => {
     if (run.state !== "AWAITING_ACCEPTANCE" || !run.evidence)
       throw new CliError(`task is ${run.state}, nothing to accept`);
     const e = run.evidence;
     env.out(
-      `tier ${e.tier} · candidate ${e.candidate.slice(0, 12)} · isolation ${e.isolation}\ngates: ${e.gates.map((g) => `${g.gateId}=${g.status}`).join(", ")}\nfindings: ${e.findings?.length ?? 0}\nlimitations: ${e.limitations.join("; ") || "none"}`,
+      `tier ${e.tier} · candidate ${e.candidate.slice(0, 12)}\ngates: ${e.gates.map((g) => `${g.gateId}=${g.status}`).join(", ")}\nfindings: ${e.findings?.length ?? 0}\nlimitations: ${e.limitations.join("; ") || "none"}`,
     );
-    const a = (await env.ask("Accept this exact candidate? (yes/no): ")).trim().toLowerCase();
-    if (a !== "yes") {
-      env.out("not accepted");
-      return 1;
-    }
     run.accept(`operator:${env.user}`);
     env.out("accepted (not merged, not deployed). Export a patch: agentic task export " + id);
     return 0;
@@ -796,16 +746,10 @@ export async function verifyTask(env: Env, id: string): Promise<number> {
     if (!e) throw new CliError(`no evidence to verify: task is ${run.state}`);
     const problems: string[] = [];
     if (snapshot(t.candidate) !== e.candidate) problems.push("candidate changed since it was verified");
-    const iso = loadChoice(t.stateDir)!;
-    if (sha256(canonical(t.policy(iso))) !== e.policyHash) problems.push("policy changed since it was verified");
+    if (sha256(canonical(t.policy())) !== e.policyHash) problems.push("policy changed since it was verified");
     for (const gateId of t.pp.requiredGates) {
       const spec = t.pp.gates.find((g) => g.id === gateId)!;
-      const r = await runGate(
-        spec,
-        t.candidate,
-        snapshot(t.candidate),
-        iso === "docker" ? { image: t.pp.dockerImage! } : undefined,
-      );
+      const r = await runGate(spec, t.candidate, snapshot(t.candidate));
       env.out(`gate ${gateId}: ${r.status}${r.discovered !== null ? ` (${r.discovered} discovered)` : ""}`);
       if (r.status !== "pass") problems.push(`gate ${gateId} is ${r.status}`);
     }
@@ -871,13 +815,6 @@ export async function qualify(
   const provider = makeProvider(profileName, models);
   const store = new QualStore(join(env.home, "qualifications.json"));
   if (ownerDeclare) {
-    requireOperator(env, "an owner-declared qualification");
-    const a = (
-      await env.ask(`Declare ${provider.id} qualified for "${ownerDeclare}" without a measured eval? (yes/no): `)
-    )
-      .trim()
-      .toLowerCase();
-    if (a !== "yes") return 1;
     store.record({
       profileId: provider.id,
       family: ownerDeclare,
@@ -1004,24 +941,9 @@ export async function learnList(env: Env): Promise<number> {
   return 0;
 }
 
-async function humanConfirm(env: Env, what: string, detail: string): Promise<boolean> {
-  requireOperator(env, what);
-  env.out(detail);
-  return (await env.ask(`${what}? (yes/no): `)).trim().toLowerCase() === "yes";
-}
-
 export async function learnPromote(env: Env, proposalId: string): Promise<number> {
-  requireOperator(env, "promoting a lesson");
   const p = learn.getProposal(env.home, proposalId);
-  const ev = p.evaluation;
-  if (
-    !(await humanConfirm(
-      env,
-      "promote this lesson to active guidance",
-      `lesson [${p.lesson.topic}]: ${p.lesson.text}\ncause: ${p.cause}\nevaluation: ${ev ? `${ev.verdict}; baseline correct ${ev.baseline.acceptedCorrect}/${ev.baseline.expectedAccepted}, candidate ${ev.candidate.acceptedCorrect}/${ev.candidate.expectedAccepted}; regressions ${ev.regressions.length}; n=${ev.n} (${ev.profile})` : "NONE"}`,
-    ))
-  )
-    return 1;
+  env.out(`lesson [${p.lesson.topic}]: ${p.lesson.text}`);
   const rel = learn.promote(env.home, proposalId, `operator:${env.user}`);
   env.out(
     `promoted: release ${rel.id} (rollback target ${rel.rollbackTarget ?? "none"}). Applies to tasks started from now on.`,
@@ -1029,13 +951,11 @@ export async function learnPromote(env: Env, proposalId: string): Promise<number
   return 0;
 }
 export async function learnRollback(env: Env, toRelease?: string): Promise<number> {
-  requireOperator(env, "rolling back lessons");
   const rel = learn.rollback(env.home, toRelease);
   env.out(`active release is now ${rel.id}: ${rel.note}`);
   return 0;
 }
 export async function learnRetire(env: Env, lessonId: string, purgeToo = false): Promise<number> {
-  requireOperator(env, purgeToo ? "purging a lesson" : "retiring a lesson");
   if (purgeToo) learn.purge(env.home, lessonId, `operator:${env.user}`);
   else learn.retire(env.home, lessonId, `operator:${env.user}`);
   env.out(`${purgeToo ? "purged" : "retired"} ${lessonId}`);
@@ -1093,7 +1013,7 @@ export async function doTask(env: Env, goal: string, o: { files?: string[] } = {
   }
   const code = await taskRun(env, id);
   env.out(
-    `next: node scripts/agentic.mjs status ${id}${tier === "R2" || tier === "R3" ? ` (a plan needs your approval: approve ${id})` : ""} · when verified: accept ${id} (needs a terminal)`,
+    `next: node scripts/agentic.mjs status ${id}${tier === "R2" || tier === "R3" ? ` (a plan needs your approval: approve ${id})` : ""} · when verified: accept ${id}`,
   );
   return code;
 }
@@ -1141,7 +1061,7 @@ export async function stats(env: Env, o: { all?: boolean; since?: string; json?:
   return 0;
 }
 
-// Turning it on can come from anywhere. Turning it OFF removes the controls, so it is an operator decision at a terminal.
+// Explicit enable/disable commands work in every harness.
 function setEnabled(env: Env, on: boolean): void {
   const f = projectFile(env, "policy.json");
   const policy = loadValidated<ProjectPolicy>(f, "policy");
@@ -1153,17 +1073,6 @@ export async function enableWorkflow(env: Env): Promise<number> {
   return 0;
 }
 export async function disableWorkflow(env: Env): Promise<number> {
-  requireOperator(env, "turning the managed workflow off");
-  if (
-    (
-      await env.ask(
-        "Turn the managed workflow OFF for this project? Agents will no longer have verified, evidence-backed runs. (yes/no): ",
-      )
-    )
-      .trim()
-      .toLowerCase() !== "yes"
-  )
-    return 1;
   setEnabled(env, false);
   env.out("managed workflow: OFF (commit .agents/policy.json to share this; re-enable with `agentic enable`)");
   return 0;

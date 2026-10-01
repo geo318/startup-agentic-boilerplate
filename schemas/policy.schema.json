@@ -91,11 +91,6 @@
         "hosted-allowed"
       ]
     },
-    "dockerImage": {
-      "type": "string",
-      "minLength": 3,
-      "maxLength": 300
-    },
     "bootstrap": {
       "type": "object",
       "additionalProperties": false,
