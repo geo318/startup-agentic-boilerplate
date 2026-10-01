@@ -92,6 +92,7 @@ export class Run {
   #draft: Evidence | undefined;
   #viaRecipe = false;
   #prepStop: { to: "NEEDS_INPUT" | "BLOCKED"; why: string } | undefined;
+  #baselineDiscovered: Record<string, number> = {};
   #baselineResults: Array<{ gateId: string; status: string }> | undefined;
   #abort = new AbortController();
   uncertainBilling = false; // set on resume when a billable provider call was in flight at the crash
@@ -155,6 +156,7 @@ export class Run {
       const r = await runGate(spec, workspace, "baseline", this.#sandbox());
       this.#log.append("baseline", { gateId: id, status: r.status, discovered: r.discovered, tail: r.status === "pass" ? "" : r.outputTail.slice(-1500) });
       results.push({ gateId: id, status: r.status });
+      if (r.status === "pass" && r.discovered !== null) this.#baselineDiscovered[id] = r.discovered;
     }
     this.#baselineResults = results;
     const bad = results.filter((r) => r.status !== "pass");
@@ -217,6 +219,7 @@ export class Run {
       else if (e.type === "plan_approved") this.#planHash = d.planHash;
       else if (e.type === "ledger" || e.type === "inflight") this.ledger.restore(d.ledger ?? d);
       else if (e.type === "diagnostic") this.#lastFingerprint = d.fingerprint;
+      else if (e.type === "baseline" && d.status === "pass" && typeof d.discovered === "number") this.#baselineDiscovered[d.gateId] = d.discovered;
     }
     if (events.at(-1)!.type === "inflight") {
       this.uncertainBilling = true;
@@ -352,7 +355,12 @@ export class Run {
     for (const id of requiredGates) {
       const spec = gates.find((g) => g.id === id);
       if (!spec) throw new Error(`required gate not defined: ${id}`);
-      const r = await runGate(spec, workspace, snapshot(workspace), this.#sandbox());
+      let r = await runGate(spec, workspace, snapshot(workspace), this.#sandbox());
+      // Deleting or skipping tests must not pass: fewer discovered tests than the green baseline is a failure.
+      const floor = this.#baselineDiscovered[id];
+      if (r.status === "pass" && floor !== undefined && (r.discovered ?? 0) < floor) {
+        r = { ...r, status: "fail", note: `discovery regression: ${floor} → ${r.discovered ?? 0} (tests removed or skipped)` };
+      }
       this.#log.append("gate", r);
       results.push(r);
       if (this.state === "CANCELLED") return { ok: false, reason: "cancelled" };
@@ -366,7 +374,7 @@ export class Run {
     if (!allPass) {
       const bad = results.find((r) => r.status !== "pass")!;
       // Compact diagnostic: gate, status, last 15 output lines. Fingerprint ignores timings and paths' noise.
-      const tail = bad.outputTail.split("\n").filter(Boolean).slice(-15).join("\n");
+      const tail = [bad.note, ...bad.outputTail.split("\n").filter(Boolean).slice(-15)].filter(Boolean).join("\n");
       const fingerprint = sha256(`${bad.gateId}|${bad.status}|${tail}`);
       const diagnostic = { gate: bad.gateId, status: bad.status, fingerprint: fingerprint.slice(0, 12), tail };
       this.#log.append("diagnostic", { fingerprint });

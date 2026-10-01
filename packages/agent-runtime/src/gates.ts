@@ -24,6 +24,7 @@ export type GateResult = {
   durationMs: number;
   snapshot: string;
   outputTail: string;
+  note?: string; // controller-added reason, e.g. a discovery regression against the baseline
 };
 
 const MAX_OUTPUT = 64 * 1024;

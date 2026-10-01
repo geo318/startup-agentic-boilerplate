@@ -20,6 +20,6 @@ export function riskFloor(i: { paths: string[]; tags?: string[]; recipe?: boolea
   if (i.paths.some((p) => R3_PATHS.some((r) => r.test(p)))) return "R3";
   if (i.recipe && i.paths.length > 0) return "R0";
   if (i.paths.length === 0) return "R2";
-  const layers = new Set(i.paths.map((p) => p.split("/").slice(0, 2).join("/")));
+  const layers = new Set(i.paths.map((p) => p.split("/").slice(0, -1).slice(0, 2).join("/"))); // directories; root files share one layer
   return layers.size > 1 ? "R2" : "R1";
 }

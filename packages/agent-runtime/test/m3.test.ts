@@ -127,6 +127,7 @@ test("risk floor: sensitive paths/tags are R3 however small; unknown scope is no
   assert.equal(riskFloor({ paths: ["src/ui/a.ts", "src/api/b.ts"] }), "R2");
   assert.equal(riskFloor({ paths: ["src/ui/a.ts", "src/ui/b.ts"] }), "R1");
   assert.equal(riskFloor({ paths: ["src/ui/a.ts"], recipe: true }), "R0");
+  assert.equal(riskFloor({ paths: ["a.txt", "b.txt"] }), "R1"); // root files are one layer
 });
 
 // ---------- controller: plan approval, risk recompute, review ----------
