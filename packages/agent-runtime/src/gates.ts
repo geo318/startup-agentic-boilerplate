@@ -27,6 +27,12 @@ export type GateResult = {
 
 const MAX_OUTPUT = 64 * 1024;
 
+// Every running gate's process group, so cancellation can terminate the command and all descendants.
+const active = new Set<() => void>();
+export function killAllGates(): void {
+  for (const kill of [...active]) kill();
+}
+
 export type DockerSandbox = { image: string };
 
 // Throwaway container: no network, non-root, read-only root, no capabilities, bounded memory/pids.
@@ -64,6 +70,7 @@ export function runGate(spec: GateSpec, cwd: string, snapshot: string, docker?: 
       } catch {}
       if (docker) spawn("docker", ["kill", name], { stdio: "ignore", env: { PATH: process.env.PATH ?? "", HOME: home } }).on("error", () => {});
     };
+    active.add(killGroup);
     const timer = setTimeout(() => {
       timedOut = true;
       killGroup();
@@ -75,6 +82,7 @@ export function runGate(spec: GateSpec, cwd: string, snapshot: string, docker?: 
     child.stderr.on("data", collect);
     const finish = (status: GateStatus, exitCode: number | null, signal: string | null, discovered: number | null) => {
       clearTimeout(timer);
+      active.delete(killGroup);
       killGroup(); // descendants
       resolve({
         gateId: spec.id, argv: spec.argv, status, exitCode, signal, discovered,

@@ -1,11 +1,11 @@
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { type Action, InvalidAction, parseAction } from "./actions.ts";
 import { Ledger, type Limits } from "./budget.ts";
 import { applyEdits } from "./edits.ts";
 import { EventLog } from "./events.ts";
 import { spawnSync } from "node:child_process";
-import { type GateResult, type GateSpec, runGate } from "./gates.ts";
+import { type GateResult, type GateSpec, killAllGates, runGate } from "./gates.ts";
 import { canonical, sha256 } from "./hash.ts";
 import { canMove, type State } from "./machine.ts";
 import type { Finding } from "./roles.ts";
@@ -88,6 +88,11 @@ export class Run {
   #planHash: string | undefined;
   #draft: Evidence | undefined;
   #viaRecipe = false;
+  #abort = new AbortController();
+  uncertainBilling = false; // set on resume when a billable provider call was in flight at the crash
+  get signal() {
+    return this.#abort.signal;
+  }
 
   #dockerUp: () => boolean;
   get egress() {
@@ -108,7 +113,7 @@ export class Run {
 
   #go(to: State, why?: string) {
     if (!canMove(this.state, to)) throw new Error(`illegal transition ${this.state} → ${to}`);
-    this.#log.append("state", { from: this.state, to, why });
+    this.#log.append("state", { from: this.state, to, why, ledger: this.ledger.snapshot() });
     this.state = to;
   }
 
@@ -133,6 +138,8 @@ export class Run {
     this.#base = snapshot(workspace);
     this.#protectedBase = snapshot(workspace, protectedPaths);
     for (const rel of listFiles(workspace)) this.#baseFiles.set(rel, readText(workspace, rel));
+    writeFileSync(join(this.#policy.stateDir, "base.json"), JSON.stringify({ base: this.#base, protectedBase: this.#protectedBase, files: [...this.#baseFiles] }));
+    this.#log.append("started", { policyHash: sha256(canonical(this.#policy)), candidate: this.#base });
     this.#go("CONTRACT_READY");
     if (riskTier === "R2" || riskTier === "R3") {
       // approved design required before any code is written; approval is an operator action, not a model action
@@ -142,6 +149,63 @@ export class Run {
     }
     this.#go("CONTEXT_READY");
     this.#go("IMPLEMENTING");
+  }
+
+  // Billable-call bookkeeping: a crash between begin and end leaves the worst-case reservation charged.
+  beginCall(reserved: number): void {
+    this.#log.append("inflight", { reserved, ledger: this.ledger.snapshot() });
+  }
+  endCall(): void {
+    this.#log.append("ledger", this.ledger.snapshot());
+  }
+
+  // Rebuild from the event log + controller state. Verifies the chain, the policy, and the candidate; anything
+  // uncertain stops the run rather than being replayed. Billable calls and side effects are never re-issued.
+  resume(): void {
+    const log = this.#log;
+    log.verify();
+    const events = log.read();
+    if (events.length === 0) throw new Error("nothing to resume");
+    let candidate = "";
+    let policyHash = "";
+    for (const e of events) {
+      const d = e.data as Record<string, any>;
+      if (e.type === "state") {
+        this.state = d.to;
+        if (d.ledger) this.ledger.restore(d.ledger);
+      } else if (e.type === "action") this.#seen.add(d.id);
+      else if (e.type === "started") {
+        policyHash = d.policyHash;
+        candidate = d.candidate;
+      } else if (e.type === "candidate") candidate = d.digest;
+      else if (e.type === "plan_approved") this.#planHash = d.planHash;
+      else if (e.type === "ledger" || e.type === "inflight") this.ledger.restore(d.ledger ?? d);
+      else if (e.type === "diagnostic") this.#lastFingerprint = d.fingerprint;
+    }
+    if (events.at(-1)!.type === "inflight") {
+      this.uncertainBilling = true;
+      this.ledger.unknownUsageCalls += 1; // the reservation stays charged: worst case, never zero
+      log.append("resumed", { uncertainBilling: true });
+    }
+    const dir = this.#policy.stateDir;
+    const saved = JSON.parse(readFileSync(join(dir, "base.json"), "utf8"));
+    this.#base = saved.base;
+    this.#protectedBase = saved.protectedBase;
+    this.#baseFiles = new Map(saved.files);
+    if (existsSync(join(dir, "draft.json"))) this.#draft = JSON.parse(readFileSync(join(dir, "draft.json"), "utf8"));
+    if (existsSync(join(dir, "evidence.json")) && this.state === "AWAITING_ACCEPTANCE") this.evidence = JSON.parse(readFileSync(join(dir, "evidence.json"), "utf8"));
+    const live = !["ACCEPTED", "BLOCKED", "ESCALATED", "CANCELLED", "NEEDS_INPUT"].includes(this.state);
+    if (live && policyHash !== sha256(canonical(this.#policy))) {
+      this.#go("BLOCKED", "stale evidence: policy changed since the run started");
+    } else if (live && snapshot(this.#policy.workspace) !== candidate) {
+      this.#go("BLOCKED", "stale evidence: workspace differs from the last recorded candidate");
+    }
+  }
+
+  // After a crash during verification the gates are simply run again (they have no side effects on the run).
+  async reverify(): Promise<Outcome> {
+    if (this.state !== "VERIFYING") throw new Error(`nothing to re-verify in ${this.state}`);
+    return this.#verify();
   }
 
   // Operator-only. Binds the plan text; a different plan later means a new run/approval.
@@ -186,6 +250,7 @@ export class Run {
       return this.#reject(e);
     }
     this.#log.append("action", action);
+    this.#log.append("ledger", this.ledger.snapshot());
     try {
       return await this.#dispatch(action);
     } catch (e) {
@@ -221,6 +286,7 @@ export class Run {
           this.#go("IMPLEMENTING", "edit after verification");
         }
         applyEdits(workspace, a.edits, protectedPaths);
+        this.#log.append("candidate", { digest: snapshot(workspace) });
         return { ok: true };
       }
       case "run_gate": {
@@ -244,7 +310,7 @@ export class Run {
 
   async #verify(): Promise<Outcome> {
     if (this.state === "AWAITING_ACCEPTANCE") return { ok: true, data: { state: this.state } };
-    this.#go("VERIFYING");
+    if (this.state !== "VERIFYING") this.#go("VERIFYING");
     const { workspace, protectedPaths, gates, requiredGates } = this.#policy;
     const results: GateResult[] = [];
     for (const id of requiredGates) {
@@ -253,6 +319,7 @@ export class Run {
       const r = await runGate(spec, workspace, snapshot(workspace), this.#sandbox());
       this.#log.append("gate", r);
       results.push(r);
+      if (this.state === "CANCELLED") return { ok: false, reason: "cancelled" };
       if (r.status !== "pass") break;
     }
     if (snapshot(workspace, protectedPaths) !== this.#protectedBase) {
@@ -266,6 +333,7 @@ export class Run {
       const tail = bad.outputTail.split("\n").filter(Boolean).slice(-15).join("\n");
       const fingerprint = sha256(`${bad.gateId}|${bad.status}|${tail}`);
       const diagnostic = { gate: bad.gateId, status: bad.status, fingerprint: fingerprint.slice(0, 12), tail };
+      this.#log.append("diagnostic", { fingerprint });
       this.#go("DIAGNOSING");
       if (fingerprint === this.#lastFingerprint) {
         this.#go("ESCALATED", "repeated identical failure without new information");
@@ -297,6 +365,7 @@ export class Run {
       limitations: this.#policy.isolation === "none" ? ["user declined docker: candidate code ran on the host with the user's permissions"] : [],
     };
     if (tier === "R2" || tier === "R3") {
+      writeFileSync(join(this.#policy.stateDir, "draft.json"), JSON.stringify(this.#draft));
       this.#go("REVIEWING"); // independent review is required; the controller runs it and calls completeReview()
       return { ok: true, data: { state: this.state } };
     }
@@ -361,7 +430,10 @@ export class Run {
   stop(to: "BLOCKED" | "ESCALATED" | "NEEDS_INPUT", why: string): void {
     this.#go(to, why);
   }
+  // Terminates running gate process groups and aborts in-flight provider calls (billing for those is uncertain).
   cancel(): void {
+    this.#abort.abort();
+    killAllGates();
     this.#go("CANCELLED");
   }
   close(): void {

@@ -213,7 +213,7 @@ test("event log: tamper detected; second writer refused", () => {
   const log = new EventLog(path);
   log.verify();
   const lines = readFileSync(path, "utf8").split("\n").filter(Boolean);
-  lines[1] = lines[1]!.replace("PREFLIGHT", "ACCEPTED");
+  lines[0] = lines[0]!.replace("PREFLIGHT", "ACCEPTED");
   writeFileSync(path, `${lines.join("\n")}\n`);
   assert.throws(() => log.verify(), /corrupt/);
 });

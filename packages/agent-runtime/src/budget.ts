@@ -15,6 +15,12 @@ export class Ledger {
   constructor(limits: Limits) {
     this.limits = limits;
   }
+  snapshot() {
+    return { tokens: this.tokens, actions: this.actions, repairs: this.repairs, costUsd: this.costUsd, unknownUsageCalls: this.unknownUsageCalls };
+  }
+  restore(x: ReturnType<Ledger["snapshot"]>): void {
+    Object.assign(this, x);
+  }
   // Reserve the worst case before a call; settle() corrects to actual usage when known.
   reserve(maxTokens: number): number {
     if (this.tokens + maxTokens > this.limits.aggregateTokens) throw new BudgetExceeded("tokens");

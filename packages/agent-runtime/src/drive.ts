@@ -51,9 +51,12 @@ export async function drive(run: Run, provider: GenerationProvider, workspace: s
       else throw e;
       break;
     }
-    const res = await provider.generate({ system: SYSTEM, prompt, maxOutputTokens: maxOut, schema: ACTION_SCHEMA });
+    run.beginCall(reserved);
+    const res = await provider.generate({ system: SYSTEM, prompt, maxOutputTokens: maxOut, schema: ACTION_SCHEMA, signal: run.signal });
     if (res.costUsd !== undefined) run.ledger.costUsd += res.costUsd;
     run.ledger.settle(reserved, res.usage ? res.usage.input + res.usage.output : null);
+    run.endCall();
+    if (run.signal.aborted) break;
     let raw: unknown;
     try {
       if (res.finishReason !== "stop") throw new Error(`finish reason ${res.finishReason}`); // truncated/errored: never executed
