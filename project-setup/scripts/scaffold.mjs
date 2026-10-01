@@ -256,9 +256,20 @@ function sha256(text) {
   return createHash("sha256").update(text).digest("hex");
 }
 
+// Lock = { "$meta": { generator, templatesHash }, "<path>": sha256(rendered), … }. $meta records which
+// template set wrote the files (no timestamps, so renders stay reproducible).
 function readLock(target) {
   const path = join(target, LOCK_PATH);
-  return existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {};
+  const { $meta: _meta, ...files } = existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {};
+  return files;
+}
+
+function templatesHash() {
+  const parts = walk(templatesDir)
+    .map((file) => relative(templatesDir, file).split(sep).join("/"))
+    .sort()
+    .map((rel) => `${rel}\0${sha256(readFileSync(join(templatesDir, rel), "utf8"))}`);
+  return sha256(parts.join("\n"));
 }
 
 // Which of the sync outcomes in the header applies to an existing file.
@@ -362,7 +373,10 @@ function main() {
         lock[item.lockKey] = sha256(item.content);
       }
     }
-    const sorted = Object.fromEntries(Object.entries(lock).sort(([a], [b]) => a.localeCompare(b)));
+    const sorted = {
+      $meta: { generator: "project-setup", templatesHash: templatesHash() },
+      ...Object.fromEntries(Object.entries(lock).sort(([a], [b]) => a.localeCompare(b))),
+    };
     mkdirSync(dirname(join(target, LOCK_PATH)), { recursive: true });
     writeFileSync(join(target, LOCK_PATH), `${JSON.stringify(sorted, null, 2)}\n`);
   }
