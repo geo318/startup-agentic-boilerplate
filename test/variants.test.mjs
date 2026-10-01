@@ -203,8 +203,10 @@ function pinned() {
   assert.equal(r.status, 0, r.stderr);
   return { t, rt };
 }
+const homes = new Map(); // one controller home per scaffolded project, never shared between tests
+const homeOf = (t) => homes.get(t) ?? homes.set(t, tmp()).get(t);
 const launch = (t, args, env = {}) =>
-  spawnSync(process.execPath, [join(t, "scripts/agentic.mjs"), ...args], { encoding: "utf8", env: { ...process.env, AGENTIC_HOME: join(t, "..", "home"), ...env } });
+  spawnSync(process.execPath, [join(t, "scripts/agentic.mjs"), ...args], { encoding: "utf8", env: { ...process.env, AGENTIC_HOME: homeOf(t), ...env } });
 
 test("pin and launcher compute the same tree hash", () => {
   const { t, rt } = pinned();
@@ -227,7 +229,7 @@ test("launcher: refuses without a pin and when the runtime changed after pinning
 
 test("fresh scaffold → pin → create → run with a replay worker → awaiting acceptance; accept refused without a terminal", () => {
   const { t } = pinned();
-  const home = join(t, "..", "home");
+  const home = homeOf(t);
   const h = createHash("sha256").update("bad").digest("hex");
   writeFileSync(join(t, "value.txt"), "bad");
   writeFileSync(join(t, "check.mjs"), `import {readFileSync} from "node:fs"; console.log("# pass 1"); process.exit(readFileSync("value.txt","utf8")==="good"?0:1)`);
@@ -243,7 +245,8 @@ test("fresh scaffold → pin → create → run with a replay worker → awaitin
   writeFileSync(join(t, ".agents/policy.json"), JSON.stringify(pol));
   const contract = join(t, "contract.json");
   writeFileSync(contract, JSON.stringify({ schemaVersion: 1, id: "fix-value", goal: "make value.txt say good", acceptance: ["check passes"], files: ["value.txt"], riskTier: "R1", budget: "narrow" }));
-  assert.equal(launch(t, ["validate", contract]).status, 0);
+  const v = launch(t, ["validate", contract]);
+  assert.equal(v.status, 0, v.stdout + v.stderr);
   assert.equal(launch(t, ["task", "create", contract]).status, 0);
   // the user's recorded decisions (what an interactive session would have written)
   mkdirSync(join(home, "tasks/fix-value/state"), { recursive: true });
