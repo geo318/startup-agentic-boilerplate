@@ -77,3 +77,20 @@ test("repeated request for missing material → NEEDS_INPUT, not budget burn", a
   assert.equal(run.state, "NEEDS_INPUT");
   assert.equal(p.calls.length, 2);
 });
+
+test("re-reading an unchanged file is nudged once then stops (no budget burn)", async () => {
+  const { run, ws } = setup();
+  const read = '{"id":"x","kind":"read","path":"value.txt"}';
+  const p = new MockProvider([read, read, read, read, read]);
+  await drive(run, p, ws, task);
+  assert.equal(run.state, "ESCALATED");
+  assert.equal(p.calls.length, 3);
+  assert.match(p.calls[2]!.prompt, /gives no new information/);
+});
+
+test("approved plan text is included in the worker prompt", async () => {
+  const { run, ws } = setup();
+  const p = new MockProvider(['{"id":"1","kind":"blocked","reason":"x"}']);
+  await drive(run, p, ws, { ...task, plan: "STEP: change bad to good" });
+  assert.match(p.calls[0]!.prompt, /APPROVED PLAN[\s\S]*STEP: change bad to good/);
+});

@@ -8,6 +8,8 @@ import { spawnSync } from "node:child_process";
 import { type GateResult, type GateSpec, runGate } from "./gates.ts";
 import { canonical, sha256 } from "./hash.ts";
 import { canMove, type State } from "./machine.ts";
+import type { Finding } from "./roles.ts";
+import { maxTier, riskFloor } from "./risk.ts";
 import { resolveSafe } from "./paths.ts";
 
 const SKIP = new Set([".git", "node_modules"]);
@@ -15,22 +17,33 @@ const SKIP = new Set([".git", "node_modules"]);
 // Digest of every file (tracked or untracked) under the workspace; optionally only some prefixes.
 export function snapshot(root: string, only?: string[]): string {
   const files: Record<string, string> = {};
+  for (const rel of listFiles(root)) {
+    if (!only || only.some((p) => rel === p || rel.startsWith(p.endsWith("/") ? p : `${p}/`))) {
+      files[rel] = sha256(readFileSync(join(root, rel)));
+    }
+  }
+  return sha256(canonical(files));
+}
+
+function listFiles(root: string): string[] {
+  const out: string[] = [];
   const walk = (dir: string) => {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
       if (SKIP.has(e.name)) continue;
       const full = join(dir, e.name);
       if (e.isDirectory()) walk(full);
-      else if (e.isFile()) {
-        const rel = relative(root, full).split(sep).join("/");
-        if (!only || only.some((p) => rel === p || rel.startsWith(p.endsWith("/") ? p : `${p}/`))) {
-          files[rel] = sha256(readFileSync(full));
-        }
-      }
+      else if (e.isFile()) out.push(relative(root, full).split(sep).join("/"));
     }
   };
   walk(root);
-  return sha256(canonical(files));
+  return out;
 }
+
+const TEXT_LIMIT = 256 * 1024;
+const readText = (root: string, rel: string): string | null => {
+  const b = readFileSync(join(root, rel));
+  return b.length <= TEXT_LIMIT && !b.includes(0) ? b.toString("utf8") : null;
+};
 
 // "unset" = the user has not answered the isolation question yet; the run stops and asks.
 export type Isolation = "unset" | "none" | "docker";
@@ -46,6 +59,7 @@ export type Policy = {
   egress: "local-only" | "hosted-allowed"; // hosted providers receive source: needs explicit consent
   dockerImage?: string; // required when isolation is "docker"; no default image
   riskTier: RiskTier;
+  riskTags?: string[]; // sensitive-operation tags from the approved contract (auth, tenancy, financial, ...)
 };
 export type Evidence = {
   base: string;
@@ -54,6 +68,9 @@ export type Evidence = {
   isolation: Isolation;
   gates: GateResult[];
   limitations: string[];
+  tier: RiskTier; // effective tier, recomputed from the actual diff
+  planHash?: string;
+  findings?: Finding[];
 };
 export type Outcome = { ok: boolean; reason?: string; data?: unknown };
 
@@ -67,6 +84,10 @@ export class Run {
   #protectedBase = "";
   #seen = new Set<string>();
   #lastFingerprint = "";
+  #baseFiles = new Map<string, string | null>();
+  #planHash: string | undefined;
+  #draft: Evidence | undefined;
+  #viaRecipe = false;
 
   #dockerUp: () => boolean;
   get egress() {
@@ -111,9 +132,39 @@ export class Run {
     const { workspace, protectedPaths } = this.#policy;
     this.#base = snapshot(workspace);
     this.#protectedBase = snapshot(workspace, protectedPaths);
+    for (const rel of listFiles(workspace)) this.#baseFiles.set(rel, readText(workspace, rel));
     this.#go("CONTRACT_READY");
+    if (riskTier === "R2" || riskTier === "R3") {
+      // approved design required before any code is written; approval is an operator action, not a model action
+      this.#go("PLANNING");
+      this.#go("AWAITING_PLAN_APPROVAL");
+      return;
+    }
     this.#go("CONTEXT_READY");
     this.#go("IMPLEMENTING");
+  }
+
+  // Operator-only. Binds the plan text; a different plan later means a new run/approval.
+  approvePlan(approver: string, plan: string): void {
+    if (this.state !== "AWAITING_PLAN_APPROVAL") throw new Error("no plan awaiting approval");
+    this.#planHash = sha256(plan);
+    writeFileSync(join(this.#policy.stateDir, "plan.json"), JSON.stringify({ approver, planHash: this.#planHash, plan }, null, 2));
+    this.#log.append("plan_approved", { approver, planHash: this.#planHash });
+    this.#go("CONTEXT_READY");
+    this.#go("IMPLEMENTING");
+  }
+
+  // Files that differ from the start of the run (text only), for reviewers and risk recomputation.
+  changed(): Array<{ path: string; before: string | null; after: string | null }> {
+    const { workspace } = this.#policy;
+    const now = new Set(listFiles(workspace));
+    const out: Array<{ path: string; before: string | null; after: string | null }> = [];
+    for (const rel of new Set([...this.#baseFiles.keys(), ...now])) {
+      const before = this.#baseFiles.has(rel) ? this.#baseFiles.get(rel)! : null;
+      const after = now.has(rel) ? readText(workspace, rel) : null;
+      if (before !== after) out.push({ path: rel, before, after });
+    }
+    return out;
   }
 
   async handle(raw: unknown): Promise<Outcome> {
@@ -231,14 +282,55 @@ export class Run {
       return { ok: false, reason: "gates failed", data: diagnostic };
     }
     const candidate = snapshot(workspace);
-    this.evidence = {
+    const paths = this.changed().map((c) => c.path);
+    const floor = paths.length ? riskFloor({ paths, tags: this.#policy.riskTags, recipe: this.#viaRecipe }) : this.#policy.riskTier;
+    const tier = maxTier(this.#policy.riskTier, floor);
+    if (tier !== this.#policy.riskTier) {
+      // the diff is riskier than what was approved: stop for a new contract/approval, never proceed quietly
+      this.#go("NEEDS_INPUT", `risk floor ${floor} exceeds approved ${this.#policy.riskTier}: re-approve under the higher tier`);
+      return { ok: false, reason: `risk floor ${floor} exceeds approved ${this.#policy.riskTier}` };
+    }
+    this.#draft = {
       base: this.#base, candidate, policyHash: sha256(canonical(this.#policy)),
-      isolation: this.#policy.isolation, gates: results,
+      isolation: this.#policy.isolation, gates: results, tier,
+      ...(this.#planHash ? { planHash: this.#planHash } : {}),
       limitations: this.#policy.isolation === "none" ? ["user declined docker: candidate code ran on the host with the user's permissions"] : [],
     };
+    if (tier === "R2" || tier === "R3") {
+      this.#go("REVIEWING"); // independent review is required; the controller runs it and calls completeReview()
+      return { ok: true, data: { state: this.state } };
+    }
+    return this.#finalize([]);
+  }
+
+  #finalize(findings: Finding[]): Outcome {
+    this.evidence = { ...this.#draft!, ...(findings.length ? { findings } : {}) };
     writeFileSync(join(this.#policy.stateDir, "evidence.json"), JSON.stringify(this.evidence, null, 2));
     this.#go("AWAITING_ACCEPTANCE");
     return { ok: true, data: { state: this.state } };
+  }
+
+  // Controller-side: called with validated reviewer findings. Blocking findings send the run to repair.
+  completeReview(findings: Finding[]): Outcome {
+    if (this.state !== "REVIEWING" || !this.#draft) throw new Error("not awaiting review");
+    if (snapshot(this.#policy.workspace) !== this.#draft.candidate) {
+      this.#go("DIAGNOSING", "stale evidence: candidate changed during review");
+      this.#go("BOUNDED_REPAIR");
+      return { ok: false, reason: "stale evidence: candidate changed during review" };
+    }
+    this.#log.append("review", findings);
+    if (findings.some((f) => f.severity === "blocking")) {
+      this.#go("DIAGNOSING", "blocking review findings");
+      try {
+        this.ledger.repair();
+      } catch {
+        this.#go("ESCALATED", "budget exhausted: semantic repairs");
+        return { ok: false, reason: "budget exhausted: semantic repairs", data: findings };
+      }
+      this.#go("BOUNDED_REPAIR");
+      return { ok: false, reason: "blocking review findings", data: findings };
+    }
+    return this.#finalize(findings);
   }
 
   // Operator-only: deliberately not an Action kind, so a model cannot reach it.
@@ -256,6 +348,7 @@ export class Run {
   // R0: a deterministic approved recipe. Zero model calls: the controller builds the edit itself
   // (computing the hash the model would otherwise have to), then verifies like any other run.
   async recipe(r: { path: string; find: string; replace: string }): Promise<Outcome> {
+    this.#viaRecipe = true;
     const current = readFileSync(resolveSafe(this.#policy.workspace, r.path), "utf8");
     const edit = await this.handle({
       id: `recipe-edit-${this.#seen.size}`, kind: "edit",

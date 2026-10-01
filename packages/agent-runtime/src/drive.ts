@@ -4,7 +4,7 @@ import { compile, ContextTooLarge, render } from "./context.ts";
 import type { GenerationProvider } from "./provider.ts";
 import type { Run } from "./run.ts";
 
-export type Task = { goal: string; acceptance: string[]; files: string[] };
+export type Task = { goal: string; acceptance: string[]; files: string[]; plan?: string }; // plan: operator-approved text
 
 const SYSTEM = `You are a coding worker. Reply with ONE JSON object and nothing else. Allowed:
 {"id":"<unique>","kind":"read","path":"..."}
@@ -30,13 +30,14 @@ export async function drive(run: Run, provider: GenerationProvider, workspace: s
   let last = "start";
   let invalid = 0;
   const failed = new Map<string, number>();
+  const repeats = new Map<string, number>(); // identical successful no-op requests since the last edit
   let turns = 0;
   while (LIVE.includes(run.state) && turns < maxTurns) {
     turns += 1;
     let prompt: string;
     try {
       const p = compile(workspace, task.files, task.goal, maxContext);
-      prompt = [`GOAL: ${task.goal}`, `ACCEPTANCE:\n${task.acceptance.map((a) => `- ${a}`).join("\n")}`, render(p), `LAST: ${last}`].join("\n\n");
+      prompt = [`GOAL: ${task.goal}`, ...(task.plan ? [`APPROVED PLAN (follow it):\n${task.plan}`] : []), `ACCEPTANCE:\n${task.acceptance.map((a) => `- ${a}`).join("\n")}`, render(p), `LAST: ${last}`].join("\n\n");
     } catch (e) {
       if (e instanceof ContextTooLarge) run.stop("BLOCKED", `insufficient context: ${e.message}`);
       else throw e;
@@ -74,6 +75,20 @@ export async function drive(run: Run, provider: GenerationProvider, workspace: s
       if ((failed.get(key) ?? 0) >= 2) {
         run.stop("NEEDS_INPUT", `insufficient context: repeated request for unavailable material (${out.reason})`);
         break;
+      }
+    }
+    const kind = (action as { kind?: string })?.kind;
+    if (kind === "edit") repeats.clear();
+    if (out.ok && kind === "read") {
+      const key = (action as { path?: string }).path ?? "";
+      repeats.set(key, (repeats.get(key) ?? 0) + 1);
+      if ((repeats.get(key) ?? 0) >= 3) {
+        run.stop("ESCALATED", `no progress: ${key} re-read without any change`);
+        break;
+      }
+      if ((repeats.get(key) ?? 0) >= 2) {
+        last = `${key} is already in the context above and unchanged; reading again gives no new information. Send finish if the acceptance criteria are met, or blocked with the reason.`;
+        continue;
       }
     }
     last = out.ok ? `ok ${JSON.stringify(out.data ?? {})}${(action as { kind?: string })?.kind === "edit" ? " — edit applied; file contents above are current. Send finish to verify, or edit more." : ""}` : `rejected: ${out.reason}${out.data ? ` ${JSON.stringify(out.data)}` : ""}`;
