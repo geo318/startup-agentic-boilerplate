@@ -3,9 +3,12 @@ import { homedir, userInfo } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import type { Run } from "../run.ts";
+import { fileURLToPath } from "node:url";
+import { pinProject } from "../pin.ts";
 import * as c from "./commands.ts";
 
 const USAGE = `agentic <command>
+  pin   (writes .agents/runtime.json pointing at this runtime checkout)
   doctor | validate [contract.json...]
   qualify <profile> [--owner-declare architecture|review|action-protocol]
   task create <contract.json> | run <id> | status <id> | approve <id> | accept <id> | cancel <id> | export <id>
@@ -30,6 +33,11 @@ process.on("SIGINT", () => { active?.cancel(); process.exit(130); });
 async function main(): Promise<number> {
   const [cmd, sub, arg] = argv;
   switch (cmd) {
+    case "pin": {
+      const pin = pinProject(env.project, resolve(fileURLToPath(import.meta.url), "..", "..", ".."));
+      console.log(`pinned ${pin.runtimePath} @ ${pin.treeHash.slice(0, 12)} in ${env.project}/.agents/runtime.json`);
+      return 0;
+    }
     case "doctor": return c.doctor(env);
     case "validate": return c.validateFiles(env, argv.slice(1).filter((a) => !a.startsWith("--") && a !== env.project));
     case "qualify": return c.qualify(env, sub ?? "", flag("--owner-declare") as any);

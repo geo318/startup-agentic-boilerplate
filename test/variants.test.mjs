@@ -1,6 +1,6 @@
 // M0 fixtures: scaffold variants, sync/upgrade outcomes, installer, protection report.
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -141,4 +141,119 @@ test("protection: unprotected, protected, and unknown are distinct; --require fa
   const u = prot(noaccess);
   assert.match(u.stdout, /UNKNOWN/);
   assert.equal(prot(noaccess, ["--require"]).status, 1);
+});
+
+// ---------- optional runtime (M7) ----------
+const runtimeFlags = { flags: { AGENTIC_RUNTIME: true }, vars: { GATE_DISCOVER_REGEX: "# pass (\\d+)", CMD_TEST: "node --test" } };
+const schemasDir = join(root, "schemas");
+
+test("runtime disabled: no runtime files, skills carry no managed section", () => {
+  const { t } = render({});
+  for (const f of [".agents/policy.json", ".agents/models.example.json", "scripts/agentic.mjs"]) assert.ok(!existsSync(join(t, f)), f);
+  assert.doesNotMatch(readFileSync(join(t, ".agents/skills/architect/SKILL.md"), "utf8"), /Managed mode/);
+});
+
+test("runtime enabled: policy.json validates against the schema; launcher executable; skills delegate", async () => {
+  const { t, r } = render(runtimeFlags);
+  assert.equal(r.status, 0, r.stderr);
+  const { validate } = await import("../packages/agent-runtime/src/schema.ts");
+  const policy = JSON.parse(readFileSync(join(t, ".agents/policy.json"), "utf8"));
+  assert.deepEqual(validate(JSON.parse(readFileSync(join(schemasDir, "policy.schema.json"), "utf8")), policy), []);
+  assert.deepEqual(policy.gates[0].argv, ["node", "--test"]);
+  assert.equal(policy.egress, "local-only");
+  assert.ok(policy.protectedPaths.includes(".agents") && policy.protectedPaths.includes("package.json"));
+  assert.ok((lstatSync(join(t, "scripts/agentic.mjs")).mode & 0o111) !== 0);
+  assert.match(readFileSync(join(t, ".agents/skills/architect/SKILL.md"), "utf8"), /Managed mode/);
+  noLeftovers(t);
+});
+
+test("runtime: hosted and docker options flow into policy; bad inputs refuse before writing", () => {
+  const ok = render({ flags: { ...runtimeFlags.flags, AGENTIC_ALLOW_HOSTED: true }, vars: { ...runtimeFlags.vars, AGENTIC_DOCKER_IMAGE: "node:22-slim" } });
+  const p = JSON.parse(readFileSync(join(ok.t, ".agents/policy.json"), "utf8"));
+  assert.equal(p.egress, "hosted-allowed");
+  assert.equal(p.dockerImage, "node:22-slim");
+  for (const vars of [{ GATE_DISCOVER_REGEX: undefined }, { GATE_DISCOVER_REGEX: "no capture group" }, { GATE_DISCOVER_REGEX: "(unclosed" }, { AGENTIC_DOCKER_IMAGE: 'bad"image' }]) {
+    const bad = render({ flags: runtimeFlags.flags, vars: { ...runtimeFlags.vars, ...vars } });
+    assert.notEqual(bad.r.status, 0, JSON.stringify(vars));
+    assert.deepEqual(readdirSync(bad.t), [], JSON.stringify(vars));
+  }
+});
+
+test("enable the runtime later with --sync: adds files, leaves edited files alone, reports template change", () => {
+  const { t } = render({});
+  writeFileSync(join(t, "AGENTS.md"), "my edits\n");
+  const r = spawnSync(process.execPath, [scaffold, "--answers", answers(runtimeFlags), "--target", t, "--sync"], { encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(join(t, ".agents/policy.json")));
+  assert.equal(readFileSync(join(t, "AGENTS.md"), "utf8"), "my edits\n");
+  assert.match(r.stdout, /templates: (unchanged|changed)/);
+});
+
+// ---------- launcher + pin, end to end through real processes ----------
+
+const { treeHash } = await import("../packages/agent-runtime/src/pin.ts");
+
+function pinned() {
+  const { t } = render(runtimeFlags);
+  const rt = join(tmp(), "pkg", "agent-runtime");
+  mkdirSync(join(rt, ".."), { recursive: true });
+  cpSync(join(root, "packages/agent-runtime"), rt, { recursive: true, filter: (s) => !s.includes("node_modules") });
+  cpSync(schemasDir, join(rt, "..", "..", "schemas"), { recursive: true });
+  const r = spawnSync(process.execPath, [join(rt, "src/cli/main.ts"), "pin", "--project", t], { encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+  return { t, rt };
+}
+const launch = (t, args, env = {}) =>
+  spawnSync(process.execPath, [join(t, "scripts/agentic.mjs"), ...args], { encoding: "utf8", env: { ...process.env, AGENTIC_HOME: join(t, "..", "home"), ...env } });
+
+test("pin and launcher compute the same tree hash", () => {
+  const { t, rt } = pinned();
+  const pin = JSON.parse(readFileSync(join(t, ".agents/runtime.json"), "utf8"));
+  assert.equal(pin.treeHash, treeHash(rt));
+  assert.equal(launch(t, ["doctor"]).status, 0);
+});
+
+test("launcher: refuses without a pin and when the runtime changed after pinning", () => {
+  const bare = render(runtimeFlags).t;
+  const none = launch(bare, ["doctor"]);
+  assert.equal(none.status, 1);
+  assert.match(none.stderr, /no runtime pinned/);
+  const { t, rt } = pinned();
+  writeFileSync(join(rt, "src/risk.ts"), `${readFileSync(join(rt, "src/risk.ts"), "utf8")}\n// tampered\n`);
+  const r = launch(t, ["doctor"]);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /differs from the pinned version/);
+});
+
+test("fresh scaffold → pin → create → run with a replay worker → awaiting acceptance; accept refused without a terminal", () => {
+  const { t } = pinned();
+  const home = join(t, "..", "home");
+  const h = createHash("sha256").update("bad").digest("hex");
+  writeFileSync(join(t, "value.txt"), "bad");
+  writeFileSync(join(t, "check.mjs"), `import {readFileSync} from "node:fs"; console.log("# pass 1"); process.exit(readFileSync("value.txt","utf8")==="good"?0:1)`);
+  writeFileSync(join(t, "worker.json"), JSON.stringify([
+    JSON.stringify({ id: "a", kind: "edit", edits: [{ kind: "replace", path: "value.txt", expectHash: h, find: "bad", replace: "good" }] }),
+    JSON.stringify({ id: "b", kind: "finish" }),
+  ]));
+  writeFileSync(join(t, ".agents/models.json"), JSON.stringify({ schemaVersion: 1, profiles: { w: { kind: "replay", file: join(t, "worker.json") } }, roles: { worker: "w" } }));
+  // the check script is the gate: point the generated policy's gate at it (a maintenance edit by the project owner)
+  const pol = JSON.parse(readFileSync(join(t, ".agents/policy.json"), "utf8"));
+  pol.gates[0].argv = ["node", "check.mjs"];
+  pol.protectedPaths.push("check.mjs");
+  writeFileSync(join(t, ".agents/policy.json"), JSON.stringify(pol));
+  const contract = join(t, "contract.json");
+  writeFileSync(contract, JSON.stringify({ schemaVersion: 1, id: "fix-value", goal: "make value.txt say good", acceptance: ["check passes"], files: ["value.txt"], riskTier: "R1", budget: "narrow" }));
+  assert.equal(launch(t, ["validate", contract]).status, 0);
+  assert.equal(launch(t, ["task", "create", contract]).status, 0);
+  // the user's recorded decisions (what an interactive session would have written)
+  mkdirSync(join(home, "tasks/fix-value/state"), { recursive: true });
+  writeFileSync(join(home, "tasks/fix-value/state/isolation-consent.json"), JSON.stringify({ isolation: "none", decidedAt: "t" }));
+  writeFileSync(join(home, "qualifications.json"), JSON.stringify([{ profileId: "mock/replay:worker.json", family: "action-protocol", source: "owner-declared", passed: true, detail: {}, at: "t" }]));
+  const run = launch(t, ["task", "run", "fix-value"]);
+  assert.equal(run.status, 0, run.stdout + run.stderr);
+  assert.match(run.stdout, /AWAITING_ACCEPTANCE/);
+  const acc = launch(t, ["task", "accept", "fix-value"]); // stdin is not a terminal here
+  assert.equal(acc.status, 3);
+  assert.match(acc.stderr, /interactive terminal/);
+  assert.equal(readFileSync(join(t, "value.txt"), "utf8"), "bad"); // the project tree was never touched
 });

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "protectedPaths": [
+    ".agents", ".github", ".githooks", "scripts/checks", "scripts/git", "scripts/skills", "scripts/agentic.mjs",
+    "biome.json", ".fallowrc.json", "tsconfig.base.json", "package.json",
+    "bun.lock", "bun.lockb", "package-lock.json", "pnpm-lock.yaml", "yarn.lock",
+    "vitest.config.ts", "vitest.config.mts", "jest.config.js", "jest.config.ts", "playwright.config.ts"
+  ],
+  "gates": [
+    {
+      "id": "tests",
+      "argv": {{AGENTIC_TEST_ARGV_JSON}},
+      "timeoutMs": 600000,
+      "discover": { "regex": {{AGENTIC_DISCOVER_REGEX_JSON}}, "min": 1 }
+    }
+  ],
+  "requiredGates": ["tests"],
+  "egress": {{#if AGENTIC_HOSTED_OK}}"hosted-allowed"{{else}}"local-only"{{/if}}{{#if AGENTIC_DOCKER_IMAGE_SET}},
+  "dockerImage": "{{AGENTIC_DOCKER_IMAGE}}"{{/if}}
+}

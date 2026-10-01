@@ -3,29 +3,113 @@
     "gitignore": ".gitignore",
     "env.example": ".env.example"
   },
-  "executable": [".githooks/", "scripts/git/", "scripts/checks/", "scripts/skills/"],
+  "executable": [
+    ".githooks/",
+    "scripts/git/",
+    "scripts/checks/",
+    "scripts/skills/",
+    "scripts/agentic.mjs"
+  ],
   "when": [
-    { "path": "context/ui-rules.md", "flag": "HAS_UI" },
-    { "path": "context/ui-tokens.md", "flag": "HAS_UI" },
-    { "path": "context/ui-registry.md", "flag": "HAS_UI" },
-    { "path": "context/standards/react.md", "flag": "HAS_UI" },
-    { "path": ".agents/skills/imprint", "flag": "HAS_UI" },
-    { "path": "context/standards/database.md", "flag": "HAS_DB" },
-    { "path": "context/architecture/tenant-isolation.md", "flag": "MULTI_TENANT" },
-    { "path": "context/architecture/authorization.md", "flag": "HAS_AUTH" },
-    { "path": "context/architecture/ai.md", "flag": "HAS_AI" },
-    { "path": "context/standards/typescript.md", "flag": "TYPESCRIPT" },
-    { "path": "biome.json", "flag": "TYPESCRIPT" },
-    { "path": "biome.json", "flag": "!OWN_LINTER" },
-    { "path": ".fallowrc.json", "flag": "TYPESCRIPT" },
-    { "path": ".fallowrc.json", "flag": "!ADOPT" },
-    { "path": ".githooks", "flag": "!OWN_HOOKS" },
-    { "path": ".github/workflows/ci.yml", "flag": "!OWN_CI" },
-    { "path": "context/plans/adoption.md", "flag": "ADOPT" },
-    { "path": "scripts/checks/agent-stop.mjs", "flag": "CLAUDE_CODE" },
-    { "path": ".agents/routines", "flag": "GITHUB" },
-    { "path": "tsconfig.base.json", "flag": "TYPESCRIPT" },
-    { "path": ".github", "flag": "GITHUB" },
-    { "path": ".claude", "flag": "CLAUDE_CODE" }
+    {
+      "path": "context/ui-rules.md",
+      "flag": "HAS_UI"
+    },
+    {
+      "path": "context/ui-tokens.md",
+      "flag": "HAS_UI"
+    },
+    {
+      "path": "context/ui-registry.md",
+      "flag": "HAS_UI"
+    },
+    {
+      "path": "context/standards/react.md",
+      "flag": "HAS_UI"
+    },
+    {
+      "path": ".agents/skills/imprint",
+      "flag": "HAS_UI"
+    },
+    {
+      "path": "context/standards/database.md",
+      "flag": "HAS_DB"
+    },
+    {
+      "path": "context/architecture/tenant-isolation.md",
+      "flag": "MULTI_TENANT"
+    },
+    {
+      "path": "context/architecture/authorization.md",
+      "flag": "HAS_AUTH"
+    },
+    {
+      "path": "context/architecture/ai.md",
+      "flag": "HAS_AI"
+    },
+    {
+      "path": "context/standards/typescript.md",
+      "flag": "TYPESCRIPT"
+    },
+    {
+      "path": "biome.json",
+      "flag": "TYPESCRIPT"
+    },
+    {
+      "path": "biome.json",
+      "flag": "!OWN_LINTER"
+    },
+    {
+      "path": ".fallowrc.json",
+      "flag": "TYPESCRIPT"
+    },
+    {
+      "path": ".fallowrc.json",
+      "flag": "!ADOPT"
+    },
+    {
+      "path": ".githooks",
+      "flag": "!OWN_HOOKS"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "flag": "!OWN_CI"
+    },
+    {
+      "path": "context/plans/adoption.md",
+      "flag": "ADOPT"
+    },
+    {
+      "path": "scripts/checks/agent-stop.mjs",
+      "flag": "CLAUDE_CODE"
+    },
+    {
+      "path": ".agents/routines",
+      "flag": "GITHUB"
+    },
+    {
+      "path": "tsconfig.base.json",
+      "flag": "TYPESCRIPT"
+    },
+    {
+      "path": ".github",
+      "flag": "GITHUB"
+    },
+    {
+      "path": ".claude",
+      "flag": "CLAUDE_CODE"
+    },
+    {
+      "path": ".agents/policy.json",
+      "flag": "AGENTIC_RUNTIME"
+    },
+    {
+      "path": ".agents/models.example.json",
+      "flag": "AGENTIC_RUNTIME"
+    },
+    {
+      "path": "scripts/agentic.mjs",
+      "flag": "AGENTIC_RUNTIME"
+    }
   ]
 }

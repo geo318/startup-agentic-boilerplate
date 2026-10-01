@@ -38,5 +38,13 @@ State the diagnosis and the evidence for it before proposing any change.
 If the cause took real effort to find, add it to `memory.md` (problems solved) and, if it will bite
 again, to the relevant doc's gotchas (e.g. `docs/local-setup.md`).
 
-Never retry the same fix with small variations. Two failed attempts at one hypothesis means the
-hypothesis is wrong.
+Never retry the same fix with small variations. A repeated failure is a reason to stop and gather
+new evidence (a different observation, log, or reproduction), not proof that the hypothesis is
+false: change the hypothesis only when new evidence supports it, and escalate when nothing new
+can be learned.{{#if AGENTIC_RUNTIME}}
+
+## Managed mode
+
+With the runtime enabled (`node scripts/agentic.mjs doctor` passes), repairs are bounded by the task
+budget: one semantic repair, and an identical repeated failure stops the run. Report it with
+`node scripts/agentic.mjs report <task-id>` instead of retrying by hand.{{/if}}

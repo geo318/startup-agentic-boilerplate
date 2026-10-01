@@ -157,6 +157,18 @@ workflows (`bunx yaml-lint` or `python3 -c "import yaml,sys;yaml.safe_load(open(
 - If this skill was installed inside the project (`.claude/skills/project-setup`), offer to
   remove it; it is not needed after setup.
 
+## Optional: controlled runtime
+
+Offer it only if the user wants managed execution; otherwise leave `AGENTIC_RUNTIME` false and nothing
+changes. Intake details, extra answers, and enabling it later are in
+[intake.md](references/intake.md#optional-controlled-runtime-agentic_runtime). Rules for you:
+
+- Never put a key in the answers file, and never turn `AGENTIC_ALLOW_HOSTED` on without the user's say-so.
+- The runtime is pinned from its own checkout (`pin`); do not copy its source into the project.
+- Plan approval, acceptance, and the Docker yes/no are the person's decisions at their own terminal.
+  Do not run those commands for them or work around the terminal requirement.
+- After rendering, run `node scripts/agentic.mjs doctor`; report what it says instead of assuming it works.
+
 ## Sync
 
 For a project set up by this skill, to take in template improvements made since. Every render

@@ -158,3 +158,26 @@ Notes:
   and the checks are added to the existing tools ([adopt.md](adopt.md)). `detect.mjs` sets all four.
 - `CMD_FALLOW` is required when `TYPESCRIPT`: the package script that runs fallow (strict on a new
   repo, `fallow audit` on adopt/upgrade — see SKILL.md step 7).
+
+## Optional: controlled runtime (`AGENTIC_RUNTIME`)
+
+Off by default; documentation mode needs no model keys, GPU, Docker, or runtime. Ask only if the user
+wants managed execution (a controller that runs models, tools, and checks and records evidence). It is a
+development-workflow choice, separate from `HAS_AI` (a product feature) and from `CLAUDE_CODE` (a host).
+
+When `AGENTIC_RUNTIME` is true the renderer adds `.agents/policy.json`, `.agents/models.example.json`,
+and `scripts/agentic.mjs`, and the skills gain a short "Managed mode" section. It also needs:
+
+- `CMD_TEST` (already required): split on whitespace into the gate's argv. No shell, so no pipes or `&&`.
+- `GATE_DISCOVER_REGEX`: one capture group giving the number of tests the runner discovered. A gate that
+  discovers none is *incomplete*, never a pass. Common runners (check against your runner's real output):
+  vitest `(\\d+) passed` · jest `Tests:.*?(\\d+) passed` · bun test `(\\d+) pass` · node:test `# pass (\\d+)`.
+- `AGENTIC_ALLOW_HOSTED` (flag, default false): true lets hosted providers receive source. Leave false for
+  local-only data.
+- `AGENTIC_DOCKER_IMAGE` (optional var): image for Docker isolation. Docker itself is chosen per task by the
+  user at run time; there is no default image.
+
+Never put keys in the answers file: provider profiles name an environment variable (`apiKeyEnv`), and the
+real `.agents/models.json` is copied from the example by the user. After rendering, pin the runtime from its
+checkout: `node <runtime>/src/cli/main.ts pin --project <repo>`. To enable the runtime on an existing project,
+set the flag and rerun with `--sync`: only new files are added, and edited files are never overwritten.

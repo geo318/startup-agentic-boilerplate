@@ -110,3 +110,10 @@ Post the plan and end the turn; build only after the developer confirms. For wor
 Do not approve a plan that breaks an invariant in `AGENTS.md`. In particular:
 
 <!-- FILL: 4–8 bullets derived from this project's invariants, phrased as violations — e.g. "puts business logic or database access in a route", "trusts a tenant id from the client", "lets UI call HTTP directly", "uses a type generic as runtime validation", "leaves the old path connected after its replacement is wired". -->
+{{#if AGENTIC_RUNTIME}}
+
+## Managed mode
+
+When `node scripts/agentic.mjs doctor` passes, write the agreed plan as a task contract (R2/R3 need
+an approved plan before code) and hand it over: `node scripts/agentic.mjs task create <contract.json>`,
+then `task run <id>`. Approval is given by the person, from their own terminal, never by the model.{{/if}}

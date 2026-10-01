@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "profiles": {
+    "claude-haiku": { "kind": "claude-cli", "model": "claude-haiku-4-5-20251001", "maxBudgetUsd": 0.05 },
+    "local-ollama": { "kind": "ollama", "model": "REPLACE-WITH-AN-ALREADY-PULLED-TAG", "baseUrl": "http://127.0.0.1:11434", "numCtx": 4096 },
+    "hand-off": { "kind": "manual", "dir": "temp/agentic-exchange", "label": "chat" }
+  },
+  "roles": { "worker": "claude-haiku" }
+}

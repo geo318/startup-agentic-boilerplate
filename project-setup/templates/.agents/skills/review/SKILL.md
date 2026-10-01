@@ -65,3 +65,10 @@ Verdict: ready | ready after fixes | not ready
 
 Only report findings you verified in the code. If nothing is wrong in a category, omit it. Do not
 fix anything unless the developer asks.
+{{#if AGENTIC_RUNTIME}}
+
+## Managed mode
+
+When `node scripts/agentic.mjs doctor` passes, R2/R3 tasks get an independent review inside the run:
+the reviewer sees the original goal, the changed files and the controller-run check results. Use this
+skill for the human-facing review of the exported patch (`task export <id>`).{{/if}}

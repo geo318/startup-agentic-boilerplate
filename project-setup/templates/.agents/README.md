@@ -32,3 +32,13 @@ For skills outside these common workflows, use the [complete skill catalog](skil
 ## Pruned on purpose
 
 <!-- FILL: skills deliberately not installed because they conflict with the stack (e.g. "Prisma skills: project uses Drizzle"). Write "None." if nothing was pruned. -->
+{{#if AGENTIC_RUNTIME}}
+
+## Managed runtime (optional)
+
+`node scripts/agentic.mjs doctor` checks the pinned runtime. Gates and protected paths live in
+`policy.json`; model profiles in `models.json` (copy `models.example.json`; never put keys in either).
+Plan approval, acceptance, and the Docker yes/no are given by the person at their own terminal.
+Changes to `.agents/`, CI, hooks, lockfiles, and test configs are protected: the runtime refuses them
+inside a task, so make them as ordinary reviewed changes.
+{{/if}}

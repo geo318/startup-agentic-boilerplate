@@ -110,13 +110,49 @@ function loadAnswers(path) {
       );
     }
   }
-  return { vars, flags, apps };
+  return withRuntimeDerivations({ vars, flags, apps });
+}
+
+// Optional runtime (flag AGENTIC_RUNTIME): policy.json needs a test argv and a way to count discovered tests.
+// Both are derived here so the JSON is escaped correctly; nothing is guessed when they are missing.
+function withRuntimeDerivations({ vars, flags, apps }) {
+  if (flags.AGENTIC_RUNTIME !== true) {
+    return { vars, flags, apps };
+  }
+  for (const key of ["CMD_TEST", "GATE_DISCOVER_REGEX"]) {
+    if (!vars[key] || vars[key].trim() === "") {
+      throw new Error(`AGENTIC_RUNTIME needs vars.${key} (see references/intake.md: runtime gates)`);
+    }
+  }
+  let compiled;
+  try {
+    compiled = new RegExp(vars.GATE_DISCOVER_REGEX);
+  } catch {
+    throw new Error("vars.GATE_DISCOVER_REGEX is not a valid regular expression");
+  }
+  if (new RegExp(`${compiled.source}|`).exec("").length < 2) {
+    throw new Error("vars.GATE_DISCOVER_REGEX must have one capture group: the number of tests discovered");
+  }
+  return {
+    vars: {
+      ...vars,
+      AGENTIC_TEST_ARGV_JSON: JSON.stringify(vars.CMD_TEST.trim().split(/\s+/)),
+      AGENTIC_DISCOVER_REGEX_JSON: JSON.stringify(vars.GATE_DISCOVER_REGEX),
+      AGENTIC_DOCKER_IMAGE: vars.AGENTIC_DOCKER_IMAGE ?? "",
+    },
+    flags: {
+      ...flags,
+      AGENTIC_HOSTED_OK: flags.AGENTIC_ALLOW_HOSTED === true,
+      AGENTIC_DOCKER_IMAGE_SET: Boolean(vars.AGENTIC_DOCKER_IMAGE),
+    },
+    apps,
+  };
 }
 
 // Values rendered into .claude/settings.json, workflow YAML, and JS string literals. The
 // templates quote them, so only characters that break a double-quoted string are refused.
 // AUTH_PACKAGE_PATTERNS is deliberately absent: its value is YAML list content with quotes.
-const STRUCTURED_VARS = new Set(["RUNTIME", "DEFAULT_BRANCH"]);
+const STRUCTURED_VARS = new Set(["RUNTIME", "DEFAULT_BRANCH", "AGENTIC_DOCKER_IMAGE"]);
 const UNSAFE_VALUE_CHARACTERS = ['"', "\\", "\n", "\r"];
 const LEFTOVER_BLOCK_TAG = /\{\{(?:[#/](?:if|unless|each)\b[^}]*|else)\}\}/;
 
@@ -260,9 +296,11 @@ function sha256(text) {
 // template set wrote the files (no timestamps, so renders stay reproducible).
 function readLock(target) {
   const path = join(target, LOCK_PATH);
-  const { $meta: _meta, ...files } = existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {};
+  const { $meta, ...files } = existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {};
+  lockMeta = $meta;
   return files;
 }
+let lockMeta;
 
 function templatesHash() {
   const parts = walk(templatesDir)
@@ -420,6 +458,14 @@ function main() {
     }
   }
   console.log(`excluded ${report.excluded} templates by flags`);
+  if (args.sync) {
+    const now = templatesHash();
+    console.log(
+      lockMeta?.templatesHash === now
+        ? "templates: unchanged since the last render"
+        : `templates: changed since the last render (${lockMeta?.templatesHash?.slice(0, 12) ?? "no record — rendered by an older version"} → ${now.slice(0, 12)})`,
+    );
+  }
   console.log(
     args.sync
       ? "\nNext: merge the listed files, delete .project-setup/, then run scripts/checks/docs-check.mjs."
