@@ -1,3 +1,26 @@
-{ "id": "days-between", "family": "time-boundary", "expect": "accepted",
-  "contract": { "goal": "Implement daysBetween(from, to) in src/calendar.mjs. Both arguments are calendar dates as 'YYYY-MM-DD' strings. It returns the number of whole calendar days from `from` to `to` (negative if `to` is earlier), treating dates as pure calendar values so daylight-saving changes and the machine's timezone never matter. Leap years must be handled correctly.",
-    "acceptance": ["test/calendar.test.mjs passes", "result is independent of the machine timezone", "leap days are counted", "negative when to is before from"], "files": ["src/calendar.mjs", "test/calendar.test.mjs"], "scope": ["src/calendar.mjs"], "riskTier": "R1", "budget": "narrow" } }
+{
+  "id": "days-between",
+  "family": "time-boundary",
+  "expect": "accepted",
+  "contract": {
+    "goal": "Implement daysBetween(from, to) in src/calendar.mjs. Both arguments are calendar dates as 'YYYY-MM-DD' strings. It returns the number of whole calendar days from `from` to `to` (negative if `to` is earlier), treating dates as pure calendar values so daylight-saving changes and the machine's timezone never matter. Leap years must be handled correctly.",
+    "acceptance": [
+      "test/calendar.test.mjs passes",
+      "result is independent of the machine timezone",
+      "leap days are counted",
+      "negative when to is before from"
+    ],
+    "files": [
+      "src/calendar.mjs",
+      "test/calendar.test.mjs"
+    ],
+    "scope": [
+      "src/calendar.mjs"
+    ],
+    "riskTier": "R1",
+    "budget": "narrow"
+  },
+  "jevTruth": {
+    "workflow-select": "standard-worker"
+  }
+}

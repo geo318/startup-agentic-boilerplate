@@ -1,3 +1,25 @@
-{ "id": "parse-duration", "family": "api-semantics", "expect": "accepted",
-  "contract": { "goal": "Implement parseDuration(text) in src/duration.mjs. It converts strings made of number+unit parts, with units h, m and s, into a total number of seconds: '1h30m' is 5400, '45s' is 45, '2m10s' is 130. Parts may appear in any order but each unit at most once. Anything else (empty string, unknown unit, repeated unit, stray characters, a missing number) must throw a TypeError.",
-    "acceptance": ["test/duration.test.mjs passes", "valid combinations return total seconds", "invalid input throws TypeError"], "files": ["src/duration.mjs", "test/duration.test.mjs"], "scope": ["src/duration.mjs"], "riskTier": "R1", "budget": "narrow" } }
+{
+  "id": "parse-duration",
+  "family": "api-semantics",
+  "expect": "accepted",
+  "contract": {
+    "goal": "Implement parseDuration(text) in src/duration.mjs. It converts strings made of number+unit parts, with units h, m and s, into a total number of seconds: '1h30m' is 5400, '45s' is 45, '2m10s' is 130. Parts may appear in any order but each unit at most once. Anything else (empty string, unknown unit, repeated unit, stray characters, a missing number) must throw a TypeError.",
+    "acceptance": [
+      "test/duration.test.mjs passes",
+      "valid combinations return total seconds",
+      "invalid input throws TypeError"
+    ],
+    "files": [
+      "src/duration.mjs",
+      "test/duration.test.mjs"
+    ],
+    "scope": [
+      "src/duration.mjs"
+    ],
+    "riskTier": "R1",
+    "budget": "narrow"
+  },
+  "jevTruth": {
+    "workflow-select": "standard-worker"
+  }
+}

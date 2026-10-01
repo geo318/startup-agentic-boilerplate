@@ -30,4 +30,5 @@ Live evidence (development set `dev-r1`, 8 synthetic cases, **n=1 per case per a
 see [docs/evaluation.md](../../docs/evaluation.md) and `evals/baselines/` (pre-fix and post-fix runs are both kept).
 One real-project pilot (family-tracker, scratch clone, Claude Haiku): one accepted-and-independently-verified task, one refused R3 change.
 **Not verified:** a real Docker container run, Ollama or Codex, typechecking (`@types/node` not installed), holdout/regression suites, anything about success rates beyond these small samples.
-Not built: TypeScript-parser architecture analysis, Jev (M4), controlled learning (M6).
+Jev: optional, off by default, shadow evidence only ([docs/jev.md](../../docs/jev.md)).
+Not built: TypeScript-parser architecture analysis, controlled learning (M6).

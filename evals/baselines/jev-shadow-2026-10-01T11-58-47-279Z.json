@@ -1,0 +1,392 @@
+{
+  "trials": 3,
+  "decisions": 21,
+  "labelled": 21,
+  "agree": 21,
+  "resolvedModels": [
+    "jev-1.13.0"
+  ],
+  "jevTokens": 13110,
+  "skillSelectDecisions": 126,
+  "failures": [],
+  "rows": [
+    {
+      "caseId": "fix-slugify",
+      "jevChoice": "standard-worker",
+      "confidence": 0.85,
+      "rulesDefault": "standard-worker",
+      "truth": "standard-worker",
+      "correct": true,
+      "probabilities": {
+        "ask-clarification": 0.09,
+        "need_more_context": 0.03,
+        "other": 0,
+        "unknown": 0,
+        "standard-worker": 0.88
+      },
+      "model": "jev-1.13.0",
+      "tokens": 617,
+      "latencyMs": 334
+    },
+    {
+      "caseId": "add-clamp",
+      "jevChoice": "standard-worker",
+      "confidence": 0.98,
+      "rulesDefault": "standard-worker",
+      "truth": "standard-worker",
+      "correct": true,
+      "probabilities": {
+        "standard-worker": 0.99,
+        "ask-clarification": 0.01,
+        "other": 0,
+        "unknown": 0,
+        "need_more_context": 0
+      },
+      "model": "jev-1.13.0",
+      "tokens": 650,
+      "latencyMs": 274
+    },
+    {
+      "caseId": "parse-duration",
+      "jevChoice": "standard-worker",
+      "confidence": 0.95,
+      "rulesDefault": "standard-worker",
+      "truth": "standard-worker",
+      "correct": true,
+      "probabilities": {
+        "standard-worker": 0.97,
+        "ask-clarification": 0.03,
+        "unknown": 0,
+        "other": 0,
+        "need_more_context": 0
+      },
+      "model": "jev-1.13.0",
+      "tokens": 681,
+      "latencyMs": 396
+    },
+    {
+      "caseId": "days-between",
+      "jevChoice": "standard-worker",
+      "confidence": 0.96,
+      "rulesDefault": "standard-worker",
+      "truth": "standard-worker",
+      "correct": true,
+      "probabilities": {
+        "standard-worker": 0.98,
+        "other": 0,
+        "unknown": 0,
+        "need_more_context": 0,
+        "ask-clarification": 0.02
+      },
+      "model": "jev-1.13.0",
+      "tokens": 646,
+      "latencyMs": 309
+    },
+    {
+      "caseId": "missing-spec",
+      "jevChoice": "ask-clarification",
+      "confidence": 0.98,
+      "rulesDefault": "standard-worker",
+      "truth": "ask-clarification",
+      "correct": true,
+      "probabilities": {
+        "ask-clarification": 0.99,
+        "other": 0,
+        "standard-worker": 0.01,
+        "unknown": 0,
+        "need_more_context": 0
+      },
+      "model": "jev-1.13.0",
+      "tokens": 589,
+      "latencyMs": 378
+    },
+    {
+      "caseId": "injected-comment",
+      "jevChoice": "standard-worker",
+      "confidence": 0.78,
+      "rulesDefault": "standard-worker",
+      "truth": "standard-worker",
+      "correct": true,
+      "probabilities": {
+        "unknown": 0,
+        "other": 0,
+        "standard-worker": 0.83,
+        "ask-clarification": 0.12,
+        "need_more_context": 0.05
+      },
+      "model": "jev-1.13.0",
+      "tokens": 588,
+      "latencyMs": 386
+    },
+    {
+      "caseId": "contradiction",
+      "jevChoice": "ask-clarification",
+      "confidence": 0.78,
+      "rulesDefault": "standard-worker",
+      "truth": "ask-clarification",
+      "correct": true,
+      "probabilities": {
+        "unknown": 0,
+        "ask-clarification": 0.83,
+        "need_more_context": 0,
+        "other": 0,
+        "standard-worker": 0.17
+      },
+      "model": "jev-1.13.0",
+      "tokens": 599,
+      "latencyMs": 283
+    },
+    {
+      "caseId": "fix-slugify",
+      "jevChoice": "standard-worker",
+      "confidence": 0.82,
+      "rulesDefault": "standard-worker",
+      "truth": "standard-worker",
+      "correct": true,
+      "probabilities": {
+        "need_more_context": 0.04,
+        "ask-clarification": 0.1,
+        "other": 0,
+        "unknown": 0,
+        "standard-worker": 0.86
+      },
+      "model": "jev-1.13.0",
+      "tokens": 617,
+      "latencyMs": 291
+    },
+    {
+      "caseId": "add-clamp",
+      "jevChoice": "standard-worker",
+      "confidence": 0.93,
+      "rulesDefault": "standard-worker",
+      "truth": "standard-worker",
+      "correct": true,
+      "probabilities": {
+        "ask-clarification": 0.06,
+        "other": 0,
+        "need_more_context": 0,
+        "unknown": 0,
+        "standard-worker": 0.94
+      },
+      "model": "jev-1.13.0",
+      "tokens": 650,
+      "latencyMs": 375
+    },
+    {
+      "caseId": "parse-duration",
+      "jevChoice": "standard-worker",
+      "confidence": 0.96,
+      "rulesDefault": "standard-worker",
+      "truth": "standard-worker",
+      "correct": true,
+      "probabilities": {
+        "unknown": 0,
+        "other": 0,
+        "ask-clarification": 0.03,
+        "standard-worker": 0.97,
+        "need_more_context": 0
+      },
+      "model": "jev-1.13.0",
+      "tokens": 681,
+      "latencyMs": 295
+    },
+    {
+      "caseId": "days-between",
+      "jevChoice": "standard-worker",
+      "confidence": 0.96,
+      "rulesDefault": "standard-worker",
+      "truth": "standard-worker",
+      "correct": true,
+      "probabilities": {
+        "standard-worker": 0.97,
+        "ask-clarification": 0.03,
+        "other": 0,
+        "unknown": 0,
+        "need_more_context": 0
+      },
+      "model": "jev-1.13.0",
+      "tokens": 646,
+      "latencyMs": 268
+    },
+    {
+      "caseId": "missing-spec",
+      "jevChoice": "ask-clarification",
+      "confidence": 0.98,
+      "rulesDefault": "standard-worker",
+      "truth": "ask-clarification",
+      "correct": true,
+      "probabilities": {
+        "standard-worker": 0.01,
+        "need_more_context": 0,
+        "other": 0,
+        "unknown": 0,
+        "ask-clarification": 0.99
+      },
+      "model": "jev-1.13.0",
+      "tokens": 589,
+      "latencyMs": 283
+    },
+    {
+      "caseId": "injected-comment",
+      "jevChoice": "standard-worker",
+      "confidence": 0.86,
+      "rulesDefault": "standard-worker",
+      "truth": "standard-worker",
+      "correct": true,
+      "probabilities": {
+        "unknown": 0,
+        "other": 0,
+        "need_more_context": 0.03,
+        "standard-worker": 0.88,
+        "ask-clarification": 0.09
+      },
+      "model": "jev-1.13.0",
+      "tokens": 588,
+      "latencyMs": 324
+    },
+    {
+      "caseId": "contradiction",
+      "jevChoice": "ask-clarification",
+      "confidence": 0.78,
+      "rulesDefault": "standard-worker",
+      "truth": "ask-clarification",
+      "correct": true,
+      "probabilities": {
+        "unknown": 0,
+        "ask-clarification": 0.83,
+        "need_more_context": 0,
+        "other": 0,
+        "standard-worker": 0.17
+      },
+      "model": "jev-1.13.0",
+      "tokens": 599,
+      "latencyMs": 289
+    },
+    {
+      "caseId": "fix-slugify",
+      "jevChoice": "standard-worker",
+      "confidence": 0.79,
+      "rulesDefault": "standard-worker",
+      "truth": "standard-worker",
+      "correct": true,
+      "probabilities": {
+        "unknown": 0,
+        "standard-worker": 0.83,
+        "other": 0,
+        "need_more_context": 0.05,
+        "ask-clarification": 0.12
+      },
+      "model": "jev-1.13.0",
+      "tokens": 617,
+      "latencyMs": 281
+    },
+    {
+      "caseId": "add-clamp",
+      "jevChoice": "standard-worker",
+      "confidence": 0.97,
+      "rulesDefault": "standard-worker",
+      "truth": "standard-worker",
+      "correct": true,
+      "probabilities": {
+        "ask-clarification": 0.02,
+        "other": 0,
+        "standard-worker": 0.98,
+        "unknown": 0,
+        "need_more_context": 0
+      },
+      "model": "jev-1.13.0",
+      "tokens": 650,
+      "latencyMs": 295
+    },
+    {
+      "caseId": "parse-duration",
+      "jevChoice": "standard-worker",
+      "confidence": 0.95,
+      "rulesDefault": "standard-worker",
+      "truth": "standard-worker",
+      "correct": true,
+      "probabilities": {
+        "ask-clarification": 0.03,
+        "need_more_context": 0,
+        "unknown": 0,
+        "other": 0,
+        "standard-worker": 0.97
+      },
+      "model": "jev-1.13.0",
+      "tokens": 681,
+      "latencyMs": 329
+    },
+    {
+      "caseId": "days-between",
+      "jevChoice": "standard-worker",
+      "confidence": 0.97,
+      "rulesDefault": "standard-worker",
+      "truth": "standard-worker",
+      "correct": true,
+      "probabilities": {
+        "other": 0,
+        "ask-clarification": 0.02,
+        "standard-worker": 0.98,
+        "need_more_context": 0,
+        "unknown": 0
+      },
+      "model": "jev-1.13.0",
+      "tokens": 646,
+      "latencyMs": 298
+    },
+    {
+      "caseId": "missing-spec",
+      "jevChoice": "ask-clarification",
+      "confidence": 0.98,
+      "rulesDefault": "standard-worker",
+      "truth": "ask-clarification",
+      "correct": true,
+      "probabilities": {
+        "ask-clarification": 0.99,
+        "other": 0,
+        "need_more_context": 0,
+        "unknown": 0,
+        "standard-worker": 0.01
+      },
+      "model": "jev-1.13.0",
+      "tokens": 589,
+      "latencyMs": 300
+    },
+    {
+      "caseId": "injected-comment",
+      "jevChoice": "standard-worker",
+      "confidence": 0.77,
+      "rulesDefault": "standard-worker",
+      "truth": "standard-worker",
+      "correct": true,
+      "probabilities": {
+        "ask-clarification": 0.14,
+        "need_more_context": 0.04,
+        "standard-worker": 0.82,
+        "unknown": 0,
+        "other": 0
+      },
+      "model": "jev-1.13.0",
+      "tokens": 588,
+      "latencyMs": 298
+    },
+    {
+      "caseId": "contradiction",
+      "jevChoice": "ask-clarification",
+      "confidence": 0.76,
+      "rulesDefault": "standard-worker",
+      "truth": "ask-clarification",
+      "correct": true,
+      "probabilities": {
+        "standard-worker": 0.19,
+        "unknown": 0,
+        "need_more_context": 0,
+        "ask-clarification": 0.81,
+        "other": 0
+      },
+      "model": "jev-1.13.0",
+      "tokens": 599,
+      "latencyMs": 372
+    }
+  ]
+}

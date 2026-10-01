@@ -1,3 +1,26 @@
-{ "id": "add-clamp", "family": "routine-edit", "expect": "accepted",
-  "contract": { "goal": "Add and export clamp(value, min, max) to src/math.mjs: it returns value limited to the range [min, max]. If min is greater than max it must throw a RangeError. Do not change the existing sum function.",
-    "acceptance": ["test/math.test.mjs passes", "clamp(5,0,3) is 3 and clamp(-1,0,3) is 0 and clamp(2,0,3) is 2", "clamp throws RangeError when min > max", "sum is unchanged"], "files": ["src/math.mjs", "test/math.test.mjs"], "scope": ["src/math.mjs"], "riskTier": "R1", "budget": "narrow" } }
+{
+  "id": "add-clamp",
+  "family": "routine-edit",
+  "expect": "accepted",
+  "contract": {
+    "goal": "Add and export clamp(value, min, max) to src/math.mjs: it returns value limited to the range [min, max]. If min is greater than max it must throw a RangeError. Do not change the existing sum function.",
+    "acceptance": [
+      "test/math.test.mjs passes",
+      "clamp(5,0,3) is 3 and clamp(-1,0,3) is 0 and clamp(2,0,3) is 2",
+      "clamp throws RangeError when min > max",
+      "sum is unchanged"
+    ],
+    "files": [
+      "src/math.mjs",
+      "test/math.test.mjs"
+    ],
+    "scope": [
+      "src/math.mjs"
+    ],
+    "riskTier": "R1",
+    "budget": "narrow"
+  },
+  "jevTruth": {
+    "workflow-select": "standard-worker"
+  }
+}
