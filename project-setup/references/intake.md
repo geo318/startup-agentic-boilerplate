@@ -140,6 +140,8 @@ Notes:
 - `RUNTIME` runs the generated `.mjs` scripts: `bun` when `BUN`, else `node`.
 - `AUTH_PACKAGE_PATTERNS` is required when `HAS_AUTH`: the auth library's packages as YAML list
   items, e.g. `"better-auth", "@better-auth/*"`. Dependabot keeps them out of grouped PRs.
+- `UPSTREAM_REPORTING` is `auto`, `ask`, or `off` (default `ask`): whether the agent may report bugs in this skill upstream, see
+  [upstream-reporting.md](upstream-reporting.md). It is only a record of the user's choice; no template uses it.
 - `CMD_*`, `RUNTIME`, and `DEFAULT_BRANCH` may not contain `"`, `\`, or line breaks (they are
   written into JSON and YAML strings). Wrap a complex command in a package script instead.
 - `NEXTJS` is true when any app uses Next.js; it adds the rendering and caching sections to

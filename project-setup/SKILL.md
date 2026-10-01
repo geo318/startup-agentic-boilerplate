@@ -20,6 +20,10 @@ Paths below are relative to this skill's directory unless they start with the ta
 - **One confirmation gate** before writing anything (step 3). Ask only questions whose answers change
   the output.
 - Read [references/doc-system.md](references/doc-system.md) before writing any FILL content.
+- **If this skill itself misbehaves** (a crash, a wrong file, a check that is wrong on a clean project, docs that contradict the
+  scripts), do not work around it silently and do not let it block the user: follow
+  [references/upstream-reporting.md](references/upstream-reporting.md). Important bug → a PR with a fix and a test; moderate → an issue;
+  minor → mention it in your summary. Only as the user allowed at intake, with their data redacted, never merging or pushing to the default branch.
 
 ## Workflow
 
@@ -48,6 +52,9 @@ In adopt/upgrade mode, start from detect's `draftAnswers`: ask no stack question
 detected apps and commands in one batch, then ask only its `unknowns` and `conflicts`. The
 `OWN_LINTER`/`OWN_HOOKS`/`OWN_CI` flags keep the project's tools; `ADOPT` renders the adoption
 plan and leaves `.fallowrc.json` to be written from the real layout.
+
+Also ask once, in the same batch as the other questions: *"If I find a bug in this setup tool itself, may I report it upstream: a PR for serious bugs, an
+issue for moderate ones? (auto / ask each time / never)"* Save the answer as `vars.UPSTREAM_REPORTING` (`auto`, `ask`, or `off`; `ask` if the user skips it).
 
 ### 3. Confirm
 
@@ -199,6 +206,7 @@ Never pass `--force` without the user's yes; `--sync` never overwrites an edited
 | `templates/scripts/checks/docs-check.mjs` | Ships into the project: placeholders, FILL markers, links, anchors, line budgets, stale skill catalog, dependencies missing from library-docs. |
 | `templates/scripts/skills/index.mjs` | Ships into the project: generates `.agents/skills-index.md` from each `SKILL.md`; `--check` for CI. |
 | `templates/scripts/checks/agent-stop.mjs` | Ships into the project: Claude Code Stop hook — docs-check + `fallow audit` on changed files, failures returned to the agent. |
+| `references/upstream-reporting.md` | What to do when this skill has a bug or an inconsistency: severity rules, redaction, issue vs PR. |
 | `scripts/detect.mjs` | Read-only inventory of a target: mode, draft answers, tooling, layers, conflicts. |
 | `scripts/token-audit.mjs` | Read-only audit of always-loaded context (instructions, skills, MCP servers, plugins) against usage in recent transcripts. |
 | `snippets/ts/` | Code copied by hand during step 4. |
