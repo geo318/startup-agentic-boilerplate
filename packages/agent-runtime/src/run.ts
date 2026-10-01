@@ -65,6 +65,7 @@ export class Run {
   #base = "";
   #protectedBase = "";
   #seen = new Set<string>();
+  #lastFingerprint = "";
 
   #dockerUp: () => boolean;
 
@@ -197,15 +198,25 @@ export class Run {
     }
     const allPass = results.length === requiredGates.length && results.every((r) => r.status === "pass");
     if (!allPass) {
+      const bad = results.find((r) => r.status !== "pass")!;
+      // Compact diagnostic: gate, status, last 15 output lines. Fingerprint ignores timings and paths' noise.
+      const tail = bad.outputTail.split("\n").filter(Boolean).slice(-15).join("\n");
+      const fingerprint = sha256(`${bad.gateId}|${bad.status}|${tail}`);
+      const diagnostic = { gate: bad.gateId, status: bad.status, fingerprint: fingerprint.slice(0, 12), tail };
       this.#go("DIAGNOSING");
+      if (fingerprint === this.#lastFingerprint) {
+        this.#go("ESCALATED", "repeated identical failure without new information");
+        return { ok: false, reason: "repeated identical failure", data: diagnostic };
+      }
+      this.#lastFingerprint = fingerprint;
       try {
         this.ledger.repair();
       } catch {
         this.#go("ESCALATED", "budget exhausted: semantic repairs");
-        return { ok: false, reason: "budget exhausted: semantic repairs", data: results.map((r) => [r.gateId, r.status]) };
+        return { ok: false, reason: "budget exhausted: semantic repairs", data: diagnostic };
       }
       this.#go("BOUNDED_REPAIR");
-      return { ok: false, reason: "gates failed", data: results.map((r) => [r.gateId, r.status]) };
+      return { ok: false, reason: "gates failed", data: diagnostic };
     }
     const candidate = snapshot(workspace);
     this.evidence = {
@@ -228,6 +239,17 @@ export class Run {
     }
     this.#log.append("accepted", { approver, candidate: this.evidence.candidate });
     this.#go("ACCEPTED");
+  }
+
+  // R0: a deterministic approved recipe. Zero model calls: the controller builds the edit itself
+  // (computing the hash the model would otherwise have to), then verifies like any other run.
+  async recipe(r: { path: string; find: string; replace: string }): Promise<Outcome> {
+    const current = readFileSync(resolveSafe(this.#policy.workspace, r.path), "utf8");
+    const edit = await this.handle({
+      id: `recipe-edit-${this.#seen.size}`, kind: "edit",
+      edits: [{ kind: "replace", path: r.path, expectHash: sha256(current), find: r.find, replace: r.replace }],
+    });
+    return edit.ok ? this.handle({ id: `recipe-finish-${this.#seen.size}`, kind: "finish" }) : edit;
   }
 
   // Controller-side stop (driver failures); a model cannot call this.

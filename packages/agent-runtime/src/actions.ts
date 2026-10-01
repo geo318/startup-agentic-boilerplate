@@ -49,3 +49,28 @@ export function parseAction(raw: unknown): Action {
   }
   return o as Action;
 }
+
+// JSON Schema handed to providers that support constrained output. Shape only: parseAction still decides.
+export const ACTION_SCHEMA = {
+  type: "object",
+  properties: {
+    id: { type: "string" },
+    kind: { enum: ["read", "edit", "run_gate", "finish", "blocked"] },
+    path: { type: "string" },
+    gateId: { type: "string" },
+    reason: { type: "string" },
+    edits: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          kind: { enum: ["replace", "create"] },
+          path: { type: "string" }, expectHash: { type: "string" }, find: { type: "string" },
+          replace: { type: "string" }, content: { type: "string" },
+        },
+        required: ["kind", "path"],
+      },
+    },
+  },
+  required: ["id", "kind"],
+} as const;
