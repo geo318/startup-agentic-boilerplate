@@ -9,7 +9,9 @@ import { type GateResult, type GateSpec, killAllGates, runGate } from "./gates.t
 import { canonical, sha256 } from "./hash.ts";
 import { canMove, type State } from "./machine.ts";
 import type { Finding } from "./roles.ts";
-import { maxTier, riskFloor } from "./risk.ts";
+import { maxTier, type RiskTier, riskFloor } from "./risk.ts";
+
+export type { RiskTier };
 import { resolveSafe } from "./paths.ts";
 
 const SKIP = new Set([".git", "node_modules"]);
@@ -47,7 +49,6 @@ const readText = (root: string, rel: string): string | null => {
 
 // "unset" = the user has not answered the isolation question yet; the run stops and asks.
 export type Isolation = "unset" | "none" | "docker";
-export type RiskTier = "R0" | "R1" | "R2" | "R3";
 export type Policy = {
   workspace: string;
   stateDir: string; // controller state: must be outside the workspace

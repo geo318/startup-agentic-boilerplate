@@ -31,6 +31,7 @@ import { maxTier, riskFloor } from "../risk.ts";
 import { architect, review, RoleFailed } from "../roles.ts";
 import { runGate } from "../gates.ts";
 import { type Policy, Run, type RiskTier, snapshot } from "../run.ts";
+import { type ArchConfig, ArchUnavailable, checkArchitecture, formatReport } from "../arch/check.ts";
 import { validate } from "../schema.ts";
 import { JevClient, type DecisionTransport } from "../jev/client.ts";
 import { calibrate } from "../jev/calibrate.ts";
@@ -407,6 +408,7 @@ export async function validateFiles(env: Env, contracts: string[]): Promise<numb
   };
   if (existsSync(projectFile(env, "policy.json"))) check(projectFile(env, "policy.json"), "policy");
   if (existsSync(projectFile(env, "models.json"))) check(projectFile(env, "models.json"), "models");
+  if (existsSync(projectFile(env, "architecture.json"))) check(projectFile(env, "architecture.json"), "architecture");
   for (const c of contracts) check(c, "task-contract");
   return bad ? 1 : 0;
 }
@@ -1066,4 +1068,24 @@ export async function disableWorkflow(env: Env): Promise<number> {
   setEnabled(env, false);
   env.out("managed workflow: OFF (commit .agents/policy.json to share this; re-enable with `agentic enable`)");
   return 0;
+}
+
+// Architecture boundaries from .agents/architecture.json, analysed with the TypeScript compiler. Exit 0 = clean,
+// 1 = findings (violations, unanalysable constructs, empty scans), 2 = analysis unavailable (never reported as a pass).
+export async function archCheck(env: Env): Promise<number> {
+  const file = projectFile(env, "architecture.json");
+  if (!existsSync(file))
+    throw new CliError("no .agents/architecture.json: define layers to check (see schemas/architecture.schema.json)");
+  const cfg = loadValidated<ArchConfig>(file, "architecture");
+  try {
+    const r = await checkArchitecture(env.project, cfg);
+    env.out(formatReport(r));
+    return r.ok ? 0 : 1;
+  } catch (e) {
+    if (e instanceof ArchUnavailable) {
+      env.out(`architecture: UNAVAILABLE. ${e.message}`);
+      return 2;
+    }
+    throw e;
+  }
 }

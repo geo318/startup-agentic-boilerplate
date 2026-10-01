@@ -1,4 +1,4 @@
-import type { RiskTier } from "./run.ts";
+export type RiskTier = "R0" | "R1" | "R2" | "R3";
 
 const ORDER: RiskTier[] = ["R0", "R1", "R2", "R3"];
 export const maxTier = (...t: RiskTier[]): RiskTier =>

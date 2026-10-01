@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "tsconfig": "tsconfig.json",
+  "layers": [
+    {
+      "name": "foundation",
+      "include": [
+        "src/hash.ts",
+        "src/paths.ts",
+        "src/edits.ts",
+        "src/events.ts",
+        "src/budget.ts",
+        "src/schema.ts",
+        "src/secrets.ts",
+        "src/machine.ts",
+        "src/actions.ts",
+        "src/gates.ts",
+        "src/risk.ts",
+        "src/context.ts",
+        "src/pin.ts",
+        "src/provider.ts"
+      ],
+      "mayImport": [],
+      "forbidPackages": [
+        "react",
+        "express"
+      ]
+    },
+    {
+      "name": "providers",
+      "include": [
+        "src/ollama.ts",
+        "src/claude.ts",
+        "src/chat.ts",
+        "src/manual.ts",
+        "src/serial.ts",
+        "src/jev/client.ts"
+      ],
+      "mayImport": [
+        "foundation"
+      ]
+    },
+    {
+      "name": "engine",
+      "include": [
+        "src/run.ts",
+        "src/drive.ts",
+        "src/roles.ts",
+        "src/qualify.ts",
+        "src/consent.ts"
+      ],
+      "mayImport": [
+        "foundation",
+        "providers"
+      ]
+    },
+    {
+      "name": "app",
+      "include": [
+        "src/cli/**",
+        "src/learning/**",
+        "src/jev/fabric.ts",
+        "src/jev/calibrate.ts",
+        "src/eval.ts",
+        "src/stats.ts",
+        "src/arch/**"
+      ],
+      "mayImport": [
+        "foundation",
+        "providers",
+        "engine"
+      ]
+    }
+  ],
+  "cover": [
+    "src/**"
+  ]
+}

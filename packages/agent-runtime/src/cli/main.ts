@@ -15,6 +15,7 @@ const USAGE = `agentic <command>
   task create <contract.json> | run <id> | status <id> | approve <id> | accept <id> | cancel <id> | verify <id> | export <id>
   learn capture <task> | propose <file> | list | promote <proposal> | rollback [release] | retire <lesson> | purge <lesson>   (promote/rollback/retire/purge need a terminal)
   enable | disable   (switch the managed workflow; default on; disable needs a terminal)
+  arch check   (layer boundaries from .agents/architecture.json, TypeScript-compiler backed)
   stats [--all] [--since 7d|<date>] [--json]
   jev status | report | calibrate --family <f> --labels <file>
   report <id>
@@ -67,6 +68,9 @@ async function main(): Promise<number> {
       return c.qualify(env, sub ?? "", flag("--owner-declare") as any);
     case "report":
       return c.report(env, sub ?? "");
+    case "arch":
+      if (sub === "check") return c.archCheck(env);
+      break;
     case "enable":
       return c.enableWorkflow(env);
     case "disable":
