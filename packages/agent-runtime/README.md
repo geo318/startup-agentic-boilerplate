@@ -1,13 +1,13 @@
 # agent-runtime (optional)
 
-Controlled coding runtime for projects scaffolded by `project-setup`. Documentation mode never needs it.
+Optional controlled coding runtime for projects scaffolded by `project-setup`. Direct development is the default; installing the runtime does not enable execution.
 Node ≥ 22.18. The controller uses Node built-ins and type stripping; `arch check` additionally needs the installed TypeScript compiler API development dependency. Pre-release: see the status below.
 
 ```
 agentic doctor
 agentic validate [contract.json…]
 agentic qualify <profile> [--owner-declare architecture|review|action-protocol]
-agentic task create <contract.json> | preflight <id> | run <id> | status <id> | approve <id> | accept <id> | cancel <id> | export <id>
+agentic task create <contract.json> | revise <id> <contract.json> | preflight <id> | run <id> | status <id> | approve <id> | accept <id> | cancel <id> | export <id>
 agentic report <id>
 ```
 
@@ -31,7 +31,7 @@ It preserves project policy and history and updates the runtime pin; a consumer-
 
 ### Using your current chat
 
-1. Run `qualify <worker-profile>` or `task run <id>` in a background/interactive terminal that stays running.
+1. Explicitly `enable` managed execution, then run `qualify <worker-profile>` or `task run <id>` in a background/interactive terminal that stays running.
 2. Read the printed absolute `packet-<uuid>.json` path. CLI exchanges live under `$AGENTIC_HOME/exchange/`, outside the
    candidate tree; the legacy profile `dir` is used only when constructing ManualProvider directly.
 3. Have your chosen chat answer the packet's system, prompt and schema. Save only the JSON response to the printed
@@ -41,13 +41,15 @@ It preserves project policy and history and updates the runtime pin; a consumer-
    Approve the plan and accept verified results through the existing explicit commands when authorized.
 
 There is no automatic Codex invocation, model detection or reasoning-setting override. The current-harness labels describe
-who supplies responses; choose the intended model in that chat and requalify when it changes. Manual usage and cost remain
-unknown (token reservations are estimates); surrounding chat usage is not measured. Packets expire at the profile timeout
+who supplies responses; choose the intended model in that chat and requalify when it changes. Plain manual replies leave usage and cost unknown (token reservations are estimates). If the harness exposes native
+per-request counters, the operator may write an accounting envelope instead: `{"content":<reply object>,"usage":{"input":120,"output":30},"costUsd":0.02}`.
+Cost is optional; missing cost remains unknown. Counters are operator-supplied, not independently attested. Never have the model invent them.
+Surrounding chat usage is not measured. Packets expire at the profile timeout
 (default 10 minutes), and unique names prevent cross-role/restart reply reuse. Egress consent and qualifications still apply.
 
 ## Switch, stats, Jev
 
-- **Switch:** `"enabled"` in `.agents/policy.json` (absent = **on**). `agentic enable` / `agentic disable`. Off = `task run` and probes refuse, nothing model-driven runs. `agentic doctor` shows the state.
+- **Switch:** `"enabled"` in `.agents/policy.json` (absent = **off**). `agentic enable` / `agentic disable`. Off = `task run` and probes refuse, nothing model-driven runs. `agentic doctor` shows the state. Automatic full Stop-hook checks additionally require `sessionChecks: true`; explicit `session-check` works while execution is off.
 - **Stats:** reports local task usage, outcomes, costs and timing. See [Checking your stats](#checking-your-stats) for commands, coverage and troubleshooting. **Savings require a separate paired benchmark.**
 - **Jev:** off unless the project explicitly sets `jev.modes` or `jev.auto: true`. A key alone makes no calls. Auto opt-in enables workflow routing only; shadow skill/retrieval experiments remain explicit and require hosted-egress consent. No net savings have been demonstrated.
 
@@ -87,7 +89,7 @@ AGENTIC_HOME=/absolute/path/to/controller node scripts/agentic.mjs stats --all
 | Verified candidates | Tasks currently awaiting acceptance or accepted after the required checks passed. This does not prove general correctness. |
 | Operator-accepted | Accepted through the explicit CLI command, potentially by an authorized agent. Not necessarily merged or deployed. |
 | Model calls | Recorded attempts by the worker, architect and reviewer, including interrupted attempts. |
-| Tokens | Reported input + output usage; when unknown, the reserved estimate remains and the report flags it. |
+| Tokens | Reported input + output usage; when unknown, the budget-accounted total includes reservations and `tokenAccounting` is `includes-estimates`. Token cost per verified result is undefined while any usage is unknown. |
 | Reported hosted cost | Dollars reported for task model calls. Unknown amounts are excluded from the sum and explicitly flagged, never assumed free. |
 | Cost per verified candidate | All selected tasks' reported cost, including stopped tasks, divided by verified candidates. Undefined if none verified or any selected task has unknown cost. |
 | Elapsed time | First-to-last recorded event (`medianWallMs`, `p90WallMs` in JSON). Includes approval/idle gaps; it is not a live stopwatch. |
@@ -150,10 +152,23 @@ Changing trusted tests or disabling their protection is a reviewed maintenance o
 Workers may use `edit_and_finish` with the same bounded edits array to request verification in one call. Gate failures and
 review findings survive routing/resume. Full task gate output is stored under the task's `state/logs/`; prompts receive compact diagnostics.
 Before an edit changes the candidate, planning and worker calls share a 3-call limit and a 60% estimated token allowance,
-including across resumes. Planning context/output are bounded to 4,000/1,500 tokens. At the limit, narrow the context and
-create a smaller replacement contract; existing history and approvals are not reset. This does not guarantee completion.
-Token reservations are estimates, including schemas, not hard provider limits. Reported overruns stop further actions.
-Unknown hosted cost is separate from unknown token usage; incomplete billing has no defined cost-per-verified result.
+including across normal resumes. Context is checked before installation; planning shares the selected worker context
+allowance (4k/8k/16k), with 1,500 output tokens. Include a contract `plan` to avoid another architect call while keeping
+R2/R3 operator approval and independent review. Review prompts include complete current files and diffs of the old code.
+
+`task revise <id> <contract.json>` is an explicit operator command, unavailable to workers. It preserves candidate bytes,
+installed dependencies, baseline, event history and cumulative token/action/repair counters. Reuse assumes dependencies
+and external services stayed unchanged; create a new task if the environment changed. Keep the same ID, goal and
+acceptance criteria; adjust context inputs, write scope, plan, or budget. Risk and project policy cannot be weakened.
+The new contract is appended to the event log, approvals/evidence become stale, and R2/R3 require a fresh plan approval.
+The pre-edit no-progress guard starts a new segment for the revised input; cumulative spending never resets.
+
+New task presets allow one/two/three semantic repairs for narrow/standard/complex. Existing task limits are retained.
+If necessary, an operator can supply explicit total `limits` (`aggregateTokens`, `toolActions`, `semanticRepairs`) in the
+revised contract; increasing limits authorizes additional work, not a reset. Identical failures still stop. Accepted,
+cancelled, unprepared, externally modified, or uncertain-billing candidates cannot be reopened by revision.
+Bootstrap and baseline timings and per-call usage/timing are recorded for diagnosing overhead. Token reservations remain
+estimates; provider overruns stop further actions. Full chat usage is outside managed task accounting.
 
 Checks may create/update `.next/`, `.turbo/` and `*.tsbuildinfo` outputs without a false source-mutation failure.
 Protected paths and existing managed-task tests remain protected, including inside those directories. Workers cannot

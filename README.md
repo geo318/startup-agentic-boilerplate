@@ -20,7 +20,7 @@ It has two parts. You can use the first without the second.
 
 ## Setup and execution at a glance
 
-Choose lean or full setup, then use the shared project checks in your normal workflow. The optional runtime adds scoped model actions, bounded repair and explicit acceptance before patch export.
+Direct development is the default. Choose lean or full setup, then use the shared project checks in your normal workflow. The optional runtime adds scoped model actions, bounded repair and explicit acceptance before patch export.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/agentic-setup.visual-check.2048x1320.dark.png">
@@ -106,7 +106,8 @@ The skill reads your repo first (package manager, apps, linter, hooks, CI, agent
 The AI cannot approve its own work.
 
 ```bash
-node scripts/agentic.mjs doctor                      # is everything ready? (shows ON/OFF, Jev)
+node scripts/agentic.mjs doctor                      # shows OFF until explicitly enabled
+node scripts/agentic.mjs enable                      # only for a chosen managed task
 node scripts/agentic.mjs do "fix the bug" --files src/example.ts # existing files, derive a task
 node scripts/agentic.mjs task create task.json       # describe one task
 node scripts/agentic.mjs task run <id>               # run it on a COPY of your project
@@ -124,9 +125,22 @@ What it will and will not do:
 
 ### Turn the runtime on or off
 
-- **At setup:** answer yes to the runtime question (`AGENTIC_RUNTIME`).
-- **Switch:** `"enabled"` in `.agents/policy.json`. Missing = **on**. `node scripts/agentic.mjs disable` turns it off. `enable` turns it on.
-  When off, tasks and model probes refuse to run.
+- **At setup:** `AGENTIC_RUNTIME` installs the optional runtime. Execution and automatic full session checks remain off.
+- **Switch:** `"enabled"` in `.agents/policy.json`. Missing = **off**. `node scripts/agentic.mjs disable` turns it off. `enable` turns it on.
+  When off, tasks and model probes refuse to run. Direct coding, normal project checks and CI remain the daily workflow.
+- **Automatic full checks:** separately opt in with `"sessionChecks": true`. Explicit `session-check` works even when managed execution is off.
+
+### Avoid repeating work in managed tasks
+
+Run `task preflight <id>` before execution; context must fit the selected budget before any dependency installation.
+Planning uses the same context allowance as the worker (4k/8k/16k estimated tokens for narrow/standard/complex).
+Put an existing agreed plan in the contract’s `plan` field to skip architect generation; R2/R3 still require explicit
+plan approval and independent review. Final edits can use `edit_and_finish` to avoid a separate finish exchange.
+
+Use `task revise <id> <contract.json>` to correct context, scope, plan or total limits on the same task.
+It keeps the prepared candidate, baseline and all usage; revised R2/R3 tasks require fresh approval and verification.
+Normal presets allow one/two/three semantic repairs; an unchanged repeated failure still stops immediately.
+Prepare the starting project’s lint/docs/tests once before opting in; a failed initial environment is not reusable.
 
 ### Models and keys
 
@@ -146,7 +160,7 @@ What it will and will not do:
 ### Where things are stored
 
 - Task history, proof and stats: `~/.agentic/tasks/` (change with `AGENTIC_HOME`). Per user, kept over time, never in the repo.
-- `node scripts/agentic.mjs session-check` reruns checks. `--reuse` is an explicit opt-in for a previous successful result with matching source and gate configuration; use it only when dependencies and external services have not changed.
+- `node scripts/agentic.mjs session-check` explicitly reruns checks. The Stop hook requests these only when both `enabled` and `sessionChecks` are true. `--reuse` is an explicit opt-in for a previous successful result with matching source and gate configuration; use it only when dependencies and external services have not changed.
 - `node scripts/agentic.mjs stats [--all] [--since 30d]` shows tasks, verified results, cost and time. It shows **measured** spend only. It does not claim "savings", because that needs a before/after test.
 
 ## Check your usage and stats

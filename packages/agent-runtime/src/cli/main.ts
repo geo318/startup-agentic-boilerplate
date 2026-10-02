@@ -13,8 +13,9 @@ const USAGE = `agentic <command>
   doctor | validate [contract.json...]
   qualify <profile> [--owner-declare architecture|review|action-protocol]
   task create <contract.json> | preflight <id> | run <id> | status <id> | approve <id> | accept <id> | cancel <id> | verify <id> | export <id>
+  task revise <id> <contract.json> (operator: retain candidate/usage; new plan approval for R2/R3)
   learn capture <task> | propose <file> | list | promote <proposal> | rollback [release] | retire <lesson> | purge <lesson>
-  enable | disable   (switch the managed workflow; default on)
+  enable | disable   (managed execution is off by default)
   arch check   (layer boundaries from .agents/architecture.json, TypeScript-compiler backed)
   do "<goal>" [--files a,b]   (one step: derive the contract, create and run the task; scope = --files or the changed files)
   session-check [--reuse]   (Stop hook: run the required gates on the working tree and record the result; exit 2 = failed)
@@ -91,7 +92,7 @@ async function main(): Promise<number> {
       return c.doTask(env, goal, flag("--files") ? { files: flag("--files")!.split(",").filter(Boolean) } : {});
     }
     case "session-check":
-      return c.sessionCheckCmd(env, argv.includes("--reuse"));
+      return c.sessionCheckCmd(env, argv.includes("--reuse"), argv.includes("--hook"));
     case "pr-summary":
       return c.prSummaryCmd(env, argv.includes("--update"));
     case "stats":
@@ -116,6 +117,10 @@ async function main(): Promise<number> {
       break;
     case "task":
       if (sub === "create") return c.taskCreate(env, resolve(arg ?? ""));
+      if (sub === "revise") {
+        if (!argv[3] || argv[3]!.startsWith("--")) throw new c.CliError("usage: task revise <id> <contract.json>");
+        return c.taskRevise(env, arg ?? "", resolve(argv[3]!));
+      }
       if (sub === "preflight") return c.taskPreflight(env, arg ?? "");
       if (sub === "run") return c.taskRun(env, arg ?? "");
       if (sub === "status") return c.taskStatus(env, arg ?? "");

@@ -89,7 +89,9 @@ export function captureIncident(home: string, taskId: string): Incident | null {
   const evFile = join(home, "tasks", taskId, "state", "events.jsonl");
   if (!existsSync(evFile)) throw new LearningError("unknown task", `no event log for task ${taskId}`);
   const events = new EventLog(evFile).read();
-  const last = [...events].reverse().find((e) => e.type === "state");
+  const last = [...events]
+    .reverse()
+    .find((e) => e.type === "state" || (e.type === "contract_revised" && (e.data as any)?.to));
   const state = (last?.data as any)?.to as string;
   const facts: string[] = [],
     seqs: number[] = [];

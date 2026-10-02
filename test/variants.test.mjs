@@ -220,7 +220,7 @@ test("runtime disabled: no runtime files, skills carry no managed section", () =
     ".agents/skills/stats",
   ])
     assert.ok(!existsSync(join(t, f)), f);
-  assert.doesNotMatch(readFileSync(join(t, "AGENTS.md"), "utf8"), /Managed workflow/);
+  assert.doesNotMatch(readFileSync(join(t, "AGENTS.md"), "utf8"), /Optional managed execution/);
   assert.doesNotMatch(readFileSync(join(t, ".agents/skills/architect/SKILL.md"), "utf8"), /Managed mode/);
 });
 
@@ -235,8 +235,9 @@ test("runtime enabled: policy.json validates against the schema; launcher execut
   assert.ok(policy.protectedPaths.includes(".agents") && policy.protectedPaths.includes("package.json"));
   assert.ok((lstatSync(join(t, "scripts/agentic.mjs")).mode & 0o111) !== 0);
   assert.match(readFileSync(join(t, ".agents/skills/architect/SKILL.md"), "utf8"), /Managed mode/);
-  assert.equal(policy.enabled, true); // the managed workflow is ON by default
-  assert.match(readFileSync(join(t, "AGENTS.md"), "utf8"), /## Managed workflow[\s\S]*"enabled": true/);
+  assert.equal(policy.enabled, false); // installing the runtime does not authorize execution
+  assert.equal(policy.sessionChecks, false);
+  assert.match(readFileSync(join(t, "AGENTS.md"), "utf8"), /## Optional managed execution[\s\S]*"enabled": false/);
   assert.ok(existsSync(join(t, ".agents/skills/stats/SKILL.md")));
   assert.match(readFileSync(join(t, ".agents/skills-index.md"), "utf8"), /stats/);
   noLeftovers(t);
@@ -344,6 +345,7 @@ test("fresh scaffold → pin → create → run with a replay worker → awaitin
   // the check script is the gate: point the generated policy's gate at it (a maintenance edit by the project owner)
   const pol = JSON.parse(readFileSync(join(t, ".agents/policy.json"), "utf8"));
   pol.gates[0].argv = ["node", "check.mjs"];
+  pol.enabled = true; // explicit managed-execution opt-in
   pol.baseline = "off"; // this fixture starts red on purpose
   assert.ok(pol.bootstrap?.argv.length, "generated policy bootstraps dependencies"); // npm/pnpm projects ignore node_modules
   delete pol.bootstrap; // no network in the fixture

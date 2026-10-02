@@ -183,7 +183,8 @@ wants managed execution (a controller that runs models, tools, and checks and re
 development-workflow choice, separate from `HAS_AI` (a product feature) and from `CLAUDE_CODE` (a host).
 
 When `AGENTIC_RUNTIME` is true the renderer adds `.agents/policy.json`, `.agents/models.json` (manual hand-off, any model/harness), `.agents/models.example.json`,
-and `scripts/agentic.mjs`, and the skills gain a short "Managed mode" section. It also needs:
+and `scripts/agentic.mjs`, and the skills gain a short "Managed mode" section. Installation keeps `enabled` and
+`sessionChecks` false; direct development stays the default. Explicitly enable execution only for a chosen managed task. It also needs:
 
 - `CMD_TEST` (already required): split on whitespace into the gate's argv. No shell, so no pipes or `&&`.
 - `GATE_DISCOVER_REGEX`: one capture group giving the number of tests the runner discovered. A gate that

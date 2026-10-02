@@ -114,6 +114,7 @@ test("project copy follows git: ignored files (.env, build output) are not copie
     join(project, ".agents/policy.json"),
     JSON.stringify({
       schemaVersion: 1,
+      enabled: true,
       protectedPaths: [],
       egress: "local-only",
       gates: [

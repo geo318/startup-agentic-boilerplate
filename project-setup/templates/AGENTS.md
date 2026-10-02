@@ -73,20 +73,22 @@ A passing typecheck is not verification. Run every check relevant to the diff an
 
 {{#if GITHUB}}
 {{#if AGENTIC_RUNTIME}}
-## Managed workflow
+## Optional managed execution
 
-Model routing lives in `.agents/models.json`: `execution: "handoff"` means answer the printed JSON packets in the chosen harness;
-`"delegated"` invokes configured providers. Never infer the worker model from this chat's model selector.
-Run `node scripts/agentic.mjs task preflight <id>` before a task; report configured identities and qualification sources accurately.
-Keep the controller running while answering handoff packets; reviewer packets require a separate context/person.
-After a pre-edit budget stop, retain the history and create a smaller replacement contract under the existing authorization;
-keep required approvals/checks. An authorized runtime/routing upgrade is maintenance, not a refused-task bypass.
+Direct development is the default. Managed execution is off (`"enabled": false` in `.agents/policy.json`).
+Use it only when the user requests it for the task; never enable it automatically or require it for ordinary edits.
+`node scripts/agentic.mjs enable` opts in; `disable` returns to direct development. Keep normal project checks and CI.
 
-On by default (`"enabled": true` in `.agents/policy.json`). When on, non-trivial changes go through `node scripts/agentic.mjs task …` so the
-controller runs the checks, grounds context in real source, and records evidence, instead of trusting a model's own claim that it works.
-Never turn it off, edit `.agents/`, or work around a refused task to get a change through; ask the person. Check state with
-`node scripts/agentic.mjs doctor`. Before handoff, run `node scripts/agentic.mjs session-check` to run required gates and record the result; fix failures. Claude Code also runs this through its optional Stop hook. After opening a PR, run `node scripts/agentic.mjs pr-summary --update` once (later pushes do it from the pre-push hook). Use `node scripts/agentic.mjs disable` when the user asks to turn it off.
+For a chosen managed task, run `task preflight <id>` before execution. Routing comes from `.agents/models.json`,
+not the chat model selector: `handoff` exchanges JSON packets; `delegated` invokes the configured provider.
+Include an existing agreed plan in the contract's `plan` field to avoid another architect call.
+R2/R3 still require `task approve <id>` and an independent reviewer context. Accept verified results explicitly.
+Use `edit_and_finish` for final edits to avoid a separate finish exchange.
 
+If scope, context or budget is insufficient, use `task revise <id> <contract.json>` with explicit authorization.
+It retains the prepared candidate, baseline, history and usage; R2/R3 require fresh plan approval.
+Never weaken protected tests or bypass a refused managed task. Automatic full session checks are also opt-in
+(`"sessionChecks": true`); `session-check` runs them explicitly. Do not repeat identical checks without a change.
 {{/if}}
 ## Pull requests
 

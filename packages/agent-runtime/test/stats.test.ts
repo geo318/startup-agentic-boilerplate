@@ -80,6 +80,7 @@ test("stats from real task runs: scoped to the repo, --since filters, --all span
       join(project, ".agents/policy.json"),
       JSON.stringify({
         schemaVersion: 1,
+        enabled: true,
         protectedPaths: [],
         baseline: "off",
         egress: "local-only",
@@ -289,4 +290,10 @@ test("stats applies since to session timestamps and refuses unreadable session e
   appendFileSync(join(home, "sessions.jsonl"), "{torn");
   await assert.rejects(c.stats(env, { json: true }), /unreadable session record/);
   assert.equal(out.length, 0); // no plausible-looking partial report
+});
+
+test("unknown token usage never produces a measured token cost per result", () => {
+  const summary = summarizeTasks([t({ tokens: 50_000, unknownUsageCalls: 1 })], "/p");
+  assert.equal(summary.tokensPerVerified, null);
+  assert.match(formatStats(summary), /budget-accounted tokens \(includes estimates\)/);
 });

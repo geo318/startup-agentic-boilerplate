@@ -159,6 +159,7 @@ export async function runSuite(o: RunOpts): Promise<CaseResult[]> {
         join(project, ".agents/policy.json"),
         JSON.stringify({
           schemaVersion: 1,
+          enabled: true,
           protectedPaths: ["test", "package.json", ".agents"],
           gates: [GATE],
           requiredGates: ["tests"],

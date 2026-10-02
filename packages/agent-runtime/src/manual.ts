@@ -35,7 +35,7 @@ export class ManualProvider implements GenerationProvider {
       packet,
       JSON.stringify(
         {
-          instructions: `Answer the prompt below and save ONLY the JSON reply to ${reply}`,
+          instructions: `Save the JSON reply to ${reply}. If native usage is available, an operator may wrap it as {"content":<reply object>,"usage":{"input":<count>,"output":<count>},"costUsd":<reported cost>}. Never estimate or ask the model to invent these measurements. Plain replies retain unknown usage/cost.`,
           system: req.system,
           prompt: req.prompt,
           schema: req.schema ?? null,
@@ -50,7 +50,34 @@ export class ManualProvider implements GenerationProvider {
     while (Date.now() - started < this.#timeoutMs && !req.signal?.aborted) {
       if (existsSync(reply)) {
         const content = readFileSync(reply, "utf8").trim();
-        if (content) return { content, finishReason: "stop", usage: null, latencyMs: Date.now() - started };
+        if (content) {
+          let value: any;
+          try {
+            value = JSON.parse(content);
+          } catch {
+            /* action/role validation reports malformed JSON */
+          }
+          if (value && typeof value === "object" && !Array.isArray(value) && "content" in value) {
+            const valid =
+              Object.keys(value).every((k) => ["content", "usage", "costUsd"].includes(k)) &&
+              (typeof value.content === "string" ||
+                (value.content && typeof value.content === "object" && !Array.isArray(value.content))) &&
+              value.usage &&
+              Object.keys(value.usage).length === 2 &&
+              [value.usage.input, value.usage.output].every((n) => Number.isSafeInteger(n) && n >= 0) &&
+              Number.isSafeInteger(value.usage.input + value.usage.output) &&
+              (value.costUsd === undefined || (Number.isFinite(value.costUsd) && value.costUsd >= 0));
+            if (!valid) return { content: "", finishReason: "error", usage: null, latencyMs: Date.now() - started };
+            return {
+              content: typeof value.content === "string" ? value.content : JSON.stringify(value.content),
+              finishReason: "stop",
+              usage: value.usage,
+              latencyMs: Date.now() - started,
+              ...(value.costUsd !== undefined ? { costUsd: value.costUsd } : {}),
+            };
+          }
+          return { content, finishReason: "stop", usage: null, latencyMs: Date.now() - started };
+        }
       }
       await new Promise((r) => setTimeout(r, 100));
     }

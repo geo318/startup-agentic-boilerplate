@@ -117,5 +117,5 @@ Do not approve a plan that breaks an invariant in `AGENTS.md`. In particular:
 ## Managed mode
 
 When `node scripts/agentic.mjs doctor` passes and reports the workflow ON, write the agreed plan as a task contract (R2/R3 need
-an approved plan before code) and hand it over: `node scripts/agentic.mjs task create <contract.json>`,
+an approved plan before code). Include the agreed plan in the contract’s `plan` field instead of generating it again, then hand it over: `node scripts/agentic.mjs task create <contract.json>`,
 then `task run <id>`. When authorized in chat, run `task approve <id>` and continue; no terminal prompt is required.{{/if}}

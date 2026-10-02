@@ -169,7 +169,7 @@ export class Run {
       throw new Error("stateDir must be outside the workspace");
     }
     this.#policy = policy;
-    this.ledger = ledger ?? new Ledger(policy.limits);
+    this.ledger = ledger ?? new Ledger({ ...policy.limits });
     mkdirSync(policy.stateDir, { recursive: true });
     this.#log = new EventLog(join(policy.stateDir, "events.jsonl")).open();
   }
@@ -214,6 +214,7 @@ export class Run {
       this.#log.append("baseline", {
         gateId: id,
         status: r.status,
+        durationMs: r.durationMs,
         discovered: r.discovered,
         tail: r.status === "pass" ? "" : r.outputTail.slice(-1500),
       });
@@ -275,7 +276,7 @@ export class Run {
     ) {
       if (this.#calls >= 3 || this.ledger.tokens + tokens > this.ledger.limits.aggregateTokens * 0.6)
         throw new BudgetExceeded(
-          "pre-edit limit (3 calls / 60% estimated tokens): narrow the context and create a smaller replacement task; history and approvals remain intact",
+          "pre-edit limit (3 calls / 60% estimated tokens): revise this task's context or budget; candidate and total usage remain intact",
         );
     }
     return this.ledger.reserve(tokens);
@@ -310,6 +311,16 @@ export class Run {
       } else if (e.type === "started") {
         policyHash = d.policyHash;
         candidate = d.candidate;
+      } else if (e.type === "contract_revised" && d.policyHash) {
+        policyHash = d.policyHash;
+        candidate = d.candidate;
+        this.state = d.to;
+        this.#planHash = undefined;
+        this.#draft = undefined;
+        this.evidence = undefined;
+        this.#calls = 0;
+        this.contextReads.clear();
+        if (d.ledger) this.ledger.restore(d.ledger);
       } else if (e.type === "candidate") candidate = d.digest;
       else if (e.type === "plan_approved") this.#planHash = d.planHash;
       else if (e.type === "ledger" || e.type === "inflight" || e.type === "billing_uncertain") {
@@ -320,13 +331,13 @@ export class Run {
         this.#lastFingerprint = d.fingerprint;
         this.feedback = d.feedback ?? this.feedback;
       } else if (e.type === "review") this.feedback = `Review findings: ${JSON.stringify(d)}`;
-      else if (
-        e.type === "baseline" &&
-        (d.status === "pass" || d.status === "fail") &&
-        typeof d.discovered === "number" &&
-        d.discovered > 0
-      )
-        this.#baselineDiscovered[d.gateId] = d.discovered;
+      else if (e.type === "context_read") {
+        if (typeof d.path === "string") this.contextReads.add(d.path);
+      } else if (e.type === "baseline") {
+        (this.#baselineResults ??= []).push({ gateId: d.gateId, status: d.status });
+        if ((d.status === "pass" || d.status === "fail") && typeof d.discovered === "number" && d.discovered > 0)
+          this.#baselineDiscovered[d.gateId] = d.discovered;
+      }
     }
     const pending = unsettledCall(events);
     if (pending) {
@@ -346,7 +357,8 @@ export class Run {
     this.#protectedBase = saved.protectedBase;
     this.#baseFiles = new Map(saved.files);
     this.#acceptancePaths = saved.acceptancePaths ?? [];
-    if (existsSync(join(dir, "draft.json"))) this.#draft = JSON.parse(readFileSync(join(dir, "draft.json"), "utf8"));
+    if (this.state === "REVIEWING" && existsSync(join(dir, "draft.json")))
+      this.#draft = JSON.parse(readFileSync(join(dir, "draft.json"), "utf8"));
     if (existsSync(join(dir, "evidence.json")) && (this.state === "AWAITING_ACCEPTANCE" || this.state === "ACCEPTED"))
       this.evidence = JSON.parse(readFileSync(join(dir, "evidence.json"), "utf8"));
     const live = !["ACCEPTED", "BLOCKED", "ESCALATED", "CANCELLED", "NEEDS_INPUT"].includes(this.state);
@@ -366,6 +378,59 @@ export class Run {
   // Records a controller-side fact (e.g. which lessons were pinned) in the hash-chained log.
   record(type: string, data: unknown): void {
     this.#log.append(type, data);
+  }
+
+  // Explicit operator revision, never a worker action. Reuse prepared bytes; invalidate all approvals/evidence.
+  revise(policy: Policy, contract: unknown, operator: string): void {
+    if (["ACCEPTED", "CANCELLED"].includes(this.state)) throw new Error(`cannot revise ${this.state} task`);
+    if (maxTier(this.#policy.riskTier, policy.riskTier) !== policy.riskTier)
+      throw new Error("revision cannot lower risk");
+    if (this.uncertainBilling) throw new Error("cannot revise an uncertain provider call; reconcile billing first");
+    const events = this.#log.verify();
+    const binding = events.findLast(
+      (e) => e.type === "started" || (e.type === "contract_revised" && (e.data as any).policyHash),
+    );
+    if ((binding?.data as any)?.policyHash !== sha256(canonical(this.#policy)))
+      throw new Error("revision cannot reuse preparation under a changed project policy");
+    const latest = events.findLast(
+      (e) =>
+        e.type === "candidate" || e.type === "started" || (e.type === "contract_revised" && (e.data as any).policyHash),
+    );
+    const expected = (latest?.data as any)?.digest ?? (latest?.data as any)?.candidate;
+    if (!this.#base || snapshot(this.#policy.workspace) !== expected)
+      throw new Error(
+        "cannot reuse unprepared or externally modified candidate; fix the starting environment before creating a task",
+      );
+    if (snapshot(this.#policy.workspace, this.#protectedPaths()) !== this.#protectedBase)
+      throw new Error("cannot revise a candidate with changed protected files");
+    const allowed = {
+      ...policy,
+      writePaths: this.#policy.writePaths,
+      limits: this.#policy.limits,
+      riskTier: this.#policy.riskTier,
+      riskTags: this.#policy.riskTags,
+    };
+    if (canonical(allowed) !== canonical(this.#policy)) throw new Error("revision cannot change project policy");
+    for (const key of ["aggregateTokens", "toolActions", "semanticRepairs"] as const)
+      if (policy.limits[key] < this.#policy.limits[key]) throw new Error(`revision cannot lower ${key}`);
+    const to = policy.riskTier === "R2" || policy.riskTier === "R3" ? "AWAITING_PLAN_APPROVAL" : "IMPLEMENTING";
+    this.#log.append("contract_revised", {
+      operator,
+      contract,
+      from: this.state,
+      to,
+      policyHash: sha256(canonical(policy)),
+      candidate: expected,
+      ledger: this.ledger.snapshot(),
+    });
+    this.#policy = policy;
+    Object.assign(this.ledger.limits, policy.limits);
+    this.state = to;
+    this.#calls = 0;
+    this.#planHash = undefined;
+    this.#draft = undefined;
+    this.evidence = undefined;
+    this.contextReads.clear();
   }
 
   // Explicit approval command. Binds the plan text; a different plan later means a new run/approval.

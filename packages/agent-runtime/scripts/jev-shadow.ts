@@ -47,6 +47,7 @@ for (let t = 1; t <= trials; t++) {
       join(project, ".agents/policy.json"),
       JSON.stringify({
         schemaVersion: 1,
+        enabled: true,
         protectedPaths: ["test", "package.json", ".agents"],
         gates: [GATE],
         requiredGates: ["tests"],

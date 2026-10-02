@@ -333,6 +333,7 @@ test("pinning: lessons are fixed when a task starts; promotions later do not cha
     join(project, ".agents/policy.json"),
     JSON.stringify({
       schemaVersion: 1,
+      enabled: true,
       protectedPaths: [],
       baseline: "off",
       egress: "local-only",

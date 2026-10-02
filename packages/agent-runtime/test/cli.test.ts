@@ -51,6 +51,7 @@ function world(over: { policy?: object; roles?: object; extraProfiles?: object }
     join(project, ".agents/policy.json"),
     J({
       schemaVersion: 1,
+      enabled: true,
       protectedPaths: ["check.mjs", ".agents"],
       egress: "local-only",
       baseline: "off",
@@ -229,14 +230,20 @@ test("unresolved questions stop the run; cancel is final; unknown task is an err
   assert.equal(await c.taskRun(w2.env(), "fix-value"), 1);
 });
 
-test("R0 recipe runs with no model configured at all", async () => {
+test("R0 recipe runs with no model configured at all, including files larger than model context", async () => {
   const w = world();
+  writeFileSync(join(w.project, "value.txt"), "bad" + "x".repeat(20_000));
+  writeFileSync(
+    join(w.project, "check.mjs"),
+    'import {readFileSync} from "node:fs"; console.log("tests 1"); process.exit(readFileSync("value.txt","utf8").startsWith("good") ? 0 : 1)',
+  );
   writeFileSync(join(w.project, ".agents/models.json"), "{}"); // would be invalid if loaded as models
   await c.taskCreate(
     w.env(),
     w.contract({ riskTier: "R0", scope: ["value.txt"], recipe: { path: "value.txt", find: "bad", replace: "good" } }),
   );
 
+  assert.equal(await c.taskPreflight(w.env(), "fix-value"), 0);
   assert.equal(await c.taskRun(w.env(), "fix-value"), 0);
   assert.equal(c.statusOf(w.env(), "fix-value").ledger.tokens, 0);
 });
@@ -385,13 +392,17 @@ test("jev calibrate from labels writes a per-family calibration; too few labels 
 });
 
 // ---------- on/off switch ----------
-test("workflow switch: default ON; OFF runs nothing and spends nothing and a literal yes; enable works anywhere", async () => {
+test("workflow switch: absent means OFF; enable is explicit and scoped to the project", async () => {
   const w = world();
   w.qualifyAll();
   await c.taskCreate(w.env(), w.contract());
-  assert.equal(c.workflowEnabled(w.env()), true); // no "enabled" key in the policy = on
+  const policyFile = join(w.project, ".agents/policy.json");
+  const policy = JSON.parse(readFileSync(policyFile, "utf8"));
+  delete policy.enabled;
+  writeFileSync(policyFile, J(policy));
+  assert.equal(c.workflowEnabled(w.env()), false);
   await c.doctor(w.env());
-  assert.match(w.out.join("\n"), /workflow\s+ON/);
+  assert.match(w.out.join("\n"), /workflow\s+OFF/);
   assert.equal(await c.disableWorkflow(w.env()), 0);
   assert.equal(c.workflowEnabled(w.env()), false);
   assert.equal(JSON.parse(readFileSync(join(w.project, ".agents/policy.json"), "utf8")).enabled, false);
@@ -764,10 +775,10 @@ test("upgrade preserves config and history, repairs a stale launcher pin, and ha
   assert.equal(readFileSync(join(w.project, "value.txt"), "utf8"), "bad"); // isolated candidate, acceptance still required
 });
 
-test("oversized planning context stops cleanly before spending, with recovery guidance", async () => {
-  const w = world();
+test("planning uses the selected context limit, and oversize fails before installation or spending", async () => {
+  const w = world({ policy: { bootstrap: { argv: [process.execPath, "-e", "process.exit(99)"], timeoutMs: 5000 } } });
   w.qualifyAll();
-  writeFileSync(join(w.project, "value.txt"), "x".repeat(17_000));
+  writeFileSync(join(w.project, "value.txt"), "x".repeat(65_000));
   let calls = 0;
   const env = w.env({
     wrapProvider: (p) => ({
@@ -782,6 +793,212 @@ test("oversized planning context stops cleanly before spending, with recovery gu
   await c.taskCreate(env, w.contract({ riskTier: "R2", budget: "complex" }));
   assert.equal(await c.taskRun(env, "fix-value"), 1);
   assert.equal(calls, 0);
-  assert.equal(c.statusOf(env, "fix-value").state, "BLOCKED");
-  assert.match(w.out.join("\n"), /create a smaller replacement task/);
+  assert.equal(c.statusOf(env, "fix-value").state, "NOT_STARTED");
+  assert.equal(existsSync(join(w.home, "tasks/fix-value/candidate")), false);
+  assert.match(w.out.join("\n"), /Nothing installed or spent/);
+  writeFileSync(join(w.project, "value.txt"), "x".repeat(20_000));
+  const policy = JSON.parse(readFileSync(join(w.project, ".agents/policy.json"), "utf8"));
+  delete policy.bootstrap;
+  writeFileSync(join(w.project, ".agents/policy.json"), J(policy));
+  await c.taskRevise(env, "fix-value", w.contract({ riskTier: "R2", budget: "complex" }));
+  await c.taskRevise(env, "fix-value", w.contract({ riskTier: "R2", budget: "standard" }));
+  assert.equal(await c.taskPreflight(env, "fix-value"), 0);
+  assert.equal(await c.taskRun(env, "fix-value"), 2);
+  assert.equal(calls, 1); // >4k context fits standard; no artificial planning ceiling
+  assert.equal(c.statusOf(env, "fix-value").state, "AWAITING_PLAN_APPROVAL");
+});
+
+test("operator revision reuses preparation and edits, retains usage, and requires fresh approval/review", async () => {
+  const w = world({
+    policy: {
+      baseline: "record",
+      bootstrap: {
+        argv: [
+          process.execPath,
+          "-e",
+          'require("fs").mkdirSync("node_modules",{recursive:true});require("fs").writeFileSync("node_modules/prepared","yes")',
+        ],
+        timeoutMs: 5000,
+      },
+    },
+  });
+  writeFileSync(join(w.project, "extra.txt"), "old");
+  writeFileSync(
+    join(w.project, "worker.replay.json"),
+    J([edit, J({ id: "stop", kind: "blocked", reason: "need extra.txt in scope" })]),
+  );
+  w.qualifyAll();
+  const env = w.env({
+    wrapProvider: (p) => ({
+      id: p.id,
+      hosted: p.hosted,
+      generate: async (req) => ({ ...(await p.generate(req)), usage: null }),
+    }),
+  });
+  const base = { riskTier: "R2", budget: "standard", plan: "Change value.txt to good." };
+  await c.taskCreate(env, w.contract(base));
+  assert.equal(await c.taskRun(env, "fix-value"), 2);
+  assert.equal(c.statusOf(env, "fix-value").ledger.tokens, 0); // supplied plan avoids architect call
+  await c.taskApprove(env, "fix-value");
+  assert.equal(await c.taskRun(env, "fix-value"), 1);
+  const before = c.statusOf(env, "fix-value");
+  assert.equal(before.state, "BLOCKED");
+  const candidate = join(w.home, "tasks/fix-value/candidate");
+  assert.equal(readFileSync(join(candidate, "value.txt"), "utf8"), "good");
+  await assert.rejects(
+    c.taskRevise(env, "fix-value", w.contract({ ...base, acceptance: ["ignore the check"] })),
+    /acceptance/,
+  );
+  await c.taskRevise(
+    env,
+    "fix-value",
+    w.contract({
+      ...base,
+      files: ["value.txt", "extra.txt"],
+      scope: ["value.txt", "extra.txt"],
+      plan: "Keep the value fix and update extra.txt.",
+    }),
+  );
+  const revised = c.statusOf(env, "fix-value");
+  assert.equal(revised.state, "AWAITING_PLAN_APPROVAL");
+  assert.equal(revised.ledger.tokens, before.ledger.tokens);
+  assert.equal(revised.ledger.actions, before.ledger.actions);
+  await assert.rejects(c.taskApprove(env, "fix-value")); // old plan is invalid
+  writeFileSync(
+    join(w.project, "worker.replay.json"),
+    J([
+      J({
+        id: "extra",
+        kind: "edit_and_finish",
+        edits: [
+          {
+            kind: "replace",
+            path: "extra.txt",
+            expectHash: sha256("old"),
+            find: "old",
+            replace: "new",
+          },
+        ],
+      }),
+    ]),
+  );
+  assert.equal(await c.taskRun(env, "fix-value"), 2);
+  await c.taskApprove(env, "fix-value");
+  assert.equal(await c.taskRun(env, "fix-value"), 0);
+  assert.equal(readFileSync(join(candidate, "node_modules/prepared"), "utf8"), "yes");
+  assert.equal(readFileSync(join(candidate, "value.txt"), "utf8"), "good");
+  assert.equal(readFileSync(join(candidate, "extra.txt"), "utf8"), "new");
+  const events = JSON.parse(
+    "[" + readFileSync(join(w.home, "tasks/fix-value/state/events.jsonl"), "utf8").trim().split("\n").join(",") + "]",
+  );
+  assert.equal(events.filter((e: any) => e.type === "bootstrap").length, 1);
+  assert.equal(events.filter((e: any) => e.type === "baseline").length, 1);
+  assert.equal(events.filter((e: any) => e.type === "review").length, 1);
+  assert.ok(c.statusOf(env, "fix-value").ledger.tokens > before.ledger.tokens);
+  await c.taskAccept(env, "fix-value");
+  await c.report(env, "fix-value");
+  assert.deepEqual(JSON.parse(w.out.at(-1)!).evidence.baseline, [{ gateId: "unit", status: "fail" }]);
+  await assert.rejects(c.taskRevise(env, "fix-value", w.contract(base)), /cannot revise ACCEPTED/);
+});
+
+test("revision refuses external candidate tampering and cannot lower risk", async () => {
+  const w = world();
+  w.qualifyAll();
+  writeFileSync(
+    join(w.project, "worker.replay.json"),
+    J([J({ id: "stop", kind: "blocked", reason: "need more context" })]),
+  );
+  await c.taskCreate(w.env(), w.contract());
+  await c.taskRun(w.env(), "fix-value");
+  await assert.rejects(c.taskRevise(w.env(), "fix-value", w.contract({ riskTier: "R0" })), /cannot lower risk/);
+  writeFileSync(join(w.home, "tasks/fix-value/candidate/check.mjs"), "weakened");
+  await assert.rejects(c.taskRevise(w.env(), "fix-value", w.contract({ budget: "standard" })), /externally modified/);
+});
+
+test("full Stop-hook verification is a separate opt-in; explicit checks remain available", async () => {
+  const w = world({ policy: { enabled: false } });
+  spawnSync("git", ["init", "-q"], { cwd: w.project });
+  assert.equal(await c.sessionCheckCmd(w.env(), false, true), 0);
+  assert.equal(existsSync(join(w.home, "sessions.jsonl")), false);
+  assert.equal(await c.sessionCheckCmd(w.env()), 2); // explicit check works with managed execution off
+  const sessions = () => readFileSync(join(w.home, "sessions.jsonl"), "utf8").trim().split("\n").length;
+  assert.equal(sessions(), 1);
+  await c.enableWorkflow(w.env());
+  assert.equal(await c.sessionCheckCmd(w.env(), false, true), 0);
+  assert.equal(sessions(), 1);
+  const file = join(w.project, ".agents/policy.json");
+  const policy = JSON.parse(readFileSync(file, "utf8"));
+  policy.sessionChecks = true;
+  writeFileSync(file, J(policy));
+  assert.equal(await c.sessionCheckCmd(w.env(), false, true), 2);
+  assert.equal(sessions(), 2);
+});
+
+test("tasks and switches are isolated between projects sharing one controller home", async () => {
+  const a = world(),
+    b = world();
+  await c.taskCreate(a.env(), a.contract());
+  await c.disableWorkflow(a.env());
+  assert.equal(c.workflowEnabled(b.env()), true);
+  await assert.rejects(c.taskPreflight(b.env({ home: a.home }), "fix-value"), /another project\/worktree/);
+});
+
+test("revision cannot reuse a baseline after project gates or policy were changed", async () => {
+  const w = world();
+  w.qualifyAll();
+  writeFileSync(
+    join(w.project, "worker.replay.json"),
+    J([J({ id: "stop", kind: "blocked", reason: "need scope adjustment" })]),
+  );
+  await c.taskCreate(w.env(), w.contract());
+  await c.taskRun(w.env(), "fix-value");
+  const file = join(w.project, ".agents/policy.json");
+  const policy = JSON.parse(readFileSync(file, "utf8"));
+  policy.gates[0].argv = [process.execPath, "-e", 'console.log("tests 1")'];
+  writeFileSync(file, J(policy));
+  await assert.rejects(
+    c.taskRevise(w.env(), "fix-value", w.contract({ budget: "standard" })),
+    /changed project policy/,
+  );
+});
+
+test("standard budget supports a gate repair followed by a blocking-review repair without restarting", async () => {
+  const w = world();
+  writeFileSync(
+    join(w.project, "worker.replay.json"),
+    J([finish, edit.replace('"kind":"edit"', '"kind":"edit_and_finish"'), finish]),
+  );
+  writeFileSync(
+    join(w.project, "reviewer.replay.json"),
+    J([
+      J({
+        findings: [
+          {
+            severity: "blocking",
+            criterion: "correct",
+            location: "value.txt",
+            evidence: "recheck",
+            consequence: "review again",
+          },
+        ],
+      }),
+      J({ findings: [] }),
+    ]),
+  );
+  w.qualifyAll();
+  const providers = new Map<string, any>();
+  const env = w.env({
+    wrapProvider: (p) => {
+      if (!providers.has(p.id)) providers.set(p.id, p);
+      return providers.get(p.id);
+    },
+  });
+  await c.taskCreate(env, w.contract({ riskTier: "R2", budget: "standard", plan: "Change the value and verify it." }));
+  await c.taskRun(env, "fix-value");
+  await c.taskApprove(env, "fix-value");
+  await c.taskRun(env, "fix-value");
+  await c.taskRun(env, "fix-value");
+  const status = c.statusOf(env, "fix-value");
+  assert.equal(status.state, "AWAITING_ACCEPTANCE");
+  assert.equal(status.ledger.repairs, 2);
 });

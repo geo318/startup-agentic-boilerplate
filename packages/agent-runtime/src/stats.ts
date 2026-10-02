@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { EventLog, unsettledCall } from "./events.ts";
 import type { SessionRow } from "./session.ts";
+import { maxTier, riskFloor, type RiskTier } from "./risk.ts";
 
 // Usage statistics computed on demand from what the controller already persists per task ($AGENTIC_HOME/tasks/*):
 // the hash-chained event log, the contract and meta.json. Nothing extra is collected and nothing leaves the machine.
@@ -38,6 +39,7 @@ export type Stats = {
   inProgress: number;
   notStarted: number;
   tokens: number;
+  tokenAccounting: "reported" | "includes-estimates";
   costUsd: number;
   unknownUsageCalls: number;
   unknownCostCalls?: number;
@@ -72,11 +74,21 @@ export function readTask(home: string, id: string): TaskStat | null {
   if (!existsSync(dir)) return null;
   const meta = JSON.parse(readFileSync(join(dir, "meta.json"), "utf8")) as { project: string; createdAt?: string };
   if (!meta || typeof meta.project !== "string" || !meta.project) throw new Error("missing project in meta.json");
-  const contract: { riskTier?: string; family?: string } = existsSync(join(dir, "contract.json"))
-    ? JSON.parse(readFileSync(join(dir, "contract.json"), "utf8"))
-    : {};
+  let contract: {
+    riskTier?: RiskTier;
+    family?: string;
+    files?: string[];
+    newFiles?: string[];
+    scope?: string[];
+    riskTags?: string[];
+    recipe?: object;
+  } = existsSync(join(dir, "contract.json")) ? JSON.parse(readFileSync(join(dir, "contract.json"), "utf8")) : {};
   const events = new EventLog(evFile).verify();
-  const states = events.filter((e) => e.type === "state");
+  const revision = events.findLast((e) => e.type === "contract_revised")?.data as
+    | { contract: typeof contract }
+    | undefined;
+  contract = revision?.contract ?? contract;
+  const states = events.filter((e) => e.type === "state" || (e.type === "contract_revised" && (e.data as any)?.to));
   const state = (states.at(-1)?.data as any)?.to ?? "NOT_STARTED";
   let ledger = { tokens: 0, costUsd: 0, unknownUsageCalls: 0, unknownCostCalls: 0, repairs: 0 };
   for (const e of events) {
@@ -126,7 +138,18 @@ export function readTask(home: string, id: string): TaskStat | null {
     id,
     project: meta.project,
     ...(meta.createdAt ? { createdAt: meta.createdAt } : {}),
-    ...(contract.riskTier ? { tier: contract.riskTier } : {}),
+    ...(contract.riskTier
+      ? {
+          tier: maxTier(
+            contract.riskTier,
+            riskFloor({
+              paths: contract.scope ?? [...(contract.files ?? []), ...(contract.newFiles ?? [])],
+              tags: contract.riskTags,
+              recipe: !!contract.recipe,
+            }),
+          ),
+        }
+      : {}),
     ...(contract.family ? { family: contract.family } : {}),
     state,
     tokens: ledger.tokens,
@@ -201,12 +224,13 @@ export function summarizeTasks(
     ).length,
     notStarted: tasks.filter((t) => t.state === "NOT_STARTED").length,
     tokens,
+    tokenAccounting: tasks.some((t) => t.unknownUsageCalls) ? "includes-estimates" : "reported",
     costUsd,
     unknownUsageCalls: tasks.reduce((a, t) => a + t.unknownUsageCalls, 0),
     unknownCostCalls: tasks.reduce((a, t) => a + (t.unknownCostCalls ?? 0), 0),
     modelCalls: tasks.reduce((a, t) => a + t.modelCalls, 0),
     costPerVerified: verified && !tasks.some((t) => t.unknownCostCalls) ? costUsd / verified : null,
-    tokensPerVerified: verified ? tokens / verified : null, // ALL tasks' spend over verified candidates
+    tokensPerVerified: verified && !tasks.some((t) => t.unknownUsageCalls) ? tokens / verified : null,
     timed: walls.length,
     medianWallMs: pct(walls, 0.5),
     p90WallMs: pct(walls, 0.9),
@@ -252,7 +276,7 @@ export function formatStats(s: Stats): string {
     `Usage for ${s.scope}: ${s.tasks} task(s)`,
     `  outcomes: ${st}`,
     `  verified candidates: ${s.verified} (first attempt, no repair: ${s.firstAttemptVerified}) · operator-accepted: ${s.accepted} · stopped/abstained: ${s.abstained} · in progress: ${s.inProgress} · not started (e.g. refused before running): ${s.notStarted}`,
-    `  model calls ${s.modelCalls} · tokens ${s.tokens.toLocaleString()} · reported hosted cost $${s.costUsd.toFixed(4)}${s.unknownCostCalls ? ` · INCOMPLETE: ${s.unknownCostCalls} call(s) with unknown cost` : ""}${s.unknownUsageCalls ? ` · ${s.unknownUsageCalls} call(s) with unknown usage (estimated at reservation)` : ""}`,
+    `  model calls ${s.modelCalls} · ${s.unknownUsageCalls ? "budget-accounted tokens (includes estimates)" : "reported tokens"} ${s.tokens.toLocaleString()} · reported hosted cost $${s.costUsd.toFixed(4)}${s.unknownCostCalls ? ` · INCOMPLETE: ${s.unknownCostCalls} call(s) with unknown cost` : ""}${s.unknownUsageCalls ? ` · ${s.unknownUsageCalls} call(s) with unknown usage (estimated at reservation)` : ""}`,
     `  cost per verified candidate (spend of ALL tasks incl. stopped ones): ${f(s.costPerVerified)}${s.tokensPerVerified === null ? "" : ` · ${Math.round(s.tokensPerVerified).toLocaleString()} tokens`}`,
     `  elapsed time (includes approval/idle waits, first to last recorded event): median ${secs(s.medianWallMs)} · p90 ${secs(s.p90WallMs)} (${s.timed}/${s.tasks} tasks timed)`,
     `  task-run execution (excludes waits between invocations): median ${secs(s.medianExecutionMs)} · p90 ${secs(s.p90ExecutionMs)} (${s.executionTimed}/${s.tasks} tasks have complete execution timing)`,

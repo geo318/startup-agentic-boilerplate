@@ -25,7 +25,7 @@ test("manual exchange: packet written, reply file read; no reply → error", asy
   const reply = (packet: string, response: string) => {
     assert.ok(!packets.has(packet));
     packets.add(packet);
-    assert.match(readFileSync(packet, "utf8"), /Answer the prompt/);
+    assert.match(readFileSync(packet, "utf8"), /Save the JSON reply/);
     writeFileSync(response, '{"id":"1","kind":"finish"}');
   };
   const p = new ManualProvider(dir, "codex-by-hand", 1500, reply);
@@ -389,7 +389,7 @@ test("reviewer: sees goal + changes + controller-run checks, no implementer self
   assert.equal(f[0]!.severity, "blocking");
   const sent = p.calls[0]!.prompt;
   assert.match(sent, /GOALTEXT/);
-  assert.match(sent, /BEFORE:\nold/);
+  assert.match(sent, /-old/);
   assert.match(sent, /unit=pass/);
   assert.doesNotMatch(sent, /I have completed|all tests pass|looks good/i);
   const bad = (x: object) =>
@@ -418,4 +418,25 @@ test("worker routing: cheap for small R1, strong for R2/R3, wide contracts, and 
   assert.equal(needsStrongWorker("R1", 1, 1), true);
   assert.equal(needsStrongWorker("R2", 1, 0), true);
   assert.equal(needsStrongWorker("R3", 1, 0), true);
+});
+
+test("manual replies may carry native accounting, while invalid counters are rejected", async () => {
+  for (const usage of [
+    { input: 120, output: 30 },
+    { input: -1, output: 30 },
+    { input: 1.2, output: 30 },
+  ]) {
+    const provider = new ManualProvider(tmp(), "operator", 1000, (_packet, reply) => {
+      writeFileSync(reply, JSON.stringify({ content: { id: "x", kind: "finish" }, usage, costUsd: 0.02 }));
+    });
+    const result = await provider.generate({ system: "s", prompt: "p", maxOutputTokens: 100 });
+    if (usage.input === 120) {
+      assert.deepEqual(result.usage, usage);
+      assert.equal(result.costUsd, 0.02);
+      assert.equal(JSON.parse(result.content).kind, "finish");
+    } else {
+      assert.equal(result.finishReason, "error");
+      assert.equal(result.usage, null);
+    }
+  }
 });

@@ -191,6 +191,9 @@
     },
     "protectExistingTests": {
       "type": "boolean"
+    },
+    "sessionChecks": {
+      "type": "boolean"
     }
   }
 }

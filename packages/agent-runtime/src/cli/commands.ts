@@ -76,12 +76,12 @@ const SCHEMAS = join(fileURLToPath(import.meta.url), "..", "..", "..", "..", "..
 const BUDGETS: Record<string, { limits: Limits; maxContext: number; maxOut: number }> = {
   narrow: { limits: { aggregateTokens: 12_000, toolActions: 6, semanticRepairs: 1 }, maxContext: 4000, maxOut: 1500 },
   standard: {
-    limits: { aggregateTokens: 40_000, toolActions: 12, semanticRepairs: 1 },
+    limits: { aggregateTokens: 40_000, toolActions: 12, semanticRepairs: 2 },
     maxContext: 8000,
     maxOut: 3000,
   },
   complex: {
-    limits: { aggregateTokens: 100_000, toolActions: 24, semanticRepairs: 1 },
+    limits: { aggregateTokens: 100_000, toolActions: 24, semanticRepairs: 3 },
     maxContext: 16000,
     maxOut: 6000,
   },
@@ -112,11 +112,14 @@ type Contract = {
   riskTags?: string[];
   family?: string;
   budget: "narrow" | "standard" | "complex";
+  limits?: Limits;
+  plan?: string;
   recipe?: { path: string; find: string; replace: string };
   unresolvedQuestions?: string[];
 };
 type ProjectPolicy = {
-  enabled?: boolean; // the managed-workflow switch; absent = on
+  enabled?: boolean; // managed execution requires explicit opt-in
+  sessionChecks?: boolean; // full Stop-hook verification is a separate opt-in
   protectedPaths: string[];
   protectExistingTests?: boolean;
   gates: Policy["gates"];
@@ -493,6 +496,7 @@ export async function validateFiles(env: Env, contracts: string[]): Promise<numb
 
 export async function taskCreate(env: Env, file: string): Promise<number> {
   const c = loadValidated<Contract>(file, "task-contract");
+  c.limits ??= BUDGETS[c.budget]!.limits;
   const dir = taskDir(env, c.id);
   if (existsSync(dir)) throw new CliError(`task already exists: ${c.id}`);
   mkdirSync(dir, { recursive: true });
@@ -505,14 +509,22 @@ export async function taskCreate(env: Env, file: string): Promise<number> {
   return 0;
 }
 
-function load(env: Env, id: string) {
+function load(env: Env, id: string, revision?: Contract) {
   const dir = taskDir(env, id);
   if (!existsSync(join(dir, "contract.json"))) throw new CliError(`no such task: ${id}`);
-  const contract = loadValidated<Contract>(join(dir, "contract.json"), "task-contract");
+  const meta = JSON.parse(readFileSync(join(dir, "meta.json"), "utf8"));
+  if (typeof meta.project !== "string" || resolve(meta.project) !== resolve(env.project))
+    throw new CliError(`task ${id} belongs to another project/worktree`);
+  const original = loadValidated<Contract>(join(dir, "contract.json"), "task-contract");
+  const revised = new EventLog(join(stateOf(env, id), "events.jsonl"))
+    .verify()
+    .findLast((e) => e.type === "contract_revised")?.data as { contract: Contract } | undefined;
+  const contract = revision ?? revised?.contract ?? original;
   const pp = loadValidated<ProjectPolicy>(projectFile(env, "policy.json"), "policy");
   const mf = projectFile(env, "models.json");
   const models = () => (existsSync(mf) ? loadValidated<Models>(mf, "models") : undefined); // lazy: R0 recipes need no models
-  const budget = BUDGETS[contract.budget]!;
+  const preset = BUDGETS[contract.budget]!;
+  const budget = { ...preset, limits: contract.limits ?? { ...preset.limits, semanticRepairs: 1 } };
   const candidate = join(dir, "candidate");
   const stateDir = stateOf(env, id);
   const scopeFloor = riskFloor({
@@ -550,9 +562,65 @@ function load(env: Env, id: string) {
   return { ...base, policy };
 }
 
+const taskContext = (t: ReturnType<typeof load>, workspace: string) =>
+  compile(workspace, [...new Set([...t.contract.files, ...(t.contract.newFiles ?? [])])], t.budget.maxContext, {
+    allowMissing: t.contract.newFiles,
+  });
+
+// Operator-only: append a new contract without discarding work, approvals history or spending.
+export async function taskRevise(env: Env, id: string, file: string): Promise<number> {
+  const previous = load(env, id);
+  const contract = loadValidated<Contract>(file, "task-contract");
+  if (contract.id !== id) throw new CliError("revision must keep the task id");
+  const editable = new Set(["files", "newFiles", "scope", "budget", "limits", "plan", "riskTier", "riskTags"]);
+  const fixed = (c: Contract) => Object.fromEntries(Object.entries(c).filter(([key]) => !editable.has(key)));
+  if (canonical(fixed(contract)) !== canonical(fixed(previous.contract)))
+    throw new CliError("revision cannot change the goal, acceptance criteria or recipe; use a new task for new work");
+  if (
+    maxTier(previous.contract.riskTier, contract.riskTier) !== contract.riskTier ||
+    previous.contract.riskTags?.some((tag) => !contract.riskTags?.includes(tag))
+  )
+    throw new CliError("revision cannot lower risk or remove risk tags");
+  contract.limits ??= BUDGETS[contract.budget]!.limits;
+  const next = load(env, id, contract);
+  if (maxTier(previous.tier, next.tier) !== next.tier)
+    throw new CliError("revision cannot lower the effective risk tier");
+  if (!(next.tier === "R0" && contract.recipe))
+    taskContext(next, existsSync(next.candidate) ? next.candidate : env.project);
+  const events = new EventLog(join(previous.stateDir, "events.jsonl")).verify();
+  if (!events.some((e) => e.type === "execution_started" || e.type === "started")) {
+    const log = new EventLog(join(previous.stateDir, "events.jsonl"));
+    mkdirSync(previous.stateDir, { recursive: true });
+    log.open();
+    try {
+      log.append("contract_revised", { contract, operator: env.user });
+    } finally {
+      log.close();
+    }
+  } else {
+    if (canonical(contract) === canonical(previous.contract))
+      throw new CliError("revision needs new context, scope, plan or budget; do not retry unchanged work");
+    if (!existsSync(join(previous.stateDir, "base.json")))
+      throw new CliError("preparation failed; fix the starting environment before creating a task");
+    const run = new Run(previous.policy());
+    try {
+      run.resume();
+      run.revise(next.policy(), contract, env.user);
+    } finally {
+      run.close();
+    }
+  }
+  env.out(
+    `revised ${id}; candidate and total usage retained; run task preflight ${id}, then task run ${id}. R2/R3 require a new plan approval.`,
+  );
+  return 0;
+}
+
 export function statusOf(env: Env, id: string) {
   const events = new EventLog(join(stateOf(env, id), "events.jsonl")).read();
-  const last = [...events].reverse().find((e) => e.type === "state");
+  const last = [...events]
+    .reverse()
+    .find((e) => e.type === "state" || (e.type === "contract_revised" && (e.data as any).to));
   const ledger = [...events]
     .reverse()
     .map((e) => (e.data as any)?.ledger ?? (e.type === "ledger" ? e.data : undefined))
@@ -567,14 +635,19 @@ export function statusOf(env: Env, id: string) {
 
 const EXIT: Record<string, number> = { AWAITING_ACCEPTANCE: 0, ACCEPTED: 0, NEEDS_INPUT: 2, AWAITING_PLAN_APPROVAL: 2 };
 
-// The managed-workflow switch lives in .agents/policy.json ("enabled", default on). Off = nothing model-driven runs.
+// Installation does not authorize managed execution. Only enabled: true does.
 export const workflowEnabled = (env: Env): boolean => {
   const f = projectFile(env, "policy.json");
-  return !existsSync(f) || loadValidated<ProjectPolicy>(f, "policy").enabled !== false;
+  return existsSync(f) && loadValidated<ProjectPolicy>(f, "policy").enabled === true;
 };
 
 // Shared by preflight and execution; constructing providers never makes calls or creates exchange files.
-function taskProviders(env: Env, t: ReturnType<typeof load>, onCall?: (identity: object) => void) {
+function taskProviders(
+  env: Env,
+  t: ReturnType<typeof load>,
+  onCall?: (identity: object) => void,
+  onResult?: (data: object) => void,
+) {
   const store = new QualStore(join(env.home, "qualifications.json"));
   const usesModel = !(t.tier === "R0" && t.contract.recipe);
   const providerFor = (name: string, models: Models, role: string) => {
@@ -591,7 +664,16 @@ function taskProviders(env: Env, t: ReturnType<typeof load>, onCall?: (identity:
       generate: async (req: Parameters<GenerationProvider["generate"]>[0]) => {
         onCall?.(identity);
         env.out(`calling ${role}: ${name} → ${p.id} (${qualification})`);
-        return wrapped.generate(req);
+        const started = performance.now();
+        const result = await wrapped.generate(req);
+        onResult?.({
+          ...identity,
+          durationMs: performance.now() - started,
+          usage: result.usage,
+          costUsd: result.costUsd ?? null,
+          finishReason: result.finishReason,
+        });
+        return result;
       },
     };
   };
@@ -610,7 +692,7 @@ function taskProviders(env: Env, t: ReturnType<typeof load>, onCall?: (identity:
     );
     const wanted: Array<["worker" | "architect" | "reviewer", boolean]> = [
       ["worker", true],
-      ["architect", t.tier === "R2" || t.tier === "R3"],
+      ["architect", !t.contract.plan && (t.tier === "R2" || t.tier === "R3")],
       ["reviewer", t.tier === "R2" || t.tier === "R3"],
     ];
     for (const [role, needed] of wanted) {
@@ -640,6 +722,7 @@ function taskProviders(env: Env, t: ReturnType<typeof load>, onCall?: (identity:
 }
 
 export async function taskPreflight(env: Env, id: string): Promise<number> {
+  if (!workflowEnabled(env)) throw new CliError("managed execution is off; enable it explicitly first");
   const t = load(env, id);
   env.out(
     `task ${id}: ${t.tier}, ${t.budget.limits.aggregateTokens} token cap; before edits: at most 3 calls and 60% estimated budget`,
@@ -649,6 +732,10 @@ export async function taskPreflight(env: Env, id: string): Promise<number> {
     throw new CliError("hosted/manual route requires policy egress: hosted-allowed");
   if (t.contract.unresolvedQuestions?.length)
     throw new CliError(`unresolved design decision: ${t.contract.unresolvedQuestions.join("; ")}`);
+  if (!(t.tier === "R0" && t.contract.recipe)) {
+    const context = taskContext(t, existsSync(t.candidate) ? t.candidate : env.project);
+    env.out(`context: ${context.tokens}/${context.budget} estimated tokens (planning and worker use the same limit)`);
+  }
   const repairs = statusOf(env, id).ledger?.repairs ?? 0;
   env.out(
     `initial worker: ${(providers.workerStrong && needsStrongWorker(t.tier, t.contract.files.length, repairs) ? providers.workerStrong : providers.worker)?.id ?? "deterministic recipe"}`,
@@ -666,11 +753,31 @@ export async function taskRun(env: Env, id: string): Promise<number> {
   const t = load(env, id);
   if (t.contract.unresolvedQuestions?.length)
     throw new CliError(`unresolved design decision: ${t.contract.unresolvedQuestions.join("; ")}`);
-  const fresh = !existsSync(join(t.stateDir, "events.jsonl"));
+  const fresh = !new EventLog(join(t.stateDir, "events.jsonl"))
+    .verify()
+    .some((e) => e.type === "started" || e.type === "execution_started");
 
   const usesModel = !(t.tier === "R0" && t.contract.recipe);
   let activeRun: Run | undefined;
-  const providers = taskProviders(env, t, (identity) => activeRun?.record("model_call", identity));
+  const providers = taskProviders(
+    env,
+    t,
+    (identity) => activeRun?.record("model_call", identity),
+    (result) => activeRun?.record("model_result", result),
+  );
+
+  // Refuse unusable input before copying/installing dependencies or issuing any model call.
+  if (fresh && usesModel) {
+    try {
+      taskContext(t, env.project);
+    } catch (e) {
+      if (!(e instanceof ContextTooLarge)) throw e;
+      env.out(
+        `insufficient context: ${e.message}; revise this task with a larger budget or fewer context files (task revise ${id} <contract.json>). Nothing installed or spent.`,
+      );
+      return 1;
+    }
+  }
 
   if (fresh) {
     rmSync(t.candidate, { recursive: true, force: true }); // a crashed earlier copy must not leak into this one
@@ -711,17 +818,16 @@ export async function taskRun(env: Env, id: string): Promise<number> {
     } else run.resume();
     if (run.state === "VERIFYING") await run.reverify();
     const planFile = join(t.dir, "plan.json");
-    const ctxText = () =>
-      render(
-        compile(
-          t.candidate,
-          [...new Set([...t.contract.files, ...(t.contract.newFiles ?? [])])],
-          Math.min(t.budget.maxContext, 4000),
-          {
-            allowMissing: t.contract.newFiles,
-          },
-        ),
-      );
+    const contractHash = sha256(canonical(t.contract));
+    if (existsSync(planFile)) {
+      const saved = JSON.parse(readFileSync(planFile, "utf8"));
+      if (
+        saved.contractHash !== contractHash &&
+        new EventLog(join(t.stateDir, "events.jsonl")).read().some((e) => e.type === "contract_revised")
+      )
+        rmSync(planFile);
+    }
+    const ctxText = () => render(taskContext(t, t.candidate));
     const roleCtx = (p: GenerationProvider) => ({
       provider: p,
       ledger: run.ledger,
@@ -737,16 +843,22 @@ export async function taskRun(env: Env, id: string): Promise<number> {
     for (let round = 0; round < 4; round++) {
       if (run.state === "AWAITING_PLAN_APPROVAL") {
         if (!existsSync(planFile)) {
-          const plan = await architect(
-            { ...roleCtx(providers.architect!), maxOut: Math.min(t.budget.maxOut, 1500) },
-            {
-              goal: t.contract.goal,
-              acceptance: t.contract.acceptance,
-              context: ctxText(),
-            },
-          );
-          const text = JSON.stringify(plan, null, 2);
-          writeFileSync(planFile, JSON.stringify({ text, hash: sha256(text) }));
+          const plan =
+            t.contract.plan ??
+            JSON.stringify(
+              await architect(
+                { ...roleCtx(providers.architect!), maxOut: Math.min(t.budget.maxOut, 1500) },
+                {
+                  goal: t.contract.goal,
+                  acceptance: t.contract.acceptance,
+                  context: ctxText(),
+                },
+              ),
+              null,
+              2,
+            );
+          const text = plan;
+          writeFileSync(planFile, JSON.stringify({ text, hash: sha256(text), contractHash }));
           env.out(`Plan written (hash ${sha256(text).slice(0, 12)}). Review and approve: agentic task approve ${id}`);
         } else env.out(`Awaiting plan approval: agentic task approve ${id}`);
         break;
@@ -813,7 +925,7 @@ export async function taskRun(env: Env, id: string): Promise<number> {
     return EXIT[run.state] ?? 1;
   } catch (e) {
     if (e instanceof ContextTooLarge) {
-      const why = `insufficient context: ${e.message}; narrow the contract files and create a smaller replacement task`;
+      const why = `insufficient context: ${e.message}; use task revise ${id} <contract.json> to adjust context, scope or budget without restarting preparation`;
       run.stop("BLOCKED", why);
       env.out(why);
       return 1;
@@ -859,7 +971,12 @@ export async function taskApprove(env: Env, id: string): Promise<number> {
     if (run.state !== "AWAITING_PLAN_APPROVAL") throw new CliError(`task is ${run.state}, not awaiting plan approval`);
     const f = join(t.dir, "plan.json");
     if (!existsSync(f)) throw new CliError("no plan has been written yet: run the task first");
-    const { text, hash } = JSON.parse(readFileSync(f, "utf8"));
+    const { text, hash, contractHash } = JSON.parse(readFileSync(f, "utf8"));
+    if (
+      contractHash !== sha256(canonical(t.contract)) &&
+      new EventLog(join(t.stateDir, "events.jsonl")).read().some((e) => e.type === "contract_revised")
+    )
+      throw new CliError("plan belongs to an older contract; run the revised task to generate its plan");
     if (sha256(text) !== hash) throw new CliError("plan file was modified after it was written");
     env.out(`${text}\n\nplan hash: ${hash}`);
     run.approvePlan(`operator:${env.user}`, text);
@@ -1196,10 +1313,11 @@ export async function doTask(env: Env, goal: string, o: { files?: string[] } = {
 }
 
 // Called by the project's Stop hook. Exit 2 = the gates failed on the current working tree (diagnostic on stdout).
-export async function sessionCheckCmd(env: Env, reuse = false): Promise<number> {
+export async function sessionCheckCmd(env: Env, reuse = false, automatic = false): Promise<number> {
   const f = projectFile(env, "policy.json");
-  if (!existsSync(f) || !workflowEnabled(env)) return 0;
+  if (!existsSync(f)) return 0;
   const pp = loadValidated<ProjectPolicy>(f, "policy");
+  if (automatic && (pp.enabled !== true || pp.sessionChecks !== true)) return 0;
   return sessionCheck({
     home: env.home,
     project: env.project,

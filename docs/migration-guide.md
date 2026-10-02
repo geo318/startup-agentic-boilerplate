@@ -8,7 +8,8 @@
 3. Apply without `--dry-run`. Only new files are created (`.agents/policy.json`, `.agents/models.example.json`,
    `scripts/agentic.mjs`); skills that you have not edited are updated, edited ones land in `.project-setup/sync/`.
 4. Pin the runtime from its checkout: `node <runtime>/src/cli/main.ts pin --project <repo>`, commit `.agents/runtime.json`.
-5. Copy `models.example.json` to `models.json`, edit it, then `node scripts/agentic.mjs doctor`.
+5. The generated `models.json` uses manual handoff; select profiles deliberately and run `node scripts/agentic.mjs doctor`.
+6. Managed execution remains off until `node scripts/agentic.mjs enable`. Direct edits remain the default.
 
 ## Upgrading templates
 
@@ -43,11 +44,12 @@ Then, from the consumer project:
 
 ```bash
 node scripts/agentic.mjs doctor
+node scripts/agentic.mjs enable  # only when choosing managed execution
 node scripts/agentic.mjs qualify current-harness-worker
 # Only with the owner's explicit declaration of these capabilities:
 node scripts/agentic.mjs qualify current-harness-architect --owner-declare architecture
 node scripts/agentic.mjs qualify current-harness-reviewer --owner-declare review
-node scripts/agentic.mjs task create /path/to/new-smaller-contract.json
+node scripts/agentic.mjs task create /path/to/contract.json
 node scripts/agentic.mjs task preflight <new-task-id>
 node scripts/agentic.mjs task run <new-task-id>
 ```
@@ -62,11 +64,31 @@ and their own qualifications. No scaffold rerun or AGENTS replacement is needed 
 new template guidance, preview with `--sync --dry-run`; reconcile locally edited files instead of overwriting them.
 Existing owner authorization to upgrade applies; do not ask for it again merely because `.agents/` is protected from workers.
 
-Terminal `ESCALATED`/`BLOCKED` tasks stay terminal. Preserve FP-601's original history and create a smaller replacement contract
-with a new ID and explicit scope; repeat required plan approval and verification. The controller now stops before another
-call when an unchanged candidate has already used 3 calls (including planning), or the next reservation would exceed 60%
-of the task token cap. Planning uses at most 4,000 context and 1,500 output tokens. Provider overhead can exceed estimates;
-this guard prevents additional spending, not a hard provider-side cap or a guarantee that a task will finish.
+New installations default to `enabled: false` and `sessionChecks: false`; a missing `enabled` also means off.
+Existing explicit settings are preserved during upgrade. To return an existing project to direct development:
+
+```bash
+node scripts/agentic.mjs disable
+```
+
+Reconcile generated AGENTS guidance so normal edits do not require managed execution. The updated Stop hook uses
+`session-check --hook`, which requests full gates only when both switches are true; explicit `session-check` still works.
+The existing workflow diagrams already distinguish daily development from the opt-in runtime.
+
+For a prepared task stopped on context/scope/budget, retain the same ID and use:
+
+```bash
+node scripts/agentic.mjs task revise <id> /path/to/revised-contract.json
+node scripts/agentic.mjs task preflight <id>
+node scripts/agentic.mjs task run <id>
+```
+
+Keep its goal and acceptance criteria. Candidate edits, dependencies, baseline and cumulative usage are retained;
+R2/R3 require a new plan approval and verification. A revision cannot weaken project policy, risk or protected tests.
+Cancelled/accepted tasks, failed initial preparation, external mutations and uncertain billing remain refused.
+A contract `plan` avoids redundant architect generation. Planning now uses the selected context budget rather than a
+fixed 4k ceiling, and oversized inputs are refused before installation. Explicit `limits` can raise the task’s total
+allowance without resetting usage; old task limits are preserved, including the original repair cap.
 
 To undo the routing migration, restore the printed backup files **and** the runtime revision matching the restored pin.
 Do not delete task history or disable policy to resume a refused task.
@@ -95,5 +117,5 @@ Do not delete task history or disable policy to resume a refused task.
 
 Re-pin after pulling the gate-output fix. Checks can write `.next/`, `.turbo/` and `*.tsbuildinfo` without consuming a repair
 solely because the cache changed. Protected files remain checked; acceptance still binds the full candidate, including
-cache files. Existing failed/terminal tasks are not rewritten or reopened. Use a new task to retry the scoped change.
+cache files. Eligible prepared stopped tasks can be revised explicitly; their original history is preserved.
 This reduces a known source of false failures; it is not a measured end-to-end token-savings result.

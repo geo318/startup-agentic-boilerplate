@@ -1,6 +1,7 @@
 {
   "schemaVersion": 1,
-  "enabled": true,
+  "enabled": false,
+  "sessionChecks": false,
   "protectExistingTests": true,
   "protectedPaths": [
     ".agents", ".github", ".githooks", "scripts/checks", "scripts/git", "scripts/skills", "scripts/agentic.mjs",
