@@ -130,9 +130,11 @@ What it will and will not do:
 
 ### Models and keys
 
-- The generated `.agents/models.json` defaults to manual packet exchange for any model/harness. Pick a provider from `.agents/models.example.json` (Claude CLI, Ollama, a chat API, or manual copy-paste). **No keys in this file.** Manual exchange also needs hosted-egress consent; for local-only runs, select a local provider.
+- The generated `.agents/models.json` uses `execution: "handoff"` and defaults to manual packet exchange for any model/harness. Pick a provider from `.agents/models.example.json` (Claude CLI, Ollama, a chat API, or manual copy-paste). **No keys in this file.** Manual exchange also needs hosted-egress consent; for local-only runs, select a local provider.
 - Hosted models (anything off your machine) only run if `.agents/policy.json` says `"egress": "hosted-allowed"`. Default is `local-only`.
-- Each model must pass a small test first: `node scripts/agentic.mjs qualify <profile>`.
+- Worker qualification: `node scripts/agentic.mjs qualify <profile>` tests JSON actions. Architecture/review need separate evidence or an explicit owner declaration.
+- Your chat's model/reasoning selection is not inherited by delegated providers. `doctor` and `task preflight <id>` show actual routes and qualification sources; external routes require `execution: "delegated"`.
+- **Existing projects:** use the [routing upgrade command](docs/migration-guide.md#model-routing-and-pre-edit-budget-upgrade) after pulling the runtime. It backs up configuration, preserves policy/history and re-pins. Follow the [current-chat handoff guide](packages/agent-runtime/README.md#using-your-current-chat) to answer packets without launching a different model.
 
 ### Jev (optional)
 

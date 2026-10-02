@@ -243,3 +243,39 @@ test("resuming a cancelled local call preserves cancellation and never invents h
     b.close();
   }
 });
+
+test("pre-edit call and token limits include planning and survive resume; real edits release the guard", async () => {
+  const { policy } = setup({ riskTier: "R2" });
+  const a = new Run(policy);
+  a.start();
+  for (let i = 0; i < 3; i++) {
+    const reserved = a.reserveCall(1000);
+    a.beginCall(reserved, false);
+    a.ledger.settle(reserved, 1000);
+    a.endCall();
+  }
+  a.approvePlan("owner", "plan");
+  a.close();
+  const b = new Run(policy);
+  b.resume();
+  assert.throws(() => b.reserveCall(1000), /pre-edit limit/);
+  assert.equal(b.ledger.tokens, 3000);
+  await b.handle({
+    ...fix("noop"),
+    edits: [{ kind: "replace", path: "value.txt", expectHash: sha256("bad"), find: "bad", replace: "bad" }],
+  });
+  assert.throws(() => b.reserveCall(1000), /pre-edit limit/); // a no-op does not grant more calls
+  await b.handle(fix("real"));
+  assert.equal(b.reserveCall(1000), 1000);
+  b.close();
+  const { policy: other } = setup();
+  const c = new Run(other);
+  c.start();
+  const reserved = c.reserveCall(10_000);
+  c.beginCall(reserved, false);
+  c.ledger.settle(reserved, 29_000); // provider overhead counts too
+  c.endCall();
+  assert.throws(() => c.reserveCall(2000), /pre-edit limit/);
+  assert.equal(c.ledger.tokens, 29_000);
+  c.close();
+});

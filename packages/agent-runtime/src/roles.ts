@@ -23,6 +23,7 @@ export type RoleCtx = {
   ledger: Ledger;
   egress: "local-only" | "hosted-allowed";
   maxOut?: number;
+  reserve?: (tokens: number) => number;
   beginCall?: (reserved: number) => void;
   endCall?: () => void;
   signal?: AbortSignal;
@@ -83,7 +84,9 @@ async function callJson(ctx: RoleCtx, system: string, prompt: string, schema: ob
     throw new RoleFailed("policy violation", `${ctx.provider.id} is hosted but the policy is local-only`);
   }
   const maxOut = ctx.maxOut ?? 1500;
-  const reserved = ctx.ledger.reserve(approx(system + prompt + JSON.stringify(schema)) + maxOut); // throws BudgetExceeded
+  const reserved = (ctx.reserve ?? ((tokens) => ctx.ledger.reserve(tokens)))(
+    approx(system + prompt + JSON.stringify(schema)) + maxOut,
+  ); // throws BudgetExceeded
   ctx.beginCall?.(reserved);
   const res = await ctx.provider.generate({ system, prompt, maxOutputTokens: maxOut, schema, signal: ctx.signal });
   ctx.ledger.settle(reserved, res.usage ? res.usage.input + res.usage.output : null, res.costUsd, ctx.provider.hosted);

@@ -17,8 +17,59 @@
 
 ## Upgrading the runtime
 
-Pull the new runtime, review the diff, re-run `pin`. The launcher refuses a runtime that differs from the pin, so an
-upgrade is always a deliberate, reviewable commit.
+Pull the new **boilerplate/runtime checkout**, review the diff, then run the explicit upgrade below. Pulling only the
+consumer project does not update an external runtime checkout. The launcher still refuses a mismatched runtime pin.
+
+### Model routing and pre-edit budget upgrade
+
+From the updated boilerplate checkout, target your existing project:
+
+```bash
+node packages/agent-runtime/src/cli/main.ts upgrade --project /absolute/path/to/project --execution handoff
+```
+
+For sibling checkouts, `/absolute/path/to/project` can be `../family-tracker`. Run the **direct CLI**, because the old
+consumer launcher may refuse the new runtime hash. The command backs up the original `models.json` and `runtime.json`
+under `$AGENTIC_HOME/upgrades/` and prints the backup path. It preserves unused profiles, policy, qualifications, and task
+history; selects distinct manual worker/architect/reviewer routes; and pins the updated runtime. It makes no model calls
+and grants no qualifications. Repeating the command preserves the migrated routes.
+
+Use `--execution delegated` instead to keep the current role mappings and explicitly authorize their configured
+providers. This does **not** change Sonnet into your chat model. To change a delegated model, edit its profile deliberately,
+check provider support, and qualify the new identity. Switching back from handoff does not restore old role mappings;
+recover those from the backup if wanted. No command detects your chat's model or reasoning setting.
+
+Then, from the consumer project:
+
+```bash
+node scripts/agentic.mjs doctor
+node scripts/agentic.mjs qualify current-harness-worker
+# Only with the owner's explicit declaration of these capabilities:
+node scripts/agentic.mjs qualify current-harness-architect --owner-declare architecture
+node scripts/agentic.mjs qualify current-harness-reviewer --owner-declare review
+node scripts/agentic.mjs task create /path/to/new-smaller-contract.json
+node scripts/agentic.mjs task preflight <new-task-id>
+node scripts/agentic.mjs task run <new-task-id>
+```
+
+`doctor` shows the actual selected names (use those if existing names collided). Handoff qualification and task commands
+wait for JSON replies: follow the [packet exchange instructions](../packages/agent-runtime/README.md#using-your-current-chat).
+They do not launch another model. Egress must already allow hosted/manual exchange; the upgrade never changes consent.
+A handoff label identifies an operator-controlled route, not a measured model. Requalify when changing the answering model.
+
+Review and commit `.agents/models.json` and `.agents/runtime.json`. Other machines still need the matching runtime checkout
+and their own qualifications. No scaffold rerun or AGENTS replacement is needed for these runtime fixes. If you also sync
+new template guidance, preview with `--sync --dry-run`; reconcile locally edited files instead of overwriting them.
+Existing owner authorization to upgrade applies; do not ask for it again merely because `.agents/` is protected from workers.
+
+Terminal `ESCALATED`/`BLOCKED` tasks stay terminal. Preserve FP-601's original history and create a smaller replacement contract
+with a new ID and explicit scope; repeat required plan approval and verification. The controller now stops before another
+call when an unchanged candidate has already used 3 calls (including planning), or the next reservation would exceed 60%
+of the task token cap. Planning uses at most 4,000 context and 1,500 output tokens. Provider overhead can exceed estimates;
+this guard prevents additional spending, not a hard provider-side cap or a guarantee that a task will finish.
+
+To undo the routing migration, restore the printed backup files **and** the runtime revision matching the restored pin.
+Do not delete task history or disable policy to resume a refused task.
 
 ## Rollback
 

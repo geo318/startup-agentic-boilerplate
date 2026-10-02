@@ -170,6 +170,7 @@ export async function runSuite(o: RunOpts): Promise<CaseResult[]> {
         join(project, ".agents/models.json"),
         JSON.stringify({
           schemaVersion: 1,
+          execution: "delegated",
           profiles: { [o.profile.name]: o.profile.def },
           roles: { worker: o.profile.name },
         }),

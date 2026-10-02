@@ -9,9 +9,10 @@ import * as c from "./commands.ts";
 
 const USAGE = `agentic <command>
   pin   (writes .agents/runtime.json pointing at this runtime checkout)
+  upgrade --execution handoff|delegated (preserve profiles/history, back up config, re-pin)
   doctor | validate [contract.json...]
   qualify <profile> [--owner-declare architecture|review|action-protocol]
-  task create <contract.json> | run <id> | status <id> | approve <id> | accept <id> | cancel <id> | verify <id> | export <id>
+  task create <contract.json> | preflight <id> | run <id> | status <id> | approve <id> | accept <id> | cancel <id> | verify <id> | export <id>
   learn capture <task> | propose <file> | list | promote <proposal> | rollback [release] | retire <lesson> | purge <lesson>
   enable | disable   (switch the managed workflow; default on)
   arch check   (layer boundaries from .agents/architecture.json, TypeScript-compiler backed)
@@ -57,6 +58,12 @@ async function main(): Promise<number> {
       console.log(`pinned ${pin.runtimePath} @ ${pin.treeHash.slice(0, 12)} in ${env.project}/.agents/runtime.json`);
       return 0;
     }
+    case "upgrade":
+      return c.upgradeRuntime(
+        env,
+        flag("--execution") ?? "",
+        resolve(fileURLToPath(import.meta.url), "..", "..", ".."),
+      );
     case "doctor":
       return c.doctor(env);
     case "validate":
@@ -109,6 +116,7 @@ async function main(): Promise<number> {
       break;
     case "task":
       if (sub === "create") return c.taskCreate(env, resolve(arg ?? ""));
+      if (sub === "preflight") return c.taskPreflight(env, arg ?? "");
       if (sub === "run") return c.taskRun(env, arg ?? "");
       if (sub === "status") return c.taskStatus(env, arg ?? "");
       if (sub === "approve") return c.taskApprove(env, arg ?? "");

@@ -7,12 +7,43 @@ Node ≥ 22.18. The controller uses Node built-ins and type stripping; `arch che
 agentic doctor
 agentic validate [contract.json…]
 agentic qualify <profile> [--owner-declare architecture|review|action-protocol]
-agentic task create <contract.json> | run <id> | status <id> | approve <id> | accept <id> | cancel <id> | export <id>
+agentic task create <contract.json> | preflight <id> | run <id> | status <id> | approve <id> | accept <id> | cancel <id> | export <id>
 agentic report <id>
 ```
 
 Project files: `.agents/policy.json` (gates, protected paths, egress) and `.agents/models.json` (provider profiles per role).
 Schemas: [/schemas](../../schemas). Controller state (tasks, events, qualifications) lives under `$AGENTIC_HOME` (default `~/.agentic`), outside the project.
+
+## Execution mode and model identity
+
+`.agents/models.json` selects `execution: "handoff"` (default for new projects) or `"delegated"`. Handoff uses manual JSON
+packets answered by your chosen chat/operator. Delegated execution uses the configured Claude CLI, Ollama or chat API;
+your Codex model and reasoning setting do not change those profiles. Legacy external routes now refuse before making a
+call until delegation is explicit. Deterministic replay and existing manual-only profiles remain usable.
+
+`doctor` shows routes and qualification sources. `task preflight <id>` checks required routes, qualifications, egress and
+unresolved questions without model calls; it displays the initial worker and budget. Each task call also prints its role,
+configured provider identity and qualification source, recorded as `model_call` in `state/events.jsonl`. These are configured
+identities, not independent provider attestations. Owner-declared qualifications are never described as measured passes.
+
+Existing projects: follow the [one-command routing upgrade](../../docs/migration-guide.md#model-routing-and-pre-edit-budget-upgrade).
+It preserves project policy and history and updates the runtime pin; a consumer-only pull cannot update an external runtime.
+
+### Using your current chat
+
+1. Run `qualify <worker-profile>` or `task run <id>` in a background/interactive terminal that stays running.
+2. Read the printed absolute `packet-<uuid>.json` path. CLI exchanges live under `$AGENTIC_HOME/exchange/`, outside the
+   candidate tree; the legacy profile `dir` is used only when constructing ManualProvider directly.
+3. Have your chosen chat answer the packet's system, prompt and schema. Save only the JSON response to the printed
+   `response-<uuid>.txt` path (write a temporary file and rename it atomically). The controller consumes it and may print
+   another packet. It applies edits, checks scope and runs gates itself; do not edit the candidate or project directly.
+4. For R2/R3, use a separate reviewer context/person for the reviewer packet. Do not call self-review independent.
+   Approve the plan and accept verified results through the existing explicit commands when authorized.
+
+There is no automatic Codex invocation, model detection or reasoning-setting override. The current-harness labels describe
+who supplies responses; choose the intended model in that chat and requalify when it changes. Manual usage and cost remain
+unknown (token reservations are estimates); surrounding chat usage is not measured. Packets expire at the profile timeout
+(default 10 minutes), and unique names prevent cross-role/restart reply reuse. Egress consent and qualifications still apply.
 
 ## Switch, stats, Jev
 
@@ -118,6 +149,9 @@ Changing trusted tests or disabling their protection is a reviewed maintenance o
 
 Workers may use `edit_and_finish` with the same bounded edits array to request verification in one call. Gate failures and
 review findings survive routing/resume. Full task gate output is stored under the task's `state/logs/`; prompts receive compact diagnostics.
+Before an edit changes the candidate, planning and worker calls share a 3-call limit and a 60% estimated token allowance,
+including across resumes. Planning context/output are bounded to 4,000/1,500 tokens. At the limit, narrow the context and
+create a smaller replacement contract; existing history and approvals are not reset. This does not guarantee completion.
 Token reservations are estimates, including schemas, not hard provider limits. Reported overruns stop further actions.
 Unknown hosted cost is separate from unknown token usage; incomplete billing has no defined cost-per-verified result.
 

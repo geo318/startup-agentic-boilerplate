@@ -1,5 +1,6 @@
 {
   "schemaVersion": 1,
+  "execution": "delegated",
   "profiles": {
     "claude-sonnet": { "kind": "claude-cli", "model": "claude-sonnet-5-5", "maxBudgetUsd": 0.25 },
     "claude-haiku": { "kind": "claude-cli", "model": "claude-haiku-4-5-20251001", "maxBudgetUsd": 0.05 },

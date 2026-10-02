@@ -13,15 +13,16 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BudgetExceeded, type Limits } from "../budget.ts";
 import { ChatCompletionsProvider } from "../chat.ts";
 import { ClaudeCliProvider } from "../claude.ts";
-import { compile, render } from "../context.ts";
+import { compile, ContextTooLarge, render } from "../context.ts";
 import { drive } from "../drive.ts";
 import { EventLog } from "../events.ts";
 import { canonical, sha256 } from "../hash.ts";
+import { pinProject } from "../pin.ts";
 import { ManualProvider } from "../manual.ts";
 import { OllamaProvider } from "../ollama.ts";
 import { type GenerationProvider, MockProvider } from "../provider.ts";
@@ -134,6 +135,7 @@ type ProjectPolicy = {
   };
 };
 type Models = {
+  execution?: "handoff" | "delegated";
   profiles: Record<string, Record<string, any>>;
   roles: { worker: string; workerStrong?: string; architect?: string; reviewer?: string };
 };
@@ -174,9 +176,13 @@ const taskDir = (env: Env, id: string) => join(env.home, "tasks", id);
 const stateOf = (env: Env, id: string) => join(taskDir(env, id), "state");
 const projectFile = (env: Env, ...p: string[]) => join(env.project, ".agents", ...p);
 
-function makeProvider(name: string, models: Models): GenerationProvider {
+function makeProvider(name: string, models: Models, env?: Env): GenerationProvider {
   const p = models.profiles[name];
   if (!p) throw new CliError(`profile not defined: ${name}`);
+  if (p.kind !== "manual" && p.kind !== "replay" && models.execution !== "delegated")
+    throw new CliError(
+      `profile "${name}" (${p.kind}/${p.model}) requires execution: delegated. The chat model is not inherited. Run the runtime upgrade command with --execution handoff or --execution delegated; see docs/migration-guide.md.`,
+    );
   switch (p.kind) {
     case "claude-cli":
       return new ClaudeCliProvider({
@@ -203,7 +209,17 @@ function makeProvider(name: string, models: Models): GenerationProvider {
         timeoutMs: p.timeoutMs ?? 120_000,
       });
     case "manual":
-      return new ManualProvider(p.dir, p.label, p.timeoutMs);
+      return new ManualProvider(
+        env ? join(resolve(env.home), "exchange", sha256(env.project).slice(0, 16)) : p.dir,
+        p.label,
+        p.timeoutMs,
+        env
+          ? (packet, reply) =>
+              env.out(
+                `handoff ${name}: packet ${packet}\nSave ONLY JSON to ${reply}; leave the controller running. Reviewer packets need a separate review context.`,
+              )
+          : undefined,
+      );
     case "replay":
       return Object.assign(new MockProvider(JSON.parse(readFileSync(p.file, "utf8"))), {
         id: `mock/replay:${basename(p.file)}`,
@@ -326,6 +342,52 @@ async function jevDecisions(
 
 // ---------------- commands ----------------
 
+// Explicit migration, callable directly from the new checkout even when the old launcher rejects its pin.
+export async function upgradeRuntime(env: Env, execution: string, runtimeRoot: string): Promise<number> {
+  if (execution !== "handoff" && execution !== "delegated")
+    throw new CliError("upgrade requires --execution handoff|delegated (no model calls or qualifications are made)");
+  const file = projectFile(env, "models.json");
+  const original = readFileSync(file, "utf8");
+  const models = loadValidated<Models>(file, "models");
+  if (execution === "handoff" && models.execution !== "handoff") {
+    const roles: Models["roles"] = { worker: "" };
+    for (const role of ["worker", "architect", "reviewer"] as const) {
+      const profile = { kind: "manual", dir: "temp/agentic-exchange", label: `current-harness-${role}` };
+      let name = `current-harness-${role}`;
+      for (let n = 2; models.profiles[name] && canonical(models.profiles[name]) !== canonical(profile); n++)
+        name = `current-harness-${role}-${n}`;
+      models.profiles[name] = profile;
+      roles[role] = name;
+    }
+    models.roles = roles;
+  }
+  models.execution = execution;
+  // Validate every selected route before changing files; retain unused profiles verbatim.
+  for (const name of Object.values(models.roles)) makeProvider(name, models, env);
+  const pinFile = projectFile(env, "runtime.json");
+  const oldPin = existsSync(pinFile) ? readFileSync(pinFile, "utf8") : undefined;
+  const backups = join(env.home, "upgrades");
+  mkdirSync(backups, { recursive: true });
+  const backup = mkdtempSync(join(backups, "routing-"));
+  writeFileSync(join(backup, "models.json"), original);
+  if (oldPin !== undefined) writeFileSync(join(backup, "runtime.json"), oldPin);
+  writeFileSync(join(backup, "project.txt"), env.project);
+  try {
+    writeFileSync(file, `${JSON.stringify(models, null, 2)}\n`);
+    const pin = pinProject(env.project, runtimeRoot);
+    env.out(`upgraded ${execution}; pinned ${pin.treeHash}; backup: ${backup}`);
+  } catch (e) {
+    writeFileSync(file, original);
+    if (oldPin === undefined) rmSync(pinFile, { force: true });
+    else writeFileSync(pinFile, oldPin);
+    throw e;
+  }
+  env.out(
+    "Policy, qualifications and task history unchanged. Review/commit .agents/models.json and .agents/runtime.json. Run doctor, qualify the selected profiles, then task preflight <id>. Old terminal tasks need a new, smaller contract; budgets are not reset.",
+  );
+  return 0;
+}
+
 export async function doctor(env: Env): Promise<number> {
   const [maj = 0, min = 0] = process.versions.node.split(".").map(Number);
   const rows: Array<[string, string]> = [
@@ -378,6 +440,29 @@ export async function doctor(env: Env): Promise<number> {
       ]);
     } catch {
       /* an invalid policy is reported above */
+    }
+  }
+  if (existsSync(projectFile(env, "models.json"))) {
+    try {
+      const models = loadValidated<Models>(projectFile(env, "models.json"), "models");
+      rows.push([
+        "execution",
+        `${models.execution ?? "legacy (external routes require upgrade)"}; chat model/settings are not inherited`,
+      ]);
+      const quals = new QualStore(join(env.home, "qualifications.json")).all();
+      for (const [role, name] of Object.entries(models.roles)) {
+        const p = models.profiles[name];
+        const family = role === "architect" ? "architecture" : role === "reviewer" ? "review" : "action-protocol";
+        try {
+          const provider = makeProvider(name, models, env);
+          const q = quals.find((q) => q.profileId === provider.id && q.family === family && q.passed);
+          rows.push([role, `${name} → ${provider.id}; ${family}: ${q?.source ?? "unqualified"}`]);
+        } catch (e) {
+          rows.push([role, `FAIL ${p?.kind ?? "missing"}/${p?.model ?? name}: ${(e as Error).message}`]);
+        }
+      }
+    } catch {
+      /* invalid models are reported above */
     }
   }
   rows.push([
@@ -488,6 +573,89 @@ export const workflowEnabled = (env: Env): boolean => {
   return !existsSync(f) || loadValidated<ProjectPolicy>(f, "policy").enabled !== false;
 };
 
+// Shared by preflight and execution; constructing providers never makes calls or creates exchange files.
+function taskProviders(env: Env, t: ReturnType<typeof load>, onCall?: (identity: object) => void) {
+  const store = new QualStore(join(env.home, "qualifications.json"));
+  const usesModel = !(t.tier === "R0" && t.contract.recipe);
+  const providerFor = (name: string, models: Models, role: string) => {
+    const p = makeProvider(name, models, env);
+    const family = role === "architect" ? "architecture" : role === "reviewer" ? "review" : "action-protocol";
+    const qualification =
+      store.all().find((q) => q.profileId === p.id && q.family === family && q.passed)?.source ?? "unqualified";
+    const identity = { role, profile: name, provider: p.id, qualification };
+    env.out(`route ${role}: ${name} → ${p.id}; qualification: ${qualification}`);
+    const wrapped = env.wrapProvider ? env.wrapProvider(p) : p;
+    return {
+      id: wrapped.id,
+      hosted: wrapped.hosted,
+      generate: async (req: Parameters<GenerationProvider["generate"]>[0]) => {
+        onCall?.(identity);
+        env.out(`calling ${role}: ${name} → ${p.id} (${qualification})`);
+        return wrapped.generate(req);
+      },
+    };
+  };
+  const providers: {
+    worker?: GenerationProvider;
+    workerStrong?: GenerationProvider;
+    architect?: GenerationProvider;
+    reviewer?: GenerationProvider;
+  } = {};
+  if (usesModel) {
+    const models = t.models();
+    if (!models)
+      throw new CliError("no .agents/models.json: configure a worker profile (see schemas/models.schema.json)");
+    env.out(
+      `execution: ${models.execution ?? "legacy manual/replay"}; chat model/settings are not automatically inherited`,
+    );
+    const wanted: Array<["worker" | "architect" | "reviewer", boolean]> = [
+      ["worker", true],
+      ["architect", t.tier === "R2" || t.tier === "R3"],
+      ["reviewer", t.tier === "R2" || t.tier === "R3"],
+    ];
+    for (const [role, needed] of wanted) {
+      if (!needed) continue;
+      const name = models.roles[role];
+      if (!name) throw new CliError(`no ${role} profile configured for a ${t.tier} task`);
+      const sel = selectProfile(role, t.tier, [providerFor(name, models, role)], store);
+      if (!sel.ok) throw new CliError(`${sel.reason} (profile "${name}"). Qualify it first: agentic qualify ${name}`);
+      providers[role] = sel.provider;
+    }
+    if (models.roles.workerStrong) {
+      const sel = selectProfile(
+        "worker",
+        t.tier,
+        [providerFor(models.roles.workerStrong, models, "workerStrong")],
+        store,
+      );
+      if (!sel.ok)
+        throw new CliError(
+          `${sel.reason} (profile "${models.roles.workerStrong}"). Qualify it first: agentic qualify ${models.roles.workerStrong}`,
+        );
+      providers.workerStrong = sel.provider;
+    }
+  }
+
+  return providers;
+}
+
+export async function taskPreflight(env: Env, id: string): Promise<number> {
+  const t = load(env, id);
+  env.out(
+    `task ${id}: ${t.tier}, ${t.budget.limits.aggregateTokens} token cap; before edits: at most 3 calls and 60% estimated budget`,
+  );
+  const providers = taskProviders(env, t);
+  if (t.pp.egress !== "hosted-allowed" && Object.values(providers).some((p) => p.hosted))
+    throw new CliError("hosted/manual route requires policy egress: hosted-allowed");
+  if (t.contract.unresolvedQuestions?.length)
+    throw new CliError(`unresolved design decision: ${t.contract.unresolvedQuestions.join("; ")}`);
+  const repairs = statusOf(env, id).ledger?.repairs ?? 0;
+  env.out(
+    `initial worker: ${(providers.workerStrong && needsStrongWorker(t.tier, t.contract.files.length, repairs) ? providers.workerStrong : providers.worker)?.id ?? "deterministic recipe"}`,
+  );
+  return 0;
+}
+
 export async function taskRun(env: Env, id: string): Promise<number> {
   if (!workflowEnabled(env)) {
     env.out(
@@ -500,51 +668,16 @@ export async function taskRun(env: Env, id: string): Promise<number> {
     throw new CliError(`unresolved design decision: ${t.contract.unresolvedQuestions.join("; ")}`);
   const fresh = !existsSync(join(t.stateDir, "events.jsonl"));
 
-  // Providers and qualifications are checked before any state is created: a task we cannot route has no side effects.
-  const store = new QualStore(join(env.home, "qualifications.json"));
   const usesModel = !(t.tier === "R0" && t.contract.recipe);
-  const providerFor = (name: string, models: Models) => {
-    const p = makeProvider(name, models);
-    return env.wrapProvider ? env.wrapProvider(p) : p;
-  };
-  const providers: {
-    worker?: GenerationProvider;
-    workerStrong?: GenerationProvider;
-    architect?: GenerationProvider;
-    reviewer?: GenerationProvider;
-  } = {};
-  if (usesModel) {
-    const models = t.models();
-    if (!models)
-      throw new CliError("no .agents/models.json: configure a worker profile (see schemas/models.schema.json)");
-    const wanted: Array<["worker" | "architect" | "reviewer", boolean]> = [
-      ["worker", true],
-      ["architect", t.tier === "R2" || t.tier === "R3"],
-      ["reviewer", t.tier === "R2" || t.tier === "R3"],
-    ];
-    for (const [role, needed] of wanted) {
-      if (!needed) continue;
-      const name = models.roles[role];
-      if (!name) throw new CliError(`no ${role} profile configured for a ${t.tier} task`);
-      const sel = selectProfile(role, t.tier, [providerFor(name, models)], store);
-      if (!sel.ok) throw new CliError(`${sel.reason} (profile "${name}"). Qualify it first: agentic qualify ${name}`);
-      providers[role] = sel.provider;
-    }
-    if (models.roles.workerStrong) {
-      const sel = selectProfile("worker", t.tier, [providerFor(models.roles.workerStrong, models)], store);
-      if (!sel.ok)
-        throw new CliError(
-          `${sel.reason} (profile "${models.roles.workerStrong}"). Qualify it first: agentic qualify ${models.roles.workerStrong}`,
-        );
-      providers.workerStrong = sel.provider;
-    }
-  }
+  let activeRun: Run | undefined;
+  const providers = taskProviders(env, t, (identity) => activeRun?.record("model_call", identity));
 
   if (fresh) {
     rmSync(t.candidate, { recursive: true, force: true }); // a crashed earlier copy must not leak into this one
     copyProject(env.project, t.candidate);
   }
   const run = new Run(t.policy());
+  activeRun = run;
   env.onRun?.(run);
   const executionStarted = performance.now();
   try {
@@ -580,15 +713,21 @@ export async function taskRun(env: Env, id: string): Promise<number> {
     const planFile = join(t.dir, "plan.json");
     const ctxText = () =>
       render(
-        compile(t.candidate, [...new Set([...t.contract.files, ...(t.contract.newFiles ?? [])])], t.budget.maxContext, {
-          allowMissing: t.contract.newFiles,
-        }),
+        compile(
+          t.candidate,
+          [...new Set([...t.contract.files, ...(t.contract.newFiles ?? [])])],
+          Math.min(t.budget.maxContext, 4000),
+          {
+            allowMissing: t.contract.newFiles,
+          },
+        ),
       );
     const roleCtx = (p: GenerationProvider) => ({
       provider: p,
       ledger: run.ledger,
       egress: t.pp.egress,
       maxOut: t.budget.maxOut,
+      reserve: (tokens: number) => run.reserveCall(tokens),
       beginCall: (reserved: number) => run.beginCall(reserved, p.hosted),
       endCall: () => run.endCall(),
       signal: run.signal,
@@ -598,11 +737,14 @@ export async function taskRun(env: Env, id: string): Promise<number> {
     for (let round = 0; round < 4; round++) {
       if (run.state === "AWAITING_PLAN_APPROVAL") {
         if (!existsSync(planFile)) {
-          const plan = await architect(roleCtx(providers.architect!), {
-            goal: t.contract.goal,
-            acceptance: t.contract.acceptance,
-            context: ctxText(),
-          });
+          const plan = await architect(
+            { ...roleCtx(providers.architect!), maxOut: Math.min(t.budget.maxOut, 1500) },
+            {
+              goal: t.contract.goal,
+              acceptance: t.contract.acceptance,
+              context: ctxText(),
+            },
+          );
           const text = JSON.stringify(plan, null, 2);
           writeFileSync(planFile, JSON.stringify({ text, hash: sha256(text) }));
           env.out(`Plan written (hash ${sha256(text).slice(0, 12)}). Review and approve: agentic task approve ${id}`);
@@ -670,6 +812,12 @@ export async function taskRun(env: Env, id: string): Promise<number> {
     );
     return EXIT[run.state] ?? 1;
   } catch (e) {
+    if (e instanceof ContextTooLarge) {
+      const why = `insufficient context: ${e.message}; narrow the contract files and create a smaller replacement task`;
+      run.stop("BLOCKED", why);
+      env.out(why);
+      return 1;
+    }
     if (e instanceof BudgetExceeded) {
       run.stop("ESCALATED", `budget exhausted: ${e.message}`);
       env.out(`budget exhausted: ${e.message}`);
@@ -840,7 +988,8 @@ export async function qualify(
     );
   const mf = projectFile(env, "models.json");
   const models = loadValidated<Models>(mf, "models");
-  const provider = makeProvider(profileName, models);
+  const provider = makeProvider(profileName, models, env);
+  env.out(`qualification route: ${profileName} → ${provider.id}; chat model/settings are not automatically inherited`);
   const store = new QualStore(join(env.home, "qualifications.json"));
   if (ownerDeclare) {
     store.record({

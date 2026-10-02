@@ -1,30 +1,41 @@
+import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type { GenerateRequest, GenerateResult, GenerationProvider } from "./provider.ts";
 
 // Manual packet exchange: works with any agent or chat the user operates (Codex, a web chat, a person).
-// generate() writes packet-N.json, then waits for the reply in response-N.txt (raw JSON only).
+// Each request gets unique packet/reply paths, including across roles and process restarts.
 // Treated as hosted: the controller cannot know where the user pastes the packet, so egress consent applies.
 export class ManualProvider implements GenerationProvider {
   readonly id: string;
   readonly hosted = true;
   #dir: string;
   #timeoutMs: number;
-  #n = 0;
-  constructor(dir: string, label: string, timeoutMs = 600_000) {
-    this.#dir = dir;
+  #onPacket: (packet: string, reply: string) => void;
+  constructor(
+    dir: string,
+    label: string,
+    timeoutMs = 600_000,
+    onPacket = (packet: string, reply: string) => {
+      console.log(`handoff packet: ${packet}\nreply with JSON: ${reply}`);
+    },
+  ) {
+    this.#dir = resolve(dir);
+    this.#onPacket = onPacket;
     this.#timeoutMs = timeoutMs;
     this.id = `manual/${label}`;
-    mkdirSync(dir, { recursive: true });
   }
   async generate(req: GenerateRequest): Promise<GenerateResult> {
     const started = Date.now();
-    const n = (this.#n += 1);
+    mkdirSync(this.#dir, { recursive: true, mode: 0o700 });
+    const n = randomUUID();
+    const packet = join(this.#dir, `packet-${n}.json`);
+    const reply = join(this.#dir, `response-${n}.txt`);
     writeFileSync(
-      join(this.#dir, `packet-${n}.json`),
+      packet,
       JSON.stringify(
         {
-          instructions: `Answer the prompt below and save ONLY the JSON reply to ${join(this.#dir, `response-${n}.txt`)}`,
+          instructions: `Answer the prompt below and save ONLY the JSON reply to ${reply}`,
           system: req.system,
           prompt: req.prompt,
           schema: req.schema ?? null,
@@ -33,8 +44,9 @@ export class ManualProvider implements GenerationProvider {
         null,
         2,
       ),
+      { flag: "wx", mode: 0o600 },
     );
-    const reply = join(this.#dir, `response-${n}.txt`);
+    this.#onPacket(packet, reply);
     while (Date.now() - started < this.#timeoutMs && !req.signal?.aborted) {
       if (existsSync(reply)) {
         const content = readFileSync(reply, "utf8").trim();

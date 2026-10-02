@@ -75,6 +75,13 @@ A passing typecheck is not verification. Run every check relevant to the diff an
 {{#if AGENTIC_RUNTIME}}
 ## Managed workflow
 
+Model routing lives in `.agents/models.json`: `execution: "handoff"` means answer the printed JSON packets in the chosen harness;
+`"delegated"` invokes configured providers. Never infer the worker model from this chat's model selector.
+Run `node scripts/agentic.mjs task preflight <id>` before a task; report configured identities and qualification sources accurately.
+Keep the controller running while answering handoff packets; reviewer packets require a separate context/person.
+After a pre-edit budget stop, retain the history and create a smaller replacement contract under the existing authorization;
+keep required approvals/checks. An authorized runtime/routing upgrade is maintenance, not a refused-task bypass.
+
 On by default (`"enabled": true` in `.agents/policy.json`). When on, non-trivial changes go through `node scripts/agentic.mjs task …` so the
 controller runs the checks, grounds context in real source, and records evidence, instead of trusting a model's own claim that it works.
 Never turn it off, edit `.agents/`, or work around a refused task to get a change through; ask the person. Check state with

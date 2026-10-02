@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -20,12 +20,25 @@ const tmp = () => mkdtempSync(join(tmpdir(), "m3-"));
 // ---------- transports ----------
 test("manual exchange: packet written, reply file read; no reply → error", async () => {
   const dir = tmp();
-  const p = new ManualProvider(dir, "codex-by-hand", 1500);
-  setTimeout(() => writeFileSync(join(dir, "response-1.txt"), '{"id":"1","kind":"finish"}'), 300);
+  writeFileSync(join(dir, "response-1.txt"), "stale reply");
+  const packets = new Set<string>();
+  const reply = (packet: string, response: string) => {
+    assert.ok(!packets.has(packet));
+    packets.add(packet);
+    assert.match(readFileSync(packet, "utf8"), /Answer the prompt/);
+    writeFileSync(response, '{"id":"1","kind":"finish"}');
+  };
+  const p = new ManualProvider(dir, "codex-by-hand", 1500, reply);
   const r = await p.generate({ system: "S", prompt: "P", maxOutputTokens: 10, schema: { type: "object" } });
   assert.equal(r.content, '{"id":"1","kind":"finish"}');
   assert.equal(r.usage, null);
   assert.equal(p.hosted, true);
+  await Promise.all(
+    [p, new ManualProvider(dir, "reviewer", 1500, reply)].map((p) =>
+      p.generate({ system: "", prompt: "", maxOutputTokens: 1 }),
+    ),
+  );
+  assert.equal(packets.size, 3);
   const quiet = await new ManualProvider(tmp(), "x", 300).generate({ system: "", prompt: "", maxOutputTokens: 1 });
   assert.equal(quiet.finishReason, "error");
 });

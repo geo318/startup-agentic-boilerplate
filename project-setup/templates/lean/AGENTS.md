@@ -28,6 +28,13 @@ Stack: {{STACK_SUMMARY}}. Reuse the existing architecture and installed tools.
 {{#if AGENTIC_RUNTIME}}
 ## Managed workflow
 
+Model routing lives in `.agents/models.json`: `execution: "handoff"` means answer the printed JSON packets in the chosen harness;
+`"delegated"` invokes configured providers. Never infer the worker model from this chat's model selector.
+Run `node scripts/agentic.mjs task preflight <id>` before a task; report configured identities and qualification sources accurately.
+Keep the controller running while answering handoff packets; reviewer packets require a separate context/person.
+After a pre-edit budget stop, retain the history and create a smaller replacement contract under the existing authorization;
+keep required approvals/checks. An authorized runtime/routing upgrade is maintenance, not a refused-task bypass.
+
 Use `node scripts/agentic.mjs do "<goal>" --files path/to/file` for existing files.
 For new files, create a task contract with explicit `newFiles` and write `scope`.
 `task approve` approves a plan; `task accept` accepts verified results; `task export` produces a patch.

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { type Action, InvalidAction, parseAction } from "./actions.ts";
-import { Ledger, type Limits } from "./budget.ts";
+import { BudgetExceeded, Ledger, type Limits } from "./budget.ts";
 import { applyEdits } from "./edits.ts";
 import { EventLog, unsettledCall } from "./events.ts";
 import { type GateResult, type GateSpec, killAllGates, runGate } from "./gates.ts";
@@ -84,6 +84,7 @@ export class Run {
   #base = "";
   #protectedBase = "";
   #seen = new Set<string>();
+  #calls = 0;
   #acceptancePaths: string[] = [];
   feedback = "start";
   readonly contextReads = new Set<string>();
@@ -243,8 +244,23 @@ export class Run {
     this.#go("IMPLEMENTING");
   }
 
+  // ponytail: inspect the existing diff before calls; cache only if large workspaces make this material.
+  reserveCall(tokens: number): number {
+    if (
+      ["AWAITING_PLAN_APPROVAL", "IMPLEMENTING", "BOUNDED_REPAIR"].includes(this.state) &&
+      this.changed().length === 0
+    ) {
+      if (this.#calls >= 3 || this.ledger.tokens + tokens > this.ledger.limits.aggregateTokens * 0.6)
+        throw new BudgetExceeded(
+          "pre-edit limit (3 calls / 60% estimated tokens): narrow the context and create a smaller replacement task; history and approvals remain intact",
+        );
+    }
+    return this.ledger.reserve(tokens);
+  }
+
   // Billable-call bookkeeping: a crash between begin and end retains the estimate and flags uncertainty.
   beginCall(reserved: number, hosted = true): void {
+    this.#calls++;
     this.#log.append("inflight", { reserved, hosted, ledger: this.ledger.snapshot() });
   }
   endCall(): void {
@@ -257,6 +273,7 @@ export class Run {
     const log = this.#log;
     const events = log.verify();
     if (events.length === 0) throw new Error("nothing to resume");
+    this.#calls = 0;
     let candidate = "";
     let policyHash = "";
     for (const e of events) {
@@ -273,6 +290,7 @@ export class Run {
       } else if (e.type === "candidate") candidate = d.digest;
       else if (e.type === "plan_approved") this.#planHash = d.planHash;
       else if (e.type === "ledger" || e.type === "inflight" || e.type === "billing_uncertain") {
+        if (e.type === "inflight") this.#calls++;
         this.ledger.restore(d.ledger ?? d);
         if (e.type === "billing_uncertain") this.uncertainBilling = true;
       } else if (e.type === "diagnostic") {

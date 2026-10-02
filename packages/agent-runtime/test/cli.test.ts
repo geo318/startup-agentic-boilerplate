@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { test } from "node:test";
 import * as c from "../src/cli/commands.ts";
@@ -648,4 +648,140 @@ test("Jev key alone makes no calls; explicit opt-in is required", async () => {
   );
   assert.equal(calls.n, 0);
   assert.equal(existsSync(join(w.home, "telemetry/jev.jsonl")), false);
+});
+
+test("legacy external routes refuse before calls; explicit delegation is visible in preflight and logs", async () => {
+  const w = world({
+    extraProfiles: { external: { kind: "claude-cli", model: "test-sonnet" } },
+    roles: { worker: "external" },
+  });
+  await c.taskCreate(w.env(), w.contract());
+  let calls = 0;
+  const env = w.env({
+    wrapProvider: (p) => ({
+      ...p,
+      id: p.id,
+      hosted: false,
+      generate: async () => {
+        calls++;
+        return {
+          content: edit.replace('"kind":"edit"', '"kind":"edit_and_finish"'),
+          usage: { input: 10, output: 10 },
+          finishReason: "stop",
+          latencyMs: 0,
+        };
+      },
+    }),
+  });
+  await assert.rejects(c.taskRun(env, "fix-value"), /requires execution: delegated/);
+  await assert.rejects(c.qualify(env, "external"), /requires execution: delegated/);
+  assert.equal(calls, 0);
+  assert.equal(existsSync(join(w.home, "tasks/fix-value/candidate")), false);
+  const file = join(w.project, ".agents/models.json");
+  const models = JSON.parse(readFileSync(file, "utf8"));
+  models.execution = "delegated";
+  writeFileSync(file, J(models));
+  await c.qualify(env, "external", "action-protocol");
+  assert.equal(await c.taskPreflight(env, "fix-value"), 0);
+  assert.equal(calls, 0);
+  assert.equal(await c.taskRun(env, "fix-value"), 0);
+  assert.equal(calls, 1);
+  assert.match(w.out.join("\n"), /external.*claude.*test-sonnet.*owner-declared/);
+  const events = readFileSync(join(w.home, "tasks/fix-value/state/events.jsonl"), "utf8");
+  assert.match(events, /"type":"model_call".*"role":"worker".*"qualification":"owner-declared"/);
+});
+
+test("upgrade preserves config and history, repairs a stale launcher pin, and handoff completes through the controller", async () => {
+  const w = world();
+  const runtime = resolve(import.meta.dirname, "..");
+  const modelFile = join(w.project, ".agents/models.json");
+  const original = readFileSync(modelFile, "utf8");
+  const policyFile = join(w.project, ".agents/policy.json");
+  const policy = JSON.parse(readFileSync(policyFile, "utf8"));
+  policy.egress = "hosted-allowed";
+  writeFileSync(policyFile, J(policy));
+  const oldPolicy = readFileSync(policyFile, "utf8");
+  mkdirSync(join(w.project, "scripts"));
+  copyFileSync(
+    resolve(runtime, "../../project-setup/templates/scripts/agentic.mjs"),
+    join(w.project, "scripts/agentic.mjs"),
+  );
+  writeFileSync(join(w.project, ".agents/runtime.json"), J({ runtimePath: runtime, treeHash: "stale" }));
+  const launcher = () =>
+    spawnSync(process.execPath, [join(w.project, "scripts/agentic.mjs"), "doctor"], {
+      cwd: w.project,
+      encoding: "utf8",
+      env: { ...process.env, AGENTIC_HOME: w.home },
+    });
+  assert.notEqual(launcher().status, 0);
+  await c.taskCreate(w.env(), w.contract({ riskTier: "R2" }));
+  const contract = readFileSync(join(w.home, "tasks/fix-value/contract.json"), "utf8");
+  await assert.rejects(c.upgradeRuntime(w.env(), "auto", runtime), /requires --execution/);
+  await assert.rejects(c.upgradeRuntime(w.env(), "handoff", join(runtime, "missing")));
+  assert.equal(readFileSync(modelFile, "utf8"), original); // failure rolls back
+  await c.upgradeRuntime(w.env(), "delegated", runtime);
+  assert.deepEqual(JSON.parse(readFileSync(modelFile, "utf8")).roles, JSON.parse(original).roles);
+  await c.upgradeRuntime(w.env(), "handoff", runtime);
+  const migrated = readFileSync(modelFile, "utf8");
+  const models = JSON.parse(migrated);
+  assert.deepEqual(models.profiles.worker, JSON.parse(original).profiles.worker);
+  assert.equal(readFileSync(policyFile, "utf8"), oldPolicy);
+  assert.equal(readFileSync(join(w.home, "tasks/fix-value/contract.json"), "utf8"), contract);
+  assert.equal(launcher().status, 0);
+  assert.equal(new QualStore(join(w.home, "qualifications.json")).all().length, 0);
+  await c.upgradeRuntime(w.env(), "handoff", runtime);
+  assert.equal(readFileSync(modelFile, "utf8"), migrated);
+  for (const [role, family] of [
+    ["worker", "action-protocol"],
+    ["architect", "architecture"],
+    ["reviewer", "review"],
+  ] as const)
+    await c.qualify(w.env(), models.roles[role], family);
+  const env = w.env({
+    out: (s) => {
+      w.out.push(s);
+      const match = /^handoff (.+): packet (.+)\nSave ONLY JSON to (.+); leave/.exec(s);
+      if (!match) return;
+      const [, role, packet, reply] = match;
+      assert.ok(packet!.startsWith(w.home));
+      const payload = readFileSync(packet!, "utf8");
+      assert.ok(payload.includes("maxOutputTokens"));
+      writeFileSync(
+        reply!,
+        role!.includes("architect")
+          ? plan
+          : role!.includes("reviewer")
+            ? J({ findings: [] })
+            : edit.replace('"kind":"edit"', '"kind":"edit_and_finish"'),
+      );
+    },
+  });
+  assert.equal(await c.taskPreflight(env, "fix-value"), 0);
+  assert.equal(await c.taskRun(env, "fix-value"), 2);
+  assert.equal(await c.taskApprove(env, "fix-value"), 0);
+  assert.equal(await c.taskRun(env, "fix-value"), 0);
+  assert.equal(c.statusOf(env, "fix-value").state, "AWAITING_ACCEPTANCE");
+  assert.equal(readFileSync(join(w.project, "value.txt"), "utf8"), "bad"); // isolated candidate, acceptance still required
+});
+
+test("oversized planning context stops cleanly before spending, with recovery guidance", async () => {
+  const w = world();
+  w.qualifyAll();
+  writeFileSync(join(w.project, "value.txt"), "x".repeat(17_000));
+  let calls = 0;
+  const env = w.env({
+    wrapProvider: (p) => ({
+      id: p.id,
+      hosted: p.hosted,
+      generate: async (req) => {
+        calls++;
+        return p.generate(req);
+      },
+    }),
+  });
+  await c.taskCreate(env, w.contract({ riskTier: "R2", budget: "complex" }));
+  assert.equal(await c.taskRun(env, "fix-value"), 1);
+  assert.equal(calls, 0);
+  assert.equal(c.statusOf(env, "fix-value").state, "BLOCKED");
+  assert.match(w.out.join("\n"), /create a smaller replacement task/);
 });

@@ -1,7 +1,26 @@
 {
   "schemaVersion": 1,
   "profiles": {
-    "hand-off": { "kind": "manual", "dir": "temp/agentic-exchange", "label": "any-harness" }
+    "current-harness-worker": {
+      "kind": "manual",
+      "dir": "temp/agentic-exchange",
+      "label": "current-harness-worker"
+    },
+    "current-harness-architect": {
+      "kind": "manual",
+      "dir": "temp/agentic-exchange",
+      "label": "current-harness-architect"
+    },
+    "current-harness-reviewer": {
+      "kind": "manual",
+      "dir": "temp/agentic-exchange",
+      "label": "current-harness-reviewer"
+    }
   },
-  "roles": { "worker": "hand-off" }
+  "roles": {
+    "worker": "current-harness-worker",
+    "architect": "current-harness-architect",
+    "reviewer": "current-harness-reviewer"
+  },
+  "execution": "handoff"
 }

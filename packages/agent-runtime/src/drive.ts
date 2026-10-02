@@ -90,9 +90,9 @@ export async function drive(
     }
     let reserved: number;
     try {
-      reserved = run.ledger.reserve(approxTokens(SYSTEM + prompt + JSON.stringify(ACTION_SCHEMA)) + maxOut);
+      reserved = run.reserveCall(approxTokens(SYSTEM + prompt + JSON.stringify(ACTION_SCHEMA)) + maxOut);
     } catch (e) {
-      if (e instanceof BudgetExceeded) run.stop("ESCALATED", "budget exhausted: tokens");
+      if (e instanceof BudgetExceeded) run.stop("ESCALATED", `budget exhausted: ${e.message}`);
       else throw e;
       break;
     }

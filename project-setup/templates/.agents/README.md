@@ -39,7 +39,10 @@ For skills outside these common workflows, use the [complete skill catalog](skil
 - `stats`: how the managed workflow has been used here (measured spend and outcomes, no savings claims).
 
 `node scripts/agentic.mjs doctor` checks the pinned runtime. Gates and protected paths live in
-`policy.json`; model profiles in `models.json` (a manual hand-off default works with any harness; choose a provider from `models.example.json`; never put keys in either). Each profile must pass `agentic qualify <profile>` once before it can run (this spends a little); `architect`/`reviewer` need `qualify <profile> --owner-declare architecture|review`.
+`policy.json`; model profiles in `models.json` (a manual hand-off default works with any harness; choose a provider from `models.example.json`; never put keys in either). Worker profiles need `agentic qualify <profile>` (delegated probes may spend money; manual probes wait for packets); `architect`/`reviewer` need `qualify <profile> --owner-declare architecture|review`.
+`execution: "handoff"` uses the chosen chat to answer printed packet paths while the controller waits; `"delegated"`
+uses configured providers. Chat model/settings are not automatically inherited. `task preflight <id>` checks routing
+without calls. Use a separate reviewer context/person. Qualification source and provider identity appear on every call.
 Plan approval and acceptance use explicit commands from the active harness, including chat.
 Changes to `.agents/`, CI, hooks, lockfiles, and test configs are protected: the runtime refuses them
 inside a task, so make them as ordinary reviewed changes.
