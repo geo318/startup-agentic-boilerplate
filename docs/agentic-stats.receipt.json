@@ -1,0 +1,22 @@
+{
+  "diagram_type": "workflow",
+  "output": "docs/agentic-stats.html",
+  "specification_sha256": "ef9398c8b9c5027eba35cc00cf78856f9daaba902b82ac532e72eaefefccdfe8",
+  "specification_bytes": 4777,
+  "artifact_sha256": "4bc91737476cdb85d63130997789b35448a010c7dfffc2fdaf8a9813a2eec84d",
+  "artifact_bytes": 813285,
+  "validation": "9/9 showcase, 0 errors, 0 warnings",
+  "browser_evidence": "passed",
+  "browser_receipt": "agentic-stats.visual-check.json",
+  "visual_review": "passed",
+  "visual_review_scope": "2048x1320 light and 1440x900 dark screenshots; node and label fit, routes, cards and overall desktop composition",
+  "correction_rounds": 0,
+  "evidence_sources": [
+    "README.md",
+    "packages/agent-runtime/README.md",
+    "packages/agent-runtime/src/run.ts",
+    "packages/agent-runtime/src/stats.ts",
+    "packages/agent-runtime/src/cli/commands.ts",
+    "docs/evaluation.md"
+  ]
+}

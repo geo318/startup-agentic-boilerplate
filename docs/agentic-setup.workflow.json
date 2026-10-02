@@ -1,0 +1,221 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "From project plan to verified change",
+    "quality_profile": "showcase",
+    "locale": "en"
+  },
+  "lanes": [
+    {
+      "id": "setup",
+      "label": "One-time setup"
+    },
+    {
+      "id": "daily",
+      "label": "Daily agent workflow"
+    },
+    {
+      "id": "managed",
+      "label": "Opt-in managed runtime"
+    }
+  ],
+  "mainPath": [
+    "contract",
+    "propose",
+    "verify",
+    "export"
+  ],
+  "nodes": [
+    {
+      "id": "intake",
+      "lane": "setup",
+      "col": 0,
+      "type": "frontend",
+      "label": "Plan + repository",
+      "sublabel": "Inspect stack and conflicts",
+      "width": 162
+    },
+    {
+      "id": "preset",
+      "lane": "setup",
+      "col": 1,
+      "type": "backend",
+      "label": "Lean or full",
+      "sublabel": "Choose applicable checks",
+      "width": 162
+    },
+    {
+      "id": "confirm",
+      "lane": "setup",
+      "col": 2,
+      "type": "security",
+      "label": "Confirm setup",
+      "sublabel": "One summary before writes",
+      "width": 162
+    },
+    {
+      "id": "render",
+      "lane": "setup",
+      "col": 3,
+      "type": "backend",
+      "label": "Render + validate",
+      "sublabel": "Shared rules and checks",
+      "width": 162
+    },
+    {
+      "id": "context",
+      "lane": "daily",
+      "col": 0,
+      "type": "frontend",
+      "label": "Read task context",
+      "sublabel": "AGENTS.md + scoped docs",
+      "width": 162
+    },
+    {
+      "id": "implement",
+      "lane": "daily",
+      "col": 1,
+      "type": "backend",
+      "label": "Plan + implement",
+      "sublabel": "Worktree; skills as needed",
+      "width": 162
+    },
+    {
+      "id": "checks",
+      "lane": "daily",
+      "col": 2,
+      "type": "security",
+      "label": "Run project checks",
+      "sublabel": "Tests, lint and docs",
+      "width": 162
+    },
+    {
+      "id": "review",
+      "lane": "daily",
+      "col": 3,
+      "type": "cloud",
+      "label": "PR + required CI",
+      "sublabel": "Branch protection configured",
+      "width": 162
+    },
+    {
+      "id": "contract",
+      "lane": "managed",
+      "col": 0,
+      "type": "security",
+      "label": "Declare task scope",
+      "sublabel": "Files, risk and budget",
+      "width": 162
+    },
+    {
+      "id": "propose",
+      "lane": "managed",
+      "col": 1,
+      "type": "backend",
+      "label": "Qualified worker",
+      "sublabel": "Structured edits on a copy",
+      "width": 162
+    },
+    {
+      "id": "verify",
+      "lane": "managed",
+      "col": 2,
+      "type": "security",
+      "label": "Verify + repair",
+      "sublabel": "Protected tests; bounded retry",
+      "width": 162
+    },
+    {
+      "id": "export",
+      "lane": "managed",
+      "col": 3,
+      "type": "database",
+      "label": "Accept + export",
+      "sublabel": "Operator accepts; patch only",
+      "width": 162
+    }
+  ],
+  "edges": [
+    {
+      "id": "intake-preset",
+      "from": "intake",
+      "to": "preset",
+      "label": "inspect"
+    },
+    {
+      "id": "preset-confirm",
+      "from": "preset",
+      "to": "confirm",
+      "label": "proposal"
+    },
+    {
+      "id": "confirm-render",
+      "from": "confirm",
+      "to": "render",
+      "label": "approved"
+    },
+    {
+      "id": "context-implement",
+      "from": "context",
+      "to": "implement",
+      "label": "orient"
+    },
+    {
+      "id": "implement-checks",
+      "from": "implement",
+      "to": "checks",
+      "label": "changed files"
+    },
+    {
+      "id": "checks-review",
+      "from": "checks",
+      "to": "review",
+      "label": "passed"
+    },
+    {
+      "id": "contract-propose",
+      "from": "contract",
+      "to": "propose",
+      "label": "route"
+    },
+    {
+      "id": "propose-verify",
+      "from": "propose",
+      "to": "verify",
+      "label": "apply"
+    },
+    {
+      "id": "verify-export",
+      "from": "verify",
+      "to": "export",
+      "label": "passed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Smaller context",
+      "items": [
+        "Lean setup omits generic workflow prose.",
+        "Read task-specific docs; reuse context until invalidated."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Bounded automation",
+      "items": [
+        "R2/R3 require plan approval and independent review.",
+        "Qualified workerStrong handles repairs when configured."
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Honest boundaries",
+      "items": [
+        "Checks run on the host: the project copy is not a sandbox.",
+        "Jev needs explicit opt-in. Savings need paired benchmarks."
+      ]
+    }
+  ]
+}

@@ -18,6 +18,20 @@ It has two parts. You can use the first without the second.
 | **1. Setup skill** (`project-setup`) | Writes the rules, docs and checks into your project. | Claude Code, Codex, or another coding harness; Node 22+ (or Bun). No keys, no model setup. |
 | **2. Optional runtime** (`agentic`) | Lets an AI *propose* code while a program *runs the tests and keeps the proof*. The AI cannot say "it works". Only the checks can. | Node 22.18+. A model of your choice. |
 
+## Setup and execution at a glance
+
+Choose lean or full setup, then use the shared project checks in your normal workflow. The optional runtime adds scoped model actions, bounded repair and explicit acceptance before patch export.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/agentic-setup.visual-check.2048x1320.dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/agentic-setup.visual-check.2048x1320.light.png">
+  <img src="docs/agentic-setup.visual-check.2048x1320.light.png" alt="Three workflows: inspect and configure the project; implement and check a change; optionally run a scoped task through a qualified worker, verification and operator acceptance." width="100%">
+</picture>
+
+[Interactive workflow](docs/agentic-setup.html) · [Editable diagram source](docs/agentic-setup.workflow.json)
+
+The previews follow your light/dark theme. Download the HTML and open it locally for zoom, search and node details; GitHub displays HTML as source.
+
 ## Quick start
 
 ```bash
@@ -148,6 +162,16 @@ Stats reads local history without making model calls. It records managed task us
 
 For storage paths, JSON fields, date-filter semantics, empty reports and recovery guidance, see [Checking your stats](packages/agent-runtime/README.md#checking-your-stats). Measured spend is not measured savings; those require a [paired benchmark](docs/evaluation.md#paired-workflow-benchmark).
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/agentic-stats.visual-check.2048x1320.dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/agentic-stats.visual-check.2048x1320.light.png">
+  <img src="docs/agentic-stats.visual-check.2048x1320.light.png" alt="Managed calls record usage in local task logs; stats validates and filters history; separate paired trials require independent grading and complete experiment costs before comparison." width="100%">
+</picture>
+
+[Interactive stats and benchmark map](docs/agentic-stats.html) · [Editable diagram source](docs/agentic-stats.workflow.json)
+
+Task totals exclude ordinary chats and standalone qualification. Elapsed time includes approval waits; execution timing measures controller invocations. The separate evaluation account includes qualification and failed calls. A comparable ordinary-workflow baseline still needs to be collected.
+
 ## Found a problem?
 
 If setup (or this tool) is **wrong, broken or inconsistent**, tell this repo. The agent following the skill should do it for you, as you allowed at setup (`auto`, `ask`, or `off`):
@@ -214,3 +238,9 @@ A rule that proved itself in a real project: add it to `project-setup/templates/
 Use the paired evaluation procedure in [docs/evaluation.md](docs/evaluation.md). Compare independently graded results with
 `node packages/agent-runtime/scripts/compare-evals.ts baseline.json candidate.json`. Include qualification, failed calls,
 wall time and human intervention. The repository contains historical small development samples, not a proof of net savings.
+
+### Diagram maintenance
+
+The two workflow diagrams are generated with [Archify](https://github.com/tt-a1i/archify) from the committed `docs/agentic-*.workflow.json` specifications. When behavior changes, update the relevant specification, run Archify `validate` and `deliver`, then `visual-check` and review both themes. Refresh the PNG previews and receipt together; do not edit the generated HTML by hand. Archify is an authoring tool, not a project runtime dependency.
+
+Delivery hashes and validation summaries: [setup receipt](docs/agentic-setup.receipt.json) and [stats receipt](docs/agentic-stats.receipt.json). Browser checks cover four desktop sizes; perceptual review is recorded separately. These checks validate the diagrams, not the runtime's correctness or savings.

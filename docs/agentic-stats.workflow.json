@@ -1,0 +1,221 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "From recorded usage to benchmark evidence",
+    "quality_profile": "showcase",
+    "locale": "en"
+  },
+  "lanes": [
+    {
+      "id": "record",
+      "label": "Managed task recording"
+    },
+    {
+      "id": "report",
+      "label": "Local stats report"
+    },
+    {
+      "id": "benchmark",
+      "label": "Separate paired experiment"
+    }
+  ],
+  "mainPath": [
+    "read",
+    "integrity",
+    "filter",
+    "stats"
+  ],
+  "nodes": [
+    {
+      "id": "calls",
+      "lane": "record",
+      "col": 0,
+      "type": "backend",
+      "label": "Model attempts",
+      "sublabel": "Worker, architect, reviewer",
+      "width": 162
+    },
+    {
+      "id": "ledger",
+      "lane": "record",
+      "col": 1,
+      "type": "database",
+      "label": "Usage ledger",
+      "sublabel": "Reported tokens and dollars",
+      "width": 162
+    },
+    {
+      "id": "events",
+      "lane": "record",
+      "col": 2,
+      "type": "database",
+      "label": "Task event log",
+      "sublabel": "UTC timestamps + hash chain",
+      "width": 162
+    },
+    {
+      "id": "sessions",
+      "lane": "record",
+      "col": 3,
+      "type": "security",
+      "label": "Session checks",
+      "sublabel": "Manual or Stop hook",
+      "width": 162
+    },
+    {
+      "id": "read",
+      "lane": "report",
+      "col": 0,
+      "type": "database",
+      "label": "Read local history",
+      "sublabel": "Default: ~/.agentic",
+      "width": 162
+    },
+    {
+      "id": "integrity",
+      "lane": "report",
+      "col": 1,
+      "type": "security",
+      "label": "Check integrity",
+      "sublabel": "Unreadable history stops stats",
+      "width": 162
+    },
+    {
+      "id": "filter",
+      "lane": "report",
+      "col": 2,
+      "type": "backend",
+      "label": "Select report scope",
+      "sublabel": "Project, --all and --since",
+      "width": 162
+    },
+    {
+      "id": "stats",
+      "lane": "report",
+      "col": 3,
+      "type": "frontend",
+      "label": "Show stats",
+      "sublabel": "Outcomes, usage and timing",
+      "width": 162
+    },
+    {
+      "id": "pairs",
+      "lane": "benchmark",
+      "col": 0,
+      "type": "backend",
+      "label": "Match task trials",
+      "sublabel": "Baseline + managed workflow",
+      "width": 162
+    },
+    {
+      "id": "grade",
+      "lane": "benchmark",
+      "col": 1,
+      "type": "security",
+      "label": "Independent grading",
+      "sublabel": "Quality and safe abstentions",
+      "width": 162
+    },
+    {
+      "id": "account",
+      "lane": "benchmark",
+      "col": 2,
+      "type": "database",
+      "label": "Full experiment cost",
+      "sublabel": "Qualification + failed calls",
+      "width": 162
+    },
+    {
+      "id": "compare",
+      "lane": "benchmark",
+      "col": 3,
+      "type": "frontend",
+      "label": "Compare evidence",
+      "sublabel": "Observed deltas; assess quality",
+      "width": 162
+    }
+  ],
+  "edges": [
+    {
+      "id": "calls-ledger",
+      "from": "calls",
+      "to": "ledger",
+      "label": "settle usage"
+    },
+    {
+      "id": "ledger-events",
+      "from": "ledger",
+      "to": "events",
+      "label": "persist"
+    },
+    {
+      "id": "read-integrity",
+      "from": "read",
+      "to": "integrity",
+      "label": "verify"
+    },
+    {
+      "id": "integrity-filter",
+      "from": "integrity",
+      "to": "filter",
+      "label": "valid"
+    },
+    {
+      "id": "filter-stats",
+      "from": "filter",
+      "to": "stats",
+      "label": "summarize"
+    },
+    {
+      "id": "sessions-stats",
+      "from": "sessions",
+      "to": "stats",
+      "label": "check counts"
+    },
+    {
+      "id": "pairs-grade",
+      "from": "pairs",
+      "to": "grade",
+      "label": "same cases"
+    },
+    {
+      "id": "grade-account",
+      "from": "grade",
+      "to": "account",
+      "label": "all attempts"
+    },
+    {
+      "id": "account-compare",
+      "from": "account",
+      "to": "compare",
+      "label": "reconcile"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Know what is counted",
+      "items": [
+        "Main totals cover managed task calls; ordinary chats are excluded.",
+        "Jev usage is separate. Unknown billing is flagged, never free."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Separate time from waiting",
+      "items": [
+        "Elapsed time includes approval and idle gaps.",
+        "Execution sums task-run invocations; incomplete timing is n/a."
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Savings remain unproven",
+      "items": [
+        "No ordinary-workflow baseline has been collected yet.",
+        "Historical trials exclude qualification; compare only reconciled data."
+      ]
+    }
+  ]
+}
