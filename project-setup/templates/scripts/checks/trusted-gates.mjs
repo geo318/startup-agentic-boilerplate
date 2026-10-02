@@ -40,7 +40,10 @@ const changed = git("diff", "--name-only", `${base}...HEAD`);
 if (changed.status !== 0) fail(`cannot diff against ${base}: ${changed.stderr.trim()}`);
 const underProtected = (file) =>
   (policy.protectedPaths ?? []).some((p) => file === p || file.startsWith(p.endsWith("/") ? p : `${p}/`));
-const touched = changed.stdout.split("\n").filter(Boolean).filter(underProtected);
+const originalFiles = git("ls-tree", "-r", "--name-only", base);
+if (originalFiles.status !== 0) fail("cannot inventory the base revision");
+const acceptance = new Set(policy.protectExistingTests === false ? [] : originalFiles.stdout.split("\n").filter((p) => /(^|\/)(__tests__|tests?|specs?)(\/|$)|[._](test|spec)\.[^/]+$|(^|\/)test_[^/]+\.py$/.test(p)));
+const touched = changed.stdout.split("\n").filter(Boolean).filter((p) => underProtected(p) || acceptance.has(p));
 if (touched.length > 0) {
   const list = touched.slice(0, 20).join(", ");
   if (!allowProtected) fail(`protected paths changed (${list}). This needs a maintenance review; apply the maintenance label once reviewed.`);

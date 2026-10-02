@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, appendFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 // Trusted definition, held by the controller. Models name a gate by id, never a command.
 export type GateSpec = {
@@ -24,6 +24,7 @@ export type GateResult = {
   durationMs: number;
   snapshot: string;
   outputTail: string;
+  outputLog?: string;
   note?: string; // controller-added reason, e.g. a discovery regression against the baseline
 };
 
@@ -37,11 +38,15 @@ export function killAllGates(): void {
   for (const kill of [...active]) kill();
 }
 
-export function runGate(spec: GateSpec, cwd: string, snapshot: string): Promise<GateResult> {
+export function runGate(spec: GateSpec, cwd: string, snapshot: string, outputLog?: string): Promise<GateResult> {
   const started = Date.now();
+  if (outputLog) mkdirSync(dirname(outputLog), { recursive: true });
   return new Promise((resolve) => {
     let out = "";
     let timedOut = false;
+    let finished = false;
+    let discoveredCount = 0;
+    const discovery = new RegExp(spec.discover.regex, "g");
     const [cmd, args] = [spec.argv[0]!, spec.argv.slice(1)];
     // Minimal env: candidate code receives a scratch HOME, not host credentials.
     const home = mkdtempSync(join(tmpdir(), "gate-home-"));
@@ -62,15 +67,24 @@ export function runGate(spec: GateSpec, cwd: string, snapshot: string): Promise<
       killGroup();
     }, spec.timeoutMs);
     const collect = (b: Buffer) => {
-      if (out.length < MAX_OUTPUT * 2) out += b.toString();
+      if (outputLog) appendFileSync(outputLog, b);
+      out += b.toString();
+      for (const m of out.replace(ANSI, "").matchAll(discovery)) {
+        const count = Number(m[1]);
+        if (Number.isFinite(count)) discoveredCount = count;
+      }
+      out = out.slice(-MAX_OUTPUT);
     };
     child.stdout.on("data", collect);
     child.stderr.on("data", collect);
     const finish = (status: GateStatus, exitCode: number | null, signal: string | null, discovered: number | null) => {
+      if (finished) return;
+      finished = true;
       out = out.replace(ANSI, "");
       clearTimeout(timer);
       active.delete(killGroup);
       killGroup(); // descendants
+      rmSync(home, { recursive: true, force: true });
       resolve({
         gateId: spec.id,
         argv: spec.argv,
@@ -81,14 +95,14 @@ export function runGate(spec: GateSpec, cwd: string, snapshot: string): Promise<
         durationMs: Date.now() - started,
         snapshot,
         outputTail: out.slice(-MAX_OUTPUT),
+        ...(outputLog ? { outputLog } : {}),
       });
     };
     child.on("error", () => finish("error", null, null, null));
     child.on("close", (code, signal) => {
       if (timedOut) return finish("timeout", code, signal, null);
       if (code === 0 && spec.discover.min === 0) return finish("pass", code, signal, null);
-      const m = new RegExp(spec.discover.regex).exec(out.replace(ANSI, ""));
-      const discovered = m ? Number(m[1]) : 0;
+      const discovered = discoveredCount;
       if (code !== 0) return finish("fail", code, signal, discovered);
       finish(
         Number.isFinite(discovered) && discovered >= spec.discover.min ? "pass" : "incomplete",

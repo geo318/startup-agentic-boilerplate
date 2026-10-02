@@ -1,6 +1,6 @@
 # Library docs
 
-Before writing code against a third-party library, load its skill. Project rules in `AGENTS.md` and
+For unfamiliar APIs, read the relevant official documentation or installed skill. Project rules in `AGENTS.md` and
 `context/` override a skill's generic examples. Full skill index: [.agents/README.md](../.agents/README.md).
 
 | Library / area | Skill | Project notes |

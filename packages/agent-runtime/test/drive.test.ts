@@ -118,3 +118,12 @@ test("approved plan text is included in the worker prompt", async () => {
   await drive(run, p, ws, { ...task, plan: "STEP: change bad to good" });
   assert.match(p.calls[0]!.prompt, /APPROVED PLAN[\s\S]*STEP: change bad to good/);
 });
+
+test("final edit can request controller verification without a second model call", async () => {
+  const { run, ws } = setup();
+  const p = new MockProvider([edit.replace('"kind":"edit"', '"kind":"edit_and_finish"')]);
+  await drive(run, p, ws, task);
+  assert.equal(p.calls.length, 1);
+  assert.equal(run.state, "AWAITING_ACCEPTANCE");
+  run.close();
+});

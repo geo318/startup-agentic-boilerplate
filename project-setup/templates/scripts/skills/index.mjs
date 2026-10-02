@@ -7,8 +7,9 @@
 // docs-check.mjs runs the check, so adding or removing a skill without regenerating fails
 // `docs:check`, the pre-push hook, and CI. Runs under both Node and Bun; no dependencies.
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const INDEX_PATH = ".agents/skills-index.md";
 const SKILLS_DIR = ".agents/skills";
@@ -49,7 +50,7 @@ function unquote(raw) {
 
 // Enough YAML for skill frontmatter: plain, quoted, folded (>) and literal (|) scalars, and
 // indented continuation lines. Nested structures are ignored.
-function parseFrontmatter(lines) {
+export function parseFrontmatter(lines) {
   const end = lines.findIndex((line, index) => index > 0 && line.trim() === "---");
   if (lines[0]?.trim() !== "---" || end < 0) {
     return null;
@@ -204,9 +205,11 @@ function main() {
   console.log(`wrote ${INDEX_PATH} (${listSkills(root).length} skills)`);
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(`[skills index] ${error instanceof Error ? error.message : String(error)}`);
-  process.exit(1);
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try {
+    main();
+  } catch (error) {
+    console.error(`[skills index] ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
+  }
 }

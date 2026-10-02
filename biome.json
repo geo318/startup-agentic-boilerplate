@@ -10,7 +10,8 @@
       "!!project-setup/templates",
       "!!evals",
       "!!**/node_modules",
-      "!!test/fixtures"
+      "!!test/fixtures",
+      "scripts/**"
     ]
   },
   "formatter": {
@@ -27,7 +28,18 @@
     }
   },
   "linter": {
-    "enabled": false
+    "enabled": true,
+    "rules": {
+      "correctness": {
+        "noUnreachable": "error"
+      },
+      "suspicious": {
+        "noDebugger": "error",
+        "noDuplicateCase": "error",
+        "noCompareNegZero": "error"
+      },
+      "preset": "none"
+    }
   },
   "assist": {
     "enabled": false

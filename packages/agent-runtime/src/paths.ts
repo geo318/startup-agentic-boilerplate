@@ -23,6 +23,11 @@ export function resolveSafe(root: string, rel: string, protectedPaths: string[] 
       const st = lstatSync(probe);
       const target = realpathSync(probe);
       if (relative(real, target).startsWith("..")) throw new PathRejected(`symlink escape: ${rel}`);
+      const resolvedPath = relative(real, resolve(target, relative(probe, full)))
+        .split(sep)
+        .join("/");
+      if (protectedPaths.some((p) => resolvedPath === p || resolvedPath.startsWith(p.endsWith("/") ? p : `${p}/`)))
+        throw new PathRejected(`protected path through symlink: ${rel}`);
       if (st.isFile() && st.nlink > 1) throw new PathRejected(`hardlinked file: ${rel}`);
       break;
     } catch (e) {

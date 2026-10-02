@@ -180,10 +180,16 @@
         },
         "auto": {
           "type": "boolean"
+        },
+        "allowUncalibrated": {
+          "type": "boolean"
         }
       }
     },
     "enabled": {
+      "type": "boolean"
+    },
+    "protectExistingTests": {
       "type": "boolean"
     }
   }

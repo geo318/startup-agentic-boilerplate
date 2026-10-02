@@ -9,7 +9,8 @@ export class Ledger {
   tokens = 0;
   actions = 0;
   repairs = 0;
-  costUsd = 0; // hosted spend as reported; calls with no report are in unknownUsageCalls
+  costUsd = 0; // reported spend only
+  unknownCostCalls = 0;
   unknownUsageCalls = 0; // unknown usage is unknown, not zero
   readonly limits: Limits;
   constructor(limits: Limits) {
@@ -22,20 +23,24 @@ export class Ledger {
       repairs: this.repairs,
       costUsd: this.costUsd,
       unknownUsageCalls: this.unknownUsageCalls,
+      unknownCostCalls: this.unknownCostCalls,
     };
   }
-  restore(x: ReturnType<Ledger["snapshot"]>): void {
+  restore(x: Omit<ReturnType<Ledger["snapshot"]>, "unknownCostCalls"> & { unknownCostCalls?: number }): void {
     Object.assign(this, x);
   }
-  // Reserve the worst case before a call; settle() corrects to actual usage when known.
+  // Reserve an estimate before a call (provider overhead can exceed it); settle() corrects to actual usage when known.
   reserve(maxTokens: number): number {
     if (this.tokens + maxTokens > this.limits.aggregateTokens) throw new BudgetExceeded("tokens");
     this.tokens += maxTokens;
     return maxTokens;
   }
-  settle(reserved: number, actual: number | null): void {
+  settle(reserved: number, actual: number | null, costUsd?: number, hosted = false): void {
+    if (typeof costUsd === "number" && Number.isFinite(costUsd) && costUsd >= 0) this.costUsd += costUsd;
+    else if (hosted) this.unknownCostCalls++;
+    if (actual !== null && (!Number.isFinite(actual) || actual < 0)) actual = null;
     if (actual === null)
-      this.unknownUsageCalls += 1; // keep the reservation: assume worst case
+      this.unknownUsageCalls += 1; // retain the estimate; actual usage is unknown
     else this.tokens += actual - reserved;
   }
   action(): void {

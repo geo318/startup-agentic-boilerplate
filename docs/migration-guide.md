@@ -26,3 +26,15 @@ upgrade is always a deliberate, reviewable commit.
   `scripts/agentic.mjs` (all additive; nothing else depends on them). Documentation mode is unchanged.
 - Task state is outside the repo (`$AGENTIC_HOME`, default `~/.agentic`); delete a task folder to purge it.
 - Accepted work is only a patch (`task export`) until you apply it; revert it like any commit.
+
+
+## Audit-fix upgrade
+
+- Re-pin after upgrading. Start new tasks: policy binding now includes write scope and existing-test protection; old in-flight tasks may refuse stale policy evidence.
+- A Jev key no longer enables calls. Set explicit modes, or `jev.auto: true` for workflow routing only, if the experiment is intended.
+- Contracts without `scope` permit writes only to `files` plus `newFiles`. Add exact paths or trailing-slash directory prefixes deliberately. Declare new context files in `newFiles`.
+- Existing conventional tests are frozen by default. Put custom acceptance scripts in `protectedPaths`; modify trusted tests through reviewed maintenance, not ordinary worker edits.
+- `session-check` reruns unless `--reuse` is explicitly requested. Failed results are never reused.
+- Select `flags.LEAN: true` for a new small project. Sync does not delete old full-preset docs; remove obsolete files and links deliberately when migrating an existing project.
+
+- Stats now verifies event chains and refuses unreadable task/session history. Preserve and repair damaged records from a known-good backup before reporting. New tasks record controller execution time separately from elapsed time; older histories show execution timing as unavailable. Interrupted hosted calls are flagged as unknown cost before or after resume.

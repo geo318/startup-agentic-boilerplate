@@ -198,12 +198,26 @@ function flagHolds(expression, flags) {
 }
 
 function included(relPath, flags) {
+  if (relPath.startsWith("lean/")) return flags.LEAN === true;
+  if (flags.LEAN === true && relPath === ".fallowrc.json") return false;
+  if (
+    flags.LEAN === true &&
+    relPath.endsWith(".md") &&
+    ![
+      "CLAUDE.md",
+      ".github/pull_request_template.md",
+      ".agents/skills/stats/SKILL.md",
+      "docs/archive/product-brief.md",
+    ].includes(relPath)
+  )
+    return false;
   return manifest.when.every(
     (rule) => !(relPath === rule.path || relPath.startsWith(`${rule.path}/`)) || flagHolds(rule.flag, flags),
   );
 }
 
 function outputPath(relPath) {
+  relPath = relPath.replace(/^lean\//, "");
   const name = basename(relPath);
   const renamed = manifest.rename[name];
   return renamed ? join(dirname(relPath), renamed) : relPath;

@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { EventLog } from "./events.ts";
+import { EventLog, unsettledCall } from "./events.ts";
 import type { SessionRow } from "./session.ts";
 
 // Usage statistics computed on demand from what the controller already persists per task ($AGENTIC_HOME/tasks/*):
@@ -17,6 +17,7 @@ export type TaskStat = {
   tokens: number;
   costUsd: number;
   unknownUsageCalls: number;
+  unknownCostCalls?: number;
   modelCalls: number;
   repairs: number;
   rejected: number;
@@ -24,6 +25,7 @@ export type TaskStat = {
   verified: boolean;
   firstAttempt: boolean;
   wallMs: number | null;
+  executionMs: number | null;
 };
 export type Stats = {
   scope: string;
@@ -38,12 +40,16 @@ export type Stats = {
   tokens: number;
   costUsd: number;
   unknownUsageCalls: number;
+  unknownCostCalls?: number;
   modelCalls: number;
   costPerVerified: number | null;
   tokensPerVerified: number | null;
   timed: number;
   medianWallMs: number | null;
   p90WallMs: number | null;
+  executionTimed: number;
+  medianExecutionMs: number | null;
+  p90ExecutionMs: number | null;
   byTier: Record<string, { tasks: number; verified: number }>;
   jev: {
     decisions: number;
@@ -63,18 +69,16 @@ const TERMINAL_BAD = ["BLOCKED", "ESCALATED", "NEEDS_INPUT", "CANCELLED"];
 export function readTask(home: string, id: string): TaskStat | null {
   const dir = join(home, "tasks", id);
   const evFile = join(dir, "state", "events.jsonl");
-  if (!existsSync(join(dir, "meta.json"))) return null;
+  if (!existsSync(dir)) return null;
   const meta = JSON.parse(readFileSync(join(dir, "meta.json"), "utf8")) as { project: string; createdAt?: string };
-  let contract: { riskTier?: string; family?: string } = {};
-  try {
-    contract = JSON.parse(readFileSync(join(dir, "contract.json"), "utf8"));
-  } catch {
-    /* keep going without it */
-  }
-  const events = existsSync(evFile) ? new EventLog(evFile).read() : [];
+  if (!meta || typeof meta.project !== "string" || !meta.project) throw new Error("missing project in meta.json");
+  const contract: { riskTier?: string; family?: string } = existsSync(join(dir, "contract.json"))
+    ? JSON.parse(readFileSync(join(dir, "contract.json"), "utf8"))
+    : {};
+  const events = new EventLog(evFile).verify();
   const states = events.filter((e) => e.type === "state");
   const state = (states.at(-1)?.data as any)?.to ?? "NOT_STARTED";
-  let ledger = { tokens: 0, costUsd: 0, unknownUsageCalls: 0, repairs: 0 };
+  let ledger = { tokens: 0, costUsd: 0, unknownUsageCalls: 0, unknownCostCalls: 0, repairs: 0 };
   for (const e of events) {
     const d = e.data as any;
     const l = d?.ledger ?? (e.type === "ledger" ? d : undefined);
@@ -83,12 +87,41 @@ export function readTask(home: string, id: string): TaskStat | null {
         tokens: l.tokens ?? 0,
         costUsd: l.costUsd ?? 0,
         unknownUsageCalls: l.unknownUsageCalls ?? 0,
+        unknownCostCalls: l.unknownCostCalls ?? 0,
         repairs: l.repairs ?? 0,
       };
   }
-  const everVerified = states.some((e) => (e.data as any).to === "AWAITING_ACCEPTANCE");
-  const stamps = events.map((e) => e.ts).filter((t): t is string => !!t);
-  const wallMs = stamps.length >= 2 ? Date.parse(stamps.at(-1)!) - Date.parse(stamps[0]!) : null;
+  const pending = unsettledCall(events);
+  if (pending) {
+    ledger.unknownUsageCalls++;
+    if ((pending.data as { hosted?: boolean }).hosted !== false) ledger.unknownCostCalls++;
+  }
+  // Old resumed logs recorded uncertainty without a dollar counter. Keep those reports conservative.
+  const lastState = states.at(-1)?.data as { uncertainBilling?: boolean } | undefined;
+  const lastCall = events.findLast((e) => e.type === "inflight")?.data as { hosted?: boolean } | undefined;
+  if (lastState?.uncertainBilling && lastCall?.hosted !== false)
+    ledger.unknownCostCalls = Math.max(1, ledger.unknownCostCalls);
+  if (Object.values(ledger).some((n) => !Number.isFinite(n) || n < 0)) throw new Error("invalid task ledger");
+  const verified = state === "AWAITING_ACCEPTANCE" || state === "ACCEPTED";
+  const stamps = events.map((e) => (e.ts ? Date.parse(e.ts) : NaN));
+  const wallMs =
+    stamps.length >= 2 && stamps.every((t, i) => Number.isFinite(t) && (i === 0 || t >= stamps[i - 1]!))
+      ? stamps.at(-1)! - stamps[0]!
+      : null;
+  let executionMs = 0,
+    executing = false;
+  let completeTiming = events[0]?.type === "execution_started";
+  for (const e of events) {
+    if (e.type === "execution_started") {
+      if (executing) completeTiming = false;
+      executing = true;
+    } else if (e.type === "execution_finished") {
+      const ms = (e.data as { durationMs?: number }).durationMs;
+      if (!executing || typeof ms !== "number" || !Number.isFinite(ms) || ms < 0) completeTiming = false;
+      else executionMs += ms;
+      executing = false;
+    }
+  }
   return {
     id,
     project: meta.project,
@@ -99,27 +132,33 @@ export function readTask(home: string, id: string): TaskStat | null {
     tokens: ledger.tokens,
     costUsd: ledger.costUsd,
     unknownUsageCalls: ledger.unknownUsageCalls,
+    unknownCostCalls: ledger.unknownCostCalls,
     modelCalls: events.filter((e) => e.type === "inflight").length,
     repairs: ledger.repairs,
     rejected: events.filter((e) => e.type === "rejected").length,
     accepted: state === "ACCEPTED",
-    verified: everVerified || state === "ACCEPTED",
-    firstAttempt: (everVerified || state === "ACCEPTED") && ledger.repairs === 0,
+    verified,
+    firstAttempt: verified && ledger.repairs === 0,
     wallMs,
+    executionMs: completeTiming && !executing ? executionMs : null,
   };
 }
 
 export function allTasks(home: string): TaskStat[] {
   const dir = join(home, "tasks");
   if (!existsSync(dir)) return [];
-  return readdirSync(dir).flatMap((id) => {
-    try {
-      const t = readTask(home, id);
-      return t ? [t] : [];
-    } catch {
-      return [];
-    }
-  });
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .flatMap(({ name: id }) => {
+      try {
+        const t = readTask(home, id);
+        return t ? [t] : [];
+      } catch (e) {
+        throw new Error(
+          `Cannot report complete stats: task ${id} at ${join(dir, id)}: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    });
 }
 
 const pct = (xs: number[], q: number) =>
@@ -144,6 +183,9 @@ export function summarizeTasks(
   const tokens = tasks.reduce((a, t) => a + t.tokens, 0),
     costUsd = tasks.reduce((a, t) => a + t.costUsd, 0);
   const walls = tasks.map((t) => t.wallMs).filter((x): x is number => x !== null);
+  const executions = tasks
+    .map((t) => t.executionMs)
+    .filter((x): x is number => typeof x === "number" && Number.isFinite(x));
   const ids = new Set(tasks.map((t) => t.id));
   const jev = jevTelemetry.filter((r) => ids.has(r.taskId));
   return {
@@ -161,12 +203,16 @@ export function summarizeTasks(
     tokens,
     costUsd,
     unknownUsageCalls: tasks.reduce((a, t) => a + t.unknownUsageCalls, 0),
+    unknownCostCalls: tasks.reduce((a, t) => a + (t.unknownCostCalls ?? 0), 0),
     modelCalls: tasks.reduce((a, t) => a + t.modelCalls, 0),
-    costPerVerified: verified ? costUsd / verified : null,
+    costPerVerified: verified && !tasks.some((t) => t.unknownCostCalls) ? costUsd / verified : null,
     tokensPerVerified: verified ? tokens / verified : null, // ALL tasks' spend over verified candidates
     timed: walls.length,
     medianWallMs: pct(walls, 0.5),
     p90WallMs: pct(walls, 0.9),
+    executionTimed: executions.length,
+    medianExecutionMs: pct(executions, 0.5),
+    p90ExecutionMs: pct(executions, 0.9),
     byTier,
     jev: {
       decisions: jev.filter((r) => r.qid).length,
@@ -194,7 +240,8 @@ export function summarizeTasks(
 }
 
 export function formatStats(s: Stats): string {
-  const f = (n: number | null, d = 4) => (n === null ? "undefined (no verified task)" : `$${n.toFixed(d)}`);
+  const f = (n: number | null, d = 4) =>
+    n === null ? "undefined (no verified task or incomplete billing)" : `$${n.toFixed(d)}`;
   const secs = (ms: number | null) =>
     ms === null ? "n/a" : ms < 60_000 ? `${(ms / 1000).toFixed(0)}s` : `${(ms / 60_000).toFixed(1)}min`;
   const st =
@@ -204,10 +251,11 @@ export function formatStats(s: Stats): string {
   return [
     `Usage for ${s.scope}: ${s.tasks} task(s)`,
     `  outcomes: ${st}`,
-    `  verified candidates: ${s.verified} (first attempt, no repair: ${s.firstAttemptVerified}) · human-accepted: ${s.accepted} · stopped/abstained: ${s.abstained} · in progress: ${s.inProgress} · not started (e.g. refused before running): ${s.notStarted}`,
-    `  model calls ${s.modelCalls} · tokens ${s.tokens.toLocaleString()} · hosted cost $${s.costUsd.toFixed(4)}${s.unknownUsageCalls ? ` · ${s.unknownUsageCalls} call(s) with unknown usage (charged at reservation)` : ""}`,
+    `  verified candidates: ${s.verified} (first attempt, no repair: ${s.firstAttemptVerified}) · operator-accepted: ${s.accepted} · stopped/abstained: ${s.abstained} · in progress: ${s.inProgress} · not started (e.g. refused before running): ${s.notStarted}`,
+    `  model calls ${s.modelCalls} · tokens ${s.tokens.toLocaleString()} · reported hosted cost $${s.costUsd.toFixed(4)}${s.unknownCostCalls ? ` · INCOMPLETE: ${s.unknownCostCalls} call(s) with unknown cost` : ""}${s.unknownUsageCalls ? ` · ${s.unknownUsageCalls} call(s) with unknown usage (estimated at reservation)` : ""}`,
     `  cost per verified candidate (spend of ALL tasks incl. stopped ones): ${f(s.costPerVerified)}${s.tokensPerVerified === null ? "" : ` · ${Math.round(s.tokensPerVerified).toLocaleString()} tokens`}`,
-    `  wall time per task: median ${secs(s.medianWallMs)} · p90 ${secs(s.p90WallMs)} (${s.timed}/${s.tasks} tasks have timing; timing began with this version)`,
+    `  elapsed time (includes approval/idle waits, first to last recorded event): median ${secs(s.medianWallMs)} · p90 ${secs(s.p90WallMs)} (${s.timed}/${s.tasks} tasks timed)`,
+    `  task-run execution (excludes waits between invocations): median ${secs(s.medianExecutionMs)} · p90 ${secs(s.p90ExecutionMs)} (${s.executionTimed}/${s.tasks} tasks have complete execution timing)`,
     `  by tier: ${
       Object.entries(s.byTier)
         .map(([k, v]) => `${k} ${v.verified}/${v.tasks} verified`)
@@ -218,8 +266,9 @@ export function formatStats(s: Stats): string {
     )
       .map(([k, v]) => ` · ${k} ${v.acted}/${v.decisions} acted`)
       .join("")}`,
-    `  automatic session checks (Stop hook, no model driven): ${s.sessions.checked} (${s.sessions.passed} passed, ${s.sessions.failed} failed)`,
+    `  recorded session checks (manual or Stop hook; no model driven): ${s.sessions.checked} (${s.sessions.passed} passed, ${s.sessions.failed} failed)`,
     `  active lessons: ${s.lessons.count}${s.lessons.release ? ` (release ${s.lessons.release})` : ""}`,
+    `  Scope: managed task model calls only; ordinary chat and standalone qualification costs are not included. Jev usage is separate.`,
     `  NOT measured: savings. That needs a baseline (the same work done without the runtime); only spend and outcomes are recorded here.`,
   ].join("\n");
 }

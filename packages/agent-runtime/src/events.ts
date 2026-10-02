@@ -34,21 +34,22 @@ export class EventLog {
       .filter(Boolean)
       .map((l) => JSON.parse(l));
   }
-  // Throws if any record was altered, removed, or reordered.
-  verify(): void {
+  // Checks the chain present on disk; without an external anchor, tail truncation is not detectable.
+  verify(): LoggedEvent[] {
     let prev = "";
-    this.read().forEach((e, i) => {
+    const events = this.read();
+    events.forEach((e, i) => {
       const body = canonical({ seq: e.seq, prev: e.prev, type: e.type, data: e.data, ...(e.ts ? { ts: e.ts } : {}) });
       if (e.seq !== i || e.prev !== prev || e.hash !== sha256(body)) {
         throw new Error(`event log corrupt at seq ${i}`);
       }
       prev = e.hash;
     });
+    return events;
   }
   append(type: string, data: unknown): LoggedEvent {
     if (this.#fd === undefined) throw new Error("event log not open for writing");
-    this.verify();
-    const events = this.read();
+    const events = this.verify();
     const prev = events.at(-1)?.hash ?? "";
     const seq = events.length;
     const ts = new Date().toISOString();
@@ -57,4 +58,20 @@ export class EventLog {
     appendFileSync(this.#path, `${JSON.stringify(event)}\n`);
     return event;
   }
+}
+
+// A timing/diagnostic event after a provider crash must not hide an unsettled call.
+// A state with uncertainBilling records that resume already charged its unknown usage.
+export function unsettledCall(events: LoggedEvent[]): LoggedEvent | undefined {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i]!;
+    if (
+      e.type === "ledger" ||
+      e.type === "billing_uncertain" ||
+      (e.type === "state" && (e.data as { uncertainBilling?: boolean })?.uncertainBilling)
+    )
+      return undefined;
+    if (e.type === "inflight") return e;
+  }
+  return undefined;
 }

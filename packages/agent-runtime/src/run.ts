@@ -1,9 +1,10 @@
+import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { type Action, InvalidAction, parseAction } from "./actions.ts";
 import { Ledger, type Limits } from "./budget.ts";
 import { applyEdits } from "./edits.ts";
-import { EventLog } from "./events.ts";
+import { EventLog, unsettledCall } from "./events.ts";
 import { type GateResult, type GateSpec, killAllGates, runGate } from "./gates.ts";
 import { canonical, sha256 } from "./hash.ts";
 import { canMove, type State } from "./machine.ts";
@@ -50,6 +51,8 @@ export type Policy = {
   workspace: string;
   stateDir: string; // controller state: must be outside the workspace
   protectedPaths: string[];
+  writePaths?: string[]; // exact files; a trailing slash grants a directory
+  protectExistingTests?: boolean;
   gates: GateSpec[];
   requiredGates: string[];
   limits: Limits;
@@ -81,6 +84,43 @@ export class Run {
   #base = "";
   #protectedBase = "";
   #seen = new Set<string>();
+  #acceptancePaths: string[] = [];
+  feedback = "start";
+  readonly contextReads = new Set<string>();
+
+  nextActionId(): string {
+    let n = this.#seen.size + 1;
+    while (this.#seen.has(`t${n}`)) n++;
+    return `t${n}`;
+  }
+
+  #checkScope(paths: string[]): void {
+    if (!this.#policy.writePaths) return;
+    const root = this.#policy.workspace;
+    for (const path of paths) {
+      const resolved = resolveSafe(root, path);
+      if (
+        !this.#policy.writePaths.some((p) => {
+          const allowed = resolveSafe(root, p);
+          return resolved === allowed || (p.endsWith("/") && resolved.startsWith(allowed + sep));
+        })
+      )
+        throw new Error(`outside approved write scope: ${path}`);
+    }
+  }
+
+  #gate(spec: GateSpec, digest: string): Promise<GateResult> {
+    return runGate(
+      spec,
+      this.#policy.workspace,
+      digest,
+      join(this.#policy.stateDir, "logs", `${spec.id}-${randomUUID()}.log`),
+    );
+  }
+
+  #protectedPaths(): string[] {
+    return [...this.#policy.protectedPaths, ...this.#acceptancePaths];
+  }
   #lastFingerprint = "";
   #baseFiles = new Map<string, string | null>();
   #planHash: string | undefined;
@@ -126,9 +166,9 @@ export class Run {
   // candidate. A failure is recorded and applied by start(); nothing runs after a setup failure.
   async prepare(): Promise<void> {
     if (this.state !== "RECEIVED") return;
-    const { workspace, bootstrap, baseline, requiredGates, gates } = this.#policy;
+    const { bootstrap, baseline, requiredGates, gates } = this.#policy;
     if (bootstrap) {
-      const b = await runGate(bootstrap, workspace, "bootstrap");
+      const b = await this.#gate(bootstrap, "bootstrap");
       this.#log.append("bootstrap", {
         argv: b.argv,
         status: b.status,
@@ -146,7 +186,7 @@ export class Run {
     for (const id of requiredGates) {
       const spec = gates.find((g) => g.id === id);
       if (!spec) throw new Error(`required gate not defined: ${id}`);
-      const r = await runGate(spec, workspace, "baseline");
+      const r = await this.#gate(spec, "baseline");
       this.#log.append("baseline", {
         gateId: id,
         status: r.status,
@@ -173,13 +213,23 @@ export class Run {
       this.#go(problem.to, problem.why);
       return;
     }
-    const { workspace, protectedPaths, riskTier } = this.#policy;
+    const { workspace, riskTier } = this.#policy;
     this.#base = snapshot(workspace);
-    this.#protectedBase = snapshot(workspace, protectedPaths);
+    this.#acceptancePaths = this.#policy.protectExistingTests
+      ? listFiles(workspace).filter((p) =>
+          /(^|\/)(__tests__|tests?|specs?)(\/|$)|[._](test|spec)\.[^/]+$|(^|\/)test_[^/]+\.py$/.test(p),
+        )
+      : [];
+    this.#protectedBase = snapshot(workspace, this.#protectedPaths());
     for (const rel of listFiles(workspace)) this.#baseFiles.set(rel, readText(workspace, rel));
     writeFileSync(
       join(this.#policy.stateDir, "base.json"),
-      JSON.stringify({ base: this.#base, protectedBase: this.#protectedBase, files: [...this.#baseFiles] }),
+      JSON.stringify({
+        base: this.#base,
+        protectedBase: this.#protectedBase,
+        files: [...this.#baseFiles],
+        acceptancePaths: this.#acceptancePaths,
+      }),
     );
     this.#log.append("started", { policyHash: sha256(canonical(this.#policy)), candidate: this.#base });
     this.#go("CONTRACT_READY");
@@ -193,9 +243,9 @@ export class Run {
     this.#go("IMPLEMENTING");
   }
 
-  // Billable-call bookkeeping: a crash between begin and end leaves the worst-case reservation charged.
-  beginCall(reserved: number): void {
-    this.#log.append("inflight", { reserved, ledger: this.ledger.snapshot() });
+  // Billable-call bookkeeping: a crash between begin and end retains the estimate and flags uncertainty.
+  beginCall(reserved: number, hosted = true): void {
+    this.#log.append("inflight", { reserved, hosted, ledger: this.ledger.snapshot() });
   }
   endCall(): void {
     this.#log.append("ledger", this.ledger.snapshot());
@@ -205,8 +255,7 @@ export class Run {
   // uncertain stops the run rather than being replayed. Billable calls and side effects are never re-issued.
   resume(): void {
     const log = this.#log;
-    log.verify();
-    const events = log.read();
+    const events = log.verify();
     if (events.length === 0) throw new Error("nothing to resume");
     let candidate = "";
     let policyHash = "";
@@ -216,14 +265,20 @@ export class Run {
         this.state = d.to;
         this.uncertainBilling = d.uncertainBilling ?? false;
         if (d.ledger) this.ledger.restore(d.ledger);
-      } else if (e.type === "action") this.#seen.add(d.id);
-      else if (e.type === "started") {
+      } else if (e.type === "action") {
+        this.#seen.add(d.id);
+      } else if (e.type === "started") {
         policyHash = d.policyHash;
         candidate = d.candidate;
       } else if (e.type === "candidate") candidate = d.digest;
       else if (e.type === "plan_approved") this.#planHash = d.planHash;
-      else if (e.type === "ledger" || e.type === "inflight") this.ledger.restore(d.ledger ?? d);
-      else if (e.type === "diagnostic") this.#lastFingerprint = d.fingerprint;
+      else if (e.type === "ledger" || e.type === "inflight" || e.type === "billing_uncertain") {
+        this.ledger.restore(d.ledger ?? d);
+        if (e.type === "billing_uncertain") this.uncertainBilling = true;
+      } else if (e.type === "diagnostic") {
+        this.#lastFingerprint = d.fingerprint;
+        this.feedback = d.feedback ?? this.feedback;
+      } else if (e.type === "review") this.feedback = `Review findings: ${JSON.stringify(d)}`;
       else if (
         e.type === "baseline" &&
         (d.status === "pass" || d.status === "fail") &&
@@ -232,19 +287,24 @@ export class Run {
       )
         this.#baselineDiscovered[d.gateId] = d.discovered;
     }
-    if (events.at(-1)!.type === "inflight") {
+    const pending = unsettledCall(events);
+    if (pending) {
       this.uncertainBilling = true;
-      this.ledger.unknownUsageCalls += 1; // the reservation stays charged: worst case, never zero
-      this.#go(
-        "BLOCKED",
-        "uncertain provider call: inspect billing and start a new task; the request will not be replayed",
-      );
+      this.ledger.unknownUsageCalls += 1; // retain the token estimate, not a fabricated dollar charge
+      if ((pending.data as { hosted?: boolean }).hosted !== false) this.ledger.unknownCostCalls += 1;
+      this.#log.append("billing_uncertain", { ledger: this.ledger.snapshot() });
+      if (canMove(this.state, "BLOCKED"))
+        this.#go(
+          "BLOCKED",
+          "uncertain provider call: inspect billing and start a new task; the request will not be replayed",
+        );
     }
     const dir = this.#policy.stateDir;
     const saved = JSON.parse(readFileSync(join(dir, "base.json"), "utf8"));
     this.#base = saved.base;
     this.#protectedBase = saved.protectedBase;
     this.#baseFiles = new Map(saved.files);
+    this.#acceptancePaths = saved.acceptancePaths ?? [];
     if (existsSync(join(dir, "draft.json"))) this.#draft = JSON.parse(readFileSync(join(dir, "draft.json"), "utf8"));
     if (existsSync(join(dir, "evidence.json")) && (this.state === "AWAITING_ACCEPTANCE" || this.state === "ACCEPTED"))
       this.evidence = JSON.parse(readFileSync(join(dir, "evidence.json"), "utf8"));
@@ -328,7 +388,7 @@ export class Run {
   }
 
   async #dispatch(a: Action): Promise<Outcome> {
-    const { workspace, protectedPaths } = this.#policy;
+    const { workspace } = this.#policy;
     switch (a.kind) {
       case "read": {
         let content: string;
@@ -342,19 +402,21 @@ export class Run {
         }
         return { ok: true, data: { content, hash: sha256(content) } };
       }
-      case "edit": {
+      case "edit":
+      case "edit_and_finish": {
+        this.#checkScope(a.edits.map((e) => e.path));
         if (this.state === "AWAITING_ACCEPTANCE") {
           this.evidence = undefined; // candidate changed: prior evidence is stale
           this.#go("IMPLEMENTING", "edit after verification");
         }
-        applyEdits(workspace, a.edits, protectedPaths);
+        applyEdits(workspace, a.edits, this.#protectedPaths());
         this.#log.append("candidate", { digest: snapshot(workspace) });
-        return { ok: true };
+        return a.kind === "edit_and_finish" ? this.#verify() : { ok: true };
       }
       case "run_gate": {
         const spec = this.#policy.gates.find((g) => g.id === a.gateId);
         if (!spec) throw new InvalidAction(`unknown gate: ${a.gateId}`);
-        const result = await runGate(spec, workspace, snapshot(workspace));
+        const result = await this.#gate(spec, snapshot(workspace));
         this.#log.append("gate", result);
         return { ok: true, data: { status: result.status, discovered: result.discovered } }; // informational only
       }
@@ -369,13 +431,23 @@ export class Run {
   async #verify(): Promise<Outcome> {
     if (this.state === "AWAITING_ACCEPTANCE") return { ok: true, data: { state: this.state } };
     if (this.state !== "VERIFYING") this.#go("VERIFYING");
-    const { workspace, protectedPaths, gates, requiredGates } = this.#policy;
+    const { workspace, gates, requiredGates } = this.#policy;
+    try {
+      this.#checkScope(this.changed().map((c) => c.path));
+    } catch (e) {
+      this.#go("NEEDS_INPUT", String(e));
+      return { ok: false, reason: String(e) };
+    }
+    if (snapshot(workspace, this.#protectedPaths()) !== this.#protectedBase) {
+      this.#go("BLOCKED", "policy violation: protected files changed");
+      return { ok: false, reason: "policy violation: protected files changed" };
+    }
     const results: GateResult[] = [];
     for (const id of requiredGates) {
       const spec = gates.find((g) => g.id === id);
       if (!spec) throw new Error(`required gate not defined: ${id}`);
       const before = snapshot(workspace);
-      let r = await runGate(spec, workspace, before);
+      let r = await this.#gate(spec, before);
       // A gate that rewrites the candidate certifies bytes it never tested.
       if (r.status === "pass" && snapshot(workspace) !== before)
         r = { ...r, status: "fail", note: "gate modified the candidate; evidence would not match the tested bytes" };
@@ -393,7 +465,7 @@ export class Run {
       if (this.state === "CANCELLED") return { ok: false, reason: "cancelled" };
       if (r.status !== "pass") break;
     }
-    if (snapshot(workspace, protectedPaths) !== this.#protectedBase) {
+    if (snapshot(workspace, this.#protectedPaths()) !== this.#protectedBase) {
       this.#go("BLOCKED", "policy violation: protected files changed");
       return { ok: false, reason: "policy violation: protected files changed" };
     }
@@ -404,7 +476,8 @@ export class Run {
       const tail = [bad.note, ...bad.outputTail.split("\n").filter(Boolean).slice(-15)].filter(Boolean).join("\n");
       const fingerprint = sha256(`${bad.gateId}|${bad.status}|${tail}`);
       const diagnostic = { gate: bad.gateId, status: bad.status, fingerprint: fingerprint.slice(0, 12), tail };
-      this.#log.append("diagnostic", { fingerprint });
+      this.feedback = `Gate failure: ${JSON.stringify(diagnostic)}`;
+      this.#log.append("diagnostic", { fingerprint, feedback: this.feedback });
       this.#go("DIAGNOSING");
       if (fingerprint === this.#lastFingerprint) {
         this.#go("ESCALATED", "repeated identical failure without new information");
@@ -473,6 +546,7 @@ export class Run {
       return { ok: false, reason: "stale evidence: candidate changed during review" };
     }
     this.#log.append("review", findings);
+    this.feedback = `Review findings: ${JSON.stringify(findings)}`;
     if (findings.some((f) => f.severity === "blocking")) {
       this.#go("DIAGNOSING", "blocking review findings");
       try {

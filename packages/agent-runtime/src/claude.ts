@@ -1,12 +1,12 @@
 import { spawn } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { GenerateRequest, GenerateResult, GenerationProvider } from "./provider.ts";
 
 export type ClaudeProfile = {
   model: string; // exact id, e.g. claude-haiku-4-5-20251001 — no default alias
-  maxBudgetUsd: number; // hard cap passed to the CLI for each call
+  maxBudgetUsd: number; // requested CLI cap per call; provider billing may overshoot in flight
   timeoutMs: number;
   bin?: string;
 };
@@ -17,13 +17,18 @@ export type ClaudeProfile = {
 export class ClaudeCliProvider implements GenerationProvider {
   readonly id: string;
   readonly hosted = true;
+  readonly supportsCostLimit = true;
   #p: ClaudeProfile;
   constructor(profile: ClaudeProfile) {
+    if (!Number.isFinite(profile.maxBudgetUsd) || profile.maxBudgetUsd <= 0)
+      throw new Error("Claude requires a positive finite dollar cap");
     this.#p = profile;
     this.id = `claude-cli/${profile.model}`;
   }
 
   generate(req: GenerateRequest): Promise<GenerateResult> {
+    if (req.maxCostUsd !== undefined && (!Number.isFinite(req.maxCostUsd) || req.maxCostUsd <= 0))
+      throw new Error("Claude requires a positive finite dollar cap");
     const started = Date.now();
     const args = [
       "-p",
@@ -39,7 +44,7 @@ export class ClaudeCliProvider implements GenerationProvider {
       "--model",
       this.#p.model,
       "--max-budget-usd",
-      String(this.#p.maxBudgetUsd),
+      String(Math.min(this.#p.maxBudgetUsd, req.maxCostUsd ?? Infinity)),
       "--system-prompt",
       req.system,
       ...(req.schema ? ["--json-schema", JSON.stringify(req.schema)] : []),
@@ -52,8 +57,9 @@ export class ClaudeCliProvider implements GenerationProvider {
     });
     return new Promise((resolve) => {
       let out = "";
+      const cwd = mkdtempSync(join(tmpdir(), "claude-gen-"));
       const child = spawn(this.#p.bin ?? "claude", args, {
-        cwd: mkdtempSync(join(tmpdir(), "claude-gen-")),
+        cwd,
         env: {
           PATH: process.env.PATH ?? "",
           HOME: process.env.HOME ?? "",
@@ -69,9 +75,10 @@ export class ClaudeCliProvider implements GenerationProvider {
       child.on("error", () => resolve(fail()));
       child.on("close", () => {
         clearTimeout(timer);
+        rmSync(cwd, { recursive: true, force: true });
         try {
           const j = JSON.parse(out);
-          if (j.is_error || j.subtype !== "success") return resolve(fail());
+          const ok = !j.is_error && j.subtype === "success" && j.terminal_reason === "completed";
           const u = j.usage;
           const usage =
             u && typeof u.input_tokens === "number" && typeof u.output_tokens === "number"
@@ -83,8 +90,8 @@ export class ClaudeCliProvider implements GenerationProvider {
           const content =
             j.structured_output !== undefined ? JSON.stringify(j.structured_output) : String(j.result ?? "");
           resolve({
-            content,
-            finishReason: j.terminal_reason === "completed" ? "stop" : "error",
+            content: ok ? content : "",
+            finishReason: ok ? "stop" : "error",
             usage,
             latencyMs: Date.now() - started,
             ...(typeof j.total_cost_usd === "number" ? { costUsd: j.total_cost_usd } : {}),

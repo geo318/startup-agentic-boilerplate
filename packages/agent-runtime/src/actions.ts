@@ -2,7 +2,7 @@ import type { Edit } from "./edits.ts";
 
 export type Action =
   | { id: string; kind: "read"; path: string }
-  | { id: string; kind: "edit"; edits: Edit[] }
+  | { id: string; kind: "edit" | "edit_and_finish"; edits: Edit[] }
   | { id: string; kind: "run_gate"; gateId: string }
   | { id: string; kind: "finish" }
   | { id: string; kind: "blocked"; reason: string };
@@ -14,6 +14,7 @@ export class InvalidAction extends Error {
 const KEYS: Record<string, string[]> = {
   read: ["id", "kind", "path"],
   edit: ["id", "kind", "edits"],
+  edit_and_finish: ["id", "kind", "edits"],
   run_gate: ["id", "kind", "gateId"],
   finish: ["id", "kind"],
   blocked: ["id", "kind", "reason"],
@@ -38,7 +39,7 @@ export function parseAction(raw: unknown): Action {
   const keys = typeof o.kind === "string" ? KEYS[o.kind] : undefined;
   if (!keys) throw new InvalidAction(`unsupported action kind: ${String(o.kind)}`);
   closed(o, keys, String(o.kind));
-  if (o.kind === "edit") {
+  if (o.kind === "edit" || o.kind === "edit_and_finish") {
     const edits = o.edits as unknown[];
     if (edits.length === 0 || edits.length > 20) throw new InvalidAction("edit: 1-20 edits required");
     for (const e of edits) {
@@ -63,7 +64,7 @@ export const ACTION_SCHEMA = {
   required: ["id", "kind"],
   properties: {
     id: str,
-    kind: { enum: ["read", "edit", "run_gate", "finish", "blocked"] },
+    kind: { enum: ["read", "edit", "edit_and_finish", "run_gate", "finish", "blocked"] },
     path: str,
     gateId: str,
     reason: str,

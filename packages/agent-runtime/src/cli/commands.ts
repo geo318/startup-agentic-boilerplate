@@ -15,7 +15,7 @@ import {
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Limits } from "../budget.ts";
+import { BudgetExceeded, type Limits } from "../budget.ts";
 import { ChatCompletionsProvider } from "../chat.ts";
 import { ClaudeCliProvider } from "../claude.ts";
 import { compile, render } from "../context.ts";
@@ -59,6 +59,7 @@ export type Env = {
   jevTransport?: DecisionTransport; // tests inject a fake
   lessons?: Lesson[]; // evaluation only: replaces the active release for this process
   evalsRoot?: string; // where evals/ lives (holdout material is checked against it)
+  wrapProvider?: (provider: GenerationProvider) => GenerationProvider; // shared evaluation accounting
   onRun?: (run: Run) => void; // lets main wire SIGINT → run.cancel()
 };
 
@@ -104,6 +105,7 @@ type Contract = {
   goal: string;
   acceptance: string[];
   files: string[];
+  newFiles?: string[];
   scope?: string[];
   riskTier: RiskTier;
   riskTags?: string[];
@@ -115,6 +117,7 @@ type Contract = {
 type ProjectPolicy = {
   enabled?: boolean; // the managed-workflow switch; absent = on
   protectedPaths: string[];
+  protectExistingTests?: boolean;
   gates: Policy["gates"];
   requiredGates: string[];
   egress: Policy["egress"];
@@ -214,16 +217,13 @@ function makeProvider(name: string, models: Models): GenerationProvider {
 const telemetryFile = (env: Env) => join(env.home, "telemetry", "jev.jsonl");
 const calibrationFile = (env: Env) => join(env.home, "calibration.json");
 
-// Jev is used automatically when the user has a key in the user-level store, unless the project opts out (jev.auto false)
-// or sets its own modes. The automatic defaults cannot change what a run does today: the route decision is "enabled" but a
-// decision acts only with a calibration (none exists until labelled data does), and skill selection is shadow-only.
-// The project's egress policy still decides whether anything may be sent at all.
+// Optional paid experiments require explicit project opt-in. A credential alone makes no calls.
 export function effectiveJev(env: Env, pp: ProjectPolicy): { modes: Partial<Record<Family, Mode>>; why: string } {
   const j = pp.jev;
   if (j?.modes && Object.keys(j.modes).length) return { modes: j.modes, why: "modes set in .agents/policy.json" };
-  if (j?.auto === false) return { modes: {}, why: "jev.auto is false" };
+  if (j?.auto !== true) return { modes: {}, why: "Jev is opt-in (set jev.auto true or explicit modes)" };
   if (!env.secrets?.JEV_API_KEY) return { modes: {}, why: "no JEV_API_KEY in the user-level secrets store" };
-  return { modes: { "workflow-select": "enabled", "skill-select": "shadow" }, why: "auto: key present" };
+  return { modes: { "workflow-select": "enabled" }, why: "opt-in: jev.auto true and key present" };
 }
 
 function makeFabric(env: Env, pp: ProjectPolicy): Fabric | undefined {
@@ -430,15 +430,19 @@ function load(env: Env, id: string) {
   const budget = BUDGETS[contract.budget]!;
   const candidate = join(dir, "candidate");
   const stateDir = stateOf(env, id);
-  const scopeFloor = contract.scope?.length
-    ? riskFloor({ paths: contract.scope, tags: contract.riskTags, recipe: !!contract.recipe })
-    : contract.riskTier;
+  const scopeFloor = riskFloor({
+    paths: contract.scope ?? [...contract.files, ...(contract.newFiles ?? [])],
+    tags: contract.riskTags,
+    recipe: !!contract.recipe,
+  });
   const tier = maxTier(contract.riskTier, scopeFloor);
   const base = { contract, pp, models, budget, dir, candidate, stateDir, tier };
   const policy = (): Policy => ({
     workspace: candidate,
     stateDir,
     protectedPaths: pp.protectedPaths,
+    writePaths: contract.scope ?? [...contract.files, ...(contract.newFiles ?? [])],
+    protectExistingTests: pp.protectExistingTests ?? true,
     gates: pp.gates,
     requiredGates: pp.requiredGates,
     limits: budget.limits,
@@ -499,6 +503,10 @@ export async function taskRun(env: Env, id: string): Promise<number> {
   // Providers and qualifications are checked before any state is created: a task we cannot route has no side effects.
   const store = new QualStore(join(env.home, "qualifications.json"));
   const usesModel = !(t.tier === "R0" && t.contract.recipe);
+  const providerFor = (name: string, models: Models) => {
+    const p = makeProvider(name, models);
+    return env.wrapProvider ? env.wrapProvider(p) : p;
+  };
   const providers: {
     worker?: GenerationProvider;
     workerStrong?: GenerationProvider;
@@ -518,12 +526,12 @@ export async function taskRun(env: Env, id: string): Promise<number> {
       if (!needed) continue;
       const name = models.roles[role];
       if (!name) throw new CliError(`no ${role} profile configured for a ${t.tier} task`);
-      const sel = selectProfile(role, t.tier, [makeProvider(name, models)], store);
+      const sel = selectProfile(role, t.tier, [providerFor(name, models)], store);
       if (!sel.ok) throw new CliError(`${sel.reason} (profile "${name}"). Qualify it first: agentic qualify ${name}`);
       providers[role] = sel.provider;
     }
     if (models.roles.workerStrong) {
-      const sel = selectProfile("worker", t.tier, [makeProvider(models.roles.workerStrong, models)], store);
+      const sel = selectProfile("worker", t.tier, [providerFor(models.roles.workerStrong, models)], store);
       if (!sel.ok)
         throw new CliError(
           `${sel.reason} (profile "${models.roles.workerStrong}"). Qualify it first: agentic qualify ${models.roles.workerStrong}`,
@@ -538,7 +546,9 @@ export async function taskRun(env: Env, id: string): Promise<number> {
   }
   const run = new Run(t.policy());
   env.onRun?.(run);
+  const executionStarted = performance.now();
   try {
+    run.record("execution_started", {});
     // Lessons are pinned per task at its first start: later promotions never change a run midway.
     const pinFile = join(t.dir, "lessons-pin.json");
     if (fresh) {
@@ -568,13 +578,20 @@ export async function taskRun(env: Env, id: string): Promise<number> {
     } else run.resume();
     if (run.state === "VERIFYING") await run.reverify();
     const planFile = join(t.dir, "plan.json");
-    const ctxText = () => render(compile(t.candidate, t.contract.files, t.budget.maxContext));
+    const ctxText = () =>
+      render(
+        compile(t.candidate, [...new Set([...t.contract.files, ...(t.contract.newFiles ?? [])])], t.budget.maxContext, {
+          allowMissing: t.contract.newFiles,
+        }),
+      );
     const roleCtx = (p: GenerationProvider) => ({
       provider: p,
       ledger: run.ledger,
       egress: t.pp.egress,
       maxOut: t.budget.maxOut,
-      beginCall: (reserved: number) => run.beginCall(reserved),
+      beginCall: (reserved: number) => run.beginCall(reserved, p.hosted),
+      endCall: () => run.endCall(),
+      signal: run.signal,
     });
 
     const routes: string[] = []; // worker profile per drive, so outcomes can be compared per route
@@ -586,7 +603,6 @@ export async function taskRun(env: Env, id: string): Promise<number> {
             acceptance: t.contract.acceptance,
             context: ctxText(),
           });
-          run.endCall();
           const text = JSON.stringify(plan, null, 2);
           writeFileSync(planFile, JSON.stringify({ text, hash: sha256(text) }));
           env.out(`Plan written (hash ${sha256(text).slice(0, 12)}). Review and approve: agentic task approve ${id}`);
@@ -612,12 +628,15 @@ export async function taskRun(env: Env, id: string): Promise<number> {
             goal: t.contract.goal,
             acceptance: t.contract.acceptance,
             files: t.contract.files,
+            newFiles: t.contract.newFiles,
+            writePaths: t.policy().writePaths,
             ...(plan ? { plan } : {}),
             ...(pinned.length ? { lessons: pinned.map((l) => l.text) } : {}),
           },
           t.budget.limits.toolActions,
           t.budget.maxOut,
           t.budget.maxContext,
+          true,
         );
         continue;
       }
@@ -628,7 +647,6 @@ export async function taskRun(env: Env, id: string): Promise<number> {
           changed: run.changed(),
           gates: run.draftGates,
         });
-        run.endCall();
         run.completeReview(findings);
         continue;
       }
@@ -647,10 +665,16 @@ export async function taskRun(env: Env, id: string): Promise<number> {
         tokens: run.ledger.tokens,
         costUsd: run.ledger.costUsd,
         unknownUsageCalls: run.ledger.unknownUsageCalls,
+        unknownCostCalls: run.ledger.unknownCostCalls,
       }),
     );
     return EXIT[run.state] ?? 1;
   } catch (e) {
+    if (e instanceof BudgetExceeded) {
+      run.stop("ESCALATED", `budget exhausted: ${e.message}`);
+      env.out(`budget exhausted: ${e.message}`);
+      return 1;
+    }
     if (e instanceof RoleFailed) {
       run.stop("BLOCKED", `${e.reason}: ${e.message}`);
       env.out(`blocked: ${e.reason}: ${e.message}`);
@@ -658,7 +682,11 @@ export async function taskRun(env: Env, id: string): Promise<number> {
     }
     throw e;
   } finally {
-    run.close();
+    try {
+      run.record("execution_finished", { durationMs: performance.now() - executionStarted });
+    } finally {
+      run.close();
+    }
   }
 }
 
@@ -1019,7 +1047,7 @@ export async function doTask(env: Env, goal: string, o: { files?: string[] } = {
 }
 
 // Called by the project's Stop hook. Exit 2 = the gates failed on the current working tree (diagnostic on stdout).
-export async function sessionCheckCmd(env: Env): Promise<number> {
+export async function sessionCheckCmd(env: Env, reuse = false): Promise<number> {
   const f = projectFile(env, "policy.json");
   if (!existsSync(f) || !workflowEnabled(env)) return 0;
   const pp = loadValidated<ProjectPolicy>(f, "policy");
@@ -1028,6 +1056,7 @@ export async function sessionCheckCmd(env: Env): Promise<number> {
     project: env.project,
     gates: pp.gates,
     requiredGates: pp.requiredGates,
+    reuse,
     out: env.out,
   });
 }
@@ -1040,11 +1069,12 @@ export async function prSummaryCmd(env: Env, update: boolean): Promise<number> {
 export async function stats(env: Env, o: { all?: boolean; since?: string; json?: boolean } = {}): Promise<number> {
   let tasks = allTasks(env.home);
   if (!o.all) tasks = tasks.filter((t) => t.project === env.project);
+  let from: number | undefined;
   if (o.since) {
     const m = /^(\d+)d$/.exec(o.since);
-    const from = m ? Date.now() - Number(m[1]) * 86_400_000 : Date.parse(o.since);
+    from = m ? Date.now() - Number(m[1]) * 86_400_000 : Date.parse(o.since);
     if (!Number.isFinite(from)) throw new CliError(`--since must be an ISO date or Nd, got ${o.since}`);
-    tasks = tasks.filter((t) => t.createdAt && Date.parse(t.createdAt) >= from); // tasks without a date are excluded, not guessed
+    tasks = tasks.filter((t) => t.createdAt && Date.parse(t.createdAt) >= from!); // tasks without a date are excluded, not guessed
   }
   const act = learn.activeLessons(env.home, {});
   const s = summarizeTasks(
@@ -1055,7 +1085,9 @@ export async function stats(env: Env, o: { all?: boolean; since?: string; json?:
       release: act.releaseId,
       count: act.lessons.length,
     },
-    readSessions(env.home).filter((r) => o.all || r.project === env.project),
+    readSessions(env.home, true).filter(
+      (r) => (o.all || r.project === env.project) && (from === undefined || Date.parse(r.ts) >= from),
+    ),
   );
   env.out(o.json ? JSON.stringify(s, null, 2) : formatStats(s));
   return 0;

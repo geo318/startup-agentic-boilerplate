@@ -29,7 +29,7 @@ function repo() {
   return { project, home, out, check };
 }
 
-test("session check: clean tree and docs-only changes run nothing; a failing change returns 2 with the diagnostic; an unchanged re-check reuses the row", async () => {
+test("session check: clean tree and docs-only changes run nothing; a failing change returns 2 with the diagnostic; an unchanged failure is re-run", async () => {
   const r = repo();
   assert.equal(await r.check(), 0);
   writeFileSync(join(r.project, "NOTES.md"), "x");
@@ -38,15 +38,15 @@ test("session check: clean tree and docs-only changes run nothing; a failing cha
   writeFileSync(join(r.project, "value.txt"), "bad");
   assert.equal(await r.check(), 2);
   assert.match(r.out.join("\n"), /gate unit: fail/);
-  assert.equal(await r.check(), 2); // same bytes: no second gate run
-  assert.equal(readSessions(r.home).length, 1);
+  assert.equal(await r.check(), 2); // transient failures may recover without a source change
+  assert.equal(readSessions(r.home).length, 2);
   writeFileSync(join(r.project, "value.txt"), "good");
   assert.equal(await r.check(), 0); // tree equals HEAD again: nothing to test
   writeFileSync(join(r.project, "extra.txt"), "new file");
   assert.equal(await r.check(), 0);
   const rows = readSessions(r.home);
-  assert.equal(rows.length, 2);
-  assert.equal(rows[1]!.passed, true);
+  assert.equal(rows.length, 3);
+  assert.equal(rows[2]!.passed, true);
   assert.equal(rows[1]!.branch, "feat/x");
 });
 
@@ -84,5 +84,30 @@ test("session check verifies committed branch changes and records a failing gate
   assert.equal(readSessions(r.home).length, 1);
   assert.equal(readSessions(r.home)[0]!.changed, 1);
   assert.equal(await r.check(), 2);
+  assert.equal(readSessions(r.home).length, 2);
+});
+
+test("explicit successful reuse binds gate configuration; default always rechecks", async () => {
+  const r = repo();
+  writeFileSync(join(r.project, "extra.txt"), "changed");
+  const gate = {
+    id: "unit",
+    argv: [process.execPath, "-e", 'console.log("tests 1")'],
+    timeoutMs: 5000,
+    discover: { regex: "tests (\\d+)", min: 1 },
+  };
+  const options = { home: r.home, project: r.project, gates: [gate], requiredGates: ["unit"], out: () => {} };
+  assert.equal(await sessionCheck(options), 0);
+  assert.equal(await sessionCheck({ ...options, reuse: true }), 0);
   assert.equal(readSessions(r.home).length, 1);
+  assert.equal(await sessionCheck(options), 0);
+  assert.equal(readSessions(r.home).length, 2);
+  assert.equal(
+    await sessionCheck({
+      ...options,
+      reuse: true,
+      gates: [{ ...gate, argv: [process.execPath, "-e", "process.exit(1)"] }],
+    }),
+    2,
+  );
 });

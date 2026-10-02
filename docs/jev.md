@@ -7,19 +7,20 @@ waives gates, lowers risk, changes budgets, permits egress, approves code, or pr
 deterministic filter → allowed candidates → [Jev Choice] → deterministic resolver
 ```
 
-## Automatic use when a key exists
+## Explicit opt-in
 
-With `JEV_API_KEY` in the user-level secrets store and no `jev.modes` in the policy, Jev turns on with: `workflow-select` = `enabled`, `skill-select` = `shadow`.
-These defaults cannot change what a run does today: an enabled decision acts only when a calibration exists for that family (none does until labelled data does), and shadow never acts.
-`jev.auto: false` opts out; explicit `jev.modes` always wins. The project's `egress` still gates sending: with `local-only`, `agentic doctor` reports "key present but NOT used".
-What would be sent: the task goal, acceptance criteria, file names, risk tier and skill descriptions, never source.
+A key alone does not enable Jev. With hosted-egress consent and a key, `jev.auto: true` enables only `workflow-select`.
+Alternatively set explicit `jev.modes`; those take precedence. Skill-selection and retrieval shadow calls are experimental
+and require explicit modes because they currently have no consumer. `jev.auto: false` disables auto opt-in.
+Workflow routing sends goal, acceptance criteria, file names and risk tier. Skill experiments additionally send descriptions;
+retrieval experiments additionally send excerpts and require `allowSource: true`.
 
 ## Opting in before calibration
 
 `"jev": { "allowUncalibrated": true }` in `.agents/policy.json` (owner-set, in a protected path) lets an `enabled` family act without waiting for a
 calibration. A calibration that exists still applies its threshold. Every such act is logged with `uncalibrated: true` and counted in `stats`
 ("N before calibration"). Today only `workflow-select` has a consumer, and it can only stop a task to ask you first: more human involvement,
-never fewer checks. It does not save tokens by itself; the savings come from worker routing (`roles.workerStrong`, see the runtime README).
+never fewer checks. Neither Jev nor worker routing has demonstrated net savings. Evaluate each against the same independently graded baseline.
 
 ## Behaviour
 

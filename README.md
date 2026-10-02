@@ -2,7 +2,7 @@
 
 ## What is this?
 
-It sets up a new (or existing) software project so that AI coding agents can work in it **safely and correctly**.
+It sets up a new or existing software project with shared agent instructions and executable checks. Checks provide evidence; they do not prove a change is correct or sandbox candidate code.
 
 You give it a plan. It builds the project's rule book and safety checks:
 
@@ -58,17 +58,21 @@ Follow these. The skill does most of them for you.
 6. **Never put secrets in the plan or the answers file.** The answers file is saved at `docs/archive/project-setup.answers.json` and committed. Keys go in the places below.
 7. **Fill every `<!-- FILL: … -->` marker.** `node scripts/checks/docs-check.mjs` fails until none are left.
 8. **Run the checks before you call it done:** `node scripts/checks/docs-check.mjs`, then the project's lint, typecheck and tests.
-9. **Turn on branch protection on GitHub.** The workflow files alone do not stop a merge. Make the checks "required". Check it with `node project-setup/scripts/protection.mjs`. It reports PROTECTED, UNPROTECTED or UNKNOWN. (GitHub's free plan cannot set it on a private repo.)
+9. **Turn on branch protection on GitHub.** The workflow files alone do not stop a merge. Make the checks "required". Check it with `node project-setup/scripts/protection.mjs`. It reports PROTECTED, INCOMPLETE, UNPROTECTED or UNKNOWN. PROTECTED requires the named checks, strict status checks, and no observed bypass settings; use `--checks` for custom job names. (GitHub's free plan cannot set it on a private repo.)
 10. **The runtime is off unless you ask.** Choose it during setup, or later (see "Turn the runtime on or off").
 11. **To update later,** run `/project-setup` again. Files you did not edit are updated. Files you edited are left alone. Files changed on both sides go to `.project-setup/sync/` for you to merge.
 12. **Setup hits a bug or a confusing rule in this tool?** Report it. See "Found a problem?" below.
+
+## Lean setup
+
+For small projects, select `flags.LEAN: true` in the answers file. This writes concise instructions, a code map, build plan, progress log and library links, plus the applicable hooks and CI. Generic domain architecture, workflow skills and fallow configuration are omitted. Existing tools stay in place; add topic docs and skills only when needed. Full setup remains available for projects that need it.
 
 ## Existing projects
 
 The skill reads your repo first (package manager, apps, linter, hooks, CI, agent docs). Then it adapts:
 
 - Your linter, hooks and CI **stay**. The new checks are added to them.
-- Checks judge only **new** code, so old problems never block you.
+- Differential lint and dead-code checks can judge new code. Full tests and the runtime's default `require-pass` baseline can still block on pre-existing failures.
 - `context/plans/adoption.md` lists the old problems and optional clean-ups. Nothing is moved unless you ask.
 - Your `AGENTS.md`, `CLAUDE.md` and `.claude/settings.json` are merged, never replaced.
 
@@ -89,6 +93,7 @@ The AI cannot approve its own work.
 
 ```bash
 node scripts/agentic.mjs doctor                      # is everything ready? (shows ON/OFF, Jev)
+node scripts/agentic.mjs do "fix the bug" --files src/example.ts # existing files, derive a task
 node scripts/agentic.mjs task create task.json       # describe one task
 node scripts/agentic.mjs task run <id>               # run it on a COPY of your project
 node scripts/agentic.mjs task accept <id>            # accept the verified candidate
@@ -98,9 +103,9 @@ node scripts/agentic.mjs stats                       # usage, cost, outcomes
 
 What it will and will not do:
 
-- It works on a **copy**. Your files are never touched. You get a patch. It never commits, pushes, merges or deploys.
+- Model edits target a **copy** and export as a patch. Checks run on the host as your user; the copy and scratch HOME are not a security sandbox. The task controller does not commit, push, merge or deploy.
 - Approve plans and accept verified results with explicit commands, from your terminal or an authorized agent in chat. No interactive prompts.
-- Risky work (login, money, migrations, CI, dependencies) needs an approved plan and a review. If the change touches more than it said, it stops and asks again.
+- Risky work (login, money, migrations, CI, dependencies) needs an approved plan and a review. Edits outside the approved write scope are rejected; an out-of-scope final diff stops for a new contract. Existing conventional tests are frozen by default, including colocated tests; add custom acceptance paths to `protectedPaths`. Changing these controls needs maintenance authorization.
 - A task that cannot be done safely **stops and says why**. It does not guess.
 
 ### Turn the runtime on or off
@@ -118,14 +123,30 @@ What it will and will not do:
 ### Jev (optional)
 
 - Put your key in `~/.agentic/secrets.env` (one line: `JEV_API_KEY=...`, file mode `600`). It is **per user and outside every repo**. A group-readable file is refused.
-- If a key exists, Jev is used automatically for small routing decisions. Today these cannot change a run. Turn off with `"jev": { "auto": false }`.
-- It only sends the task goal and file names, never source, and only when `egress` is `hosted-allowed`.
+- Jev is **off by default even when a key exists**. Opt in with explicit `jev.modes` or `"jev": { "auto": true }` for workflow routing only. Skill selection and retrieval shadow experiments require explicit modes; their benefit is unproven.
+- Workflow routing sends the goal, acceptance criteria, file names and risk tier only when `egress` is `hosted-allowed`. Explicit retrieval experiments can send source excerpts and additionally require `allowSource`.
 - It is optional. Nothing needs it.
 
 ### Where things are stored
 
 - Task history, proof and stats: `~/.agentic/tasks/` (change with `AGENTIC_HOME`). Per user, kept over time, never in the repo.
+- `node scripts/agentic.mjs session-check` reruns checks. `--reuse` is an explicit opt-in for a previous successful result with matching source and gate configuration; use it only when dependencies and external services have not changed.
 - `node scripts/agentic.mjs stats [--all] [--since 30d]` shows tasks, verified results, cost and time. It shows **measured** spend only. It does not claim "savings", because that needs a before/after test.
+
+## Check your usage and stats
+
+From the root of a project with the runtime enabled:
+
+```bash
+node scripts/agentic.mjs stats                 # this project's task history
+node scripts/agentic.mjs stats --since 30d     # tasks created in the last 30 days
+node scripts/agentic.mjs stats --all           # all your projects in the same controller home
+node scripts/agentic.mjs stats --json          # machine-readable report
+```
+
+Stats reads local history without making model calls. It records managed task usage, not ordinary Codex/Claude chat usage. Elapsed time includes approval waits; task-run execution time excludes gaps between invocations. Unknown billing is flagged, and unreadable history stops the report rather than silently reducing the totals.
+
+For storage paths, JSON fields, date-filter semantics, empty reports and recovery guidance, see [Checking your stats](packages/agent-runtime/README.md#checking-your-stats). Measured spend is not measured savings; those require a [paired benchmark](docs/evaluation.md#paired-workflow-benchmark).
 
 ## Found a problem?
 
@@ -161,7 +182,7 @@ Files depend on your choices (UI, Next.js, database, auth, multi-tenant, AI, job
 
 ## What is checked, and what is not
 
-**Tested:** the renderer and all setup variants, the install script, the runtime (about 160 tests), type checking, formatting, the architecture check, worktree safety, and real
+**Tested:** the renderer and all setup variants, the install script, the runtime and audit regressions, type checking, formatting, the architecture check, worktree safety, and real
 runs with Claude Haiku (small samples).
 
 **Not tested or not proven:** Ollama or Codex against a real model, GitHub branch protection on this repo (the free plan cannot set it), success rates beyond small samples, and "savings".
@@ -171,7 +192,7 @@ Details and numbers: `docs/evaluation.md`, `docs/jev.md`, `docs/learning.md`, `d
 
 ```
 project-setup/       the skill: SKILL.md · references/ · templates/ (what gets written) · scripts/ (renderer, detector, protection check)
-packages/agent-runtime/   the optional runtime (TypeScript, no runtime dependencies)
+packages/agent-runtime/   the optional runtime (TypeScript; core uses Node built-ins)
 schemas/             JSON Schemas for policy, task, model and architecture files
 evals/               test cases with hidden graders · baselines/ saved results
 docs/                threat model · evaluation · Jev · learning · migration · provider contract
@@ -182,10 +203,14 @@ install.sh · biome.json
 ### Working on this repo
 
 ```bash
-node --test 'test/*.test.mjs'                          # renderer, installer, worktrees, CI check
-cd packages/agent-runtime && npm install
-npm test && npm run typecheck && npm run format:check
-node src/cli/main.ts arch check --project .            # layer rules
+npm ci --prefix packages/agent-runtime
+npm run verify    # setup + runtime tests, typecheck, lint, format, architecture
 ```
 
 A rule that proved itself in a real project: add it to `project-setup/templates/` or `project-setup/references/invariants-catalog.md`, with a test.
+
+### Measuring improvements
+
+Use the paired evaluation procedure in [docs/evaluation.md](docs/evaluation.md). Compare independently graded results with
+`node packages/agent-runtime/scripts/compare-evals.ts baseline.json candidate.json`. Include qualification, failed calls,
+wall time and human intervention. The repository contains historical small development samples, not a proof of net savings.

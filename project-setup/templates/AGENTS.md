@@ -40,8 +40,8 @@ Not sure where a change belongs? Start with the [code map](context/code-map.md).
   [architecture](context/architecture.md#canonical-request-path).
 {{/if}}
 <!-- FILL: 6–12 bullets picked with the user from project-setup's invariants catalog, plus any project-specific ones from the brief. Each bullet: the rule in one sentence, then where it is enforced (test, lint rule, hook) or where the detail lives. Order by blast radius: data/security first, style last. -->
-- Before using a third-party library, load its skill from `.agents/skills/` (index:
-  [library docs](context/library-docs.md)). Project rules here override generic skill examples.
+- For unfamiliar library APIs, read the relevant [library docs](context/library-docs.md) or installed skill.
+  Project rules override generic examples; installing or loading a skill is not required for every dependency.
 - Same problem after one corrective attempt → stop and run `/recover`.
 - Questions: ask in plain text and end the turn — never `AskUserQuestion` or plan-approval dialogs
   (they block the session). Ask only when the answer changes the implementation and neither docs nor

@@ -24,6 +24,8 @@ export type RoleCtx = {
   egress: "local-only" | "hosted-allowed";
   maxOut?: number;
   beginCall?: (reserved: number) => void;
+  endCall?: () => void;
+  signal?: AbortSignal;
 };
 
 export class RoleFailed extends Error {
@@ -81,11 +83,13 @@ async function callJson(ctx: RoleCtx, system: string, prompt: string, schema: ob
     throw new RoleFailed("policy violation", `${ctx.provider.id} is hosted but the policy is local-only`);
   }
   const maxOut = ctx.maxOut ?? 1500;
-  const reserved = ctx.ledger.reserve(approx(system + prompt) + maxOut); // throws BudgetExceeded
+  const reserved = ctx.ledger.reserve(approx(system + prompt + JSON.stringify(schema)) + maxOut); // throws BudgetExceeded
   ctx.beginCall?.(reserved);
-  const res = await ctx.provider.generate({ system, prompt, maxOutputTokens: maxOut, schema });
-  if (res.costUsd !== undefined) ctx.ledger.costUsd += res.costUsd;
-  ctx.ledger.settle(reserved, res.usage ? res.usage.input + res.usage.output : null);
+  const res = await ctx.provider.generate({ system, prompt, maxOutputTokens: maxOut, schema, signal: ctx.signal });
+  ctx.ledger.settle(reserved, res.usage ? res.usage.input + res.usage.output : null, res.costUsd, ctx.provider.hosted);
+  ctx.endCall?.();
+  if (ctx.ledger.tokens > ctx.ledger.limits.aggregateTokens)
+    throw new RoleFailed("budget exhausted", "reported usage exceeds token budget");
   if (res.finishReason !== "stop") throw new RoleFailed("provider failure", `finish reason ${res.finishReason}`);
   try {
     return JSON.parse(res.content);

@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, posix, relative, sep } from "node:path";
 import { sha256 } from "./hash.ts";
 import { resolveSafe } from "./paths.ts";
@@ -16,8 +16,8 @@ export class ContextTooLarge extends Error {
 }
 
 const approx = (s: string) => Math.ceil(s.length / 4);
-const SKIP = new Set([".git", "node_modules", "dist", "coverage"]);
-const TEXT = /\.(ts|tsx|js|jsx|mjs|json|md|css|sql|ya?ml)$/;
+const SKIP = new Set([".git", "node_modules", "dist", "build", "coverage", ".next", ".turbo", ".venv", "__pycache__"]);
+const TEXT = /\.([cm]?[jt]sx?|py|go|rs|rb|java|sh|toml|json|md|css|sql|ya?ml)$/;
 
 function listFiles(root: string): string[] {
   const out: string[] = [];
@@ -45,14 +45,16 @@ export function compile(
   root: string,
   mandatory: string[],
   budget: number,
-  opts: { maxOptional?: number; maxOptionalTokens?: number } = {},
+  opts: { maxOptional?: number; maxOptionalTokens?: number; allowMissing?: string[] } = {},
 ): Packet {
   const maxOptional = opts.maxOptional ?? 2;
   const maxOptionalTokens = opts.maxOptionalTokens ?? 2000;
   const excerpts: Excerpt[] = [];
   let used = 0;
   const take = (path: string, reason: Excerpt["reason"]) => {
-    const text = readFileSync(resolveSafe(root, path), "utf8"); // rejects traversal, absolute paths, symlink escapes
+    const abs = resolveSafe(root, path);
+    const text =
+      !existsSync(abs) && opts.allowMissing?.includes(path) ? "(new file; use create)" : readFileSync(abs, "utf8"); // missing input stays an error unless explicitly declared new
     return { path, hash: sha256(text), reason, tokens: approx(text), text };
   };
   for (const path of mandatory) {
@@ -63,17 +65,26 @@ export function compile(
   }
   const have = new Set(mandatory);
   const all = listFiles(root);
+  const fileSet = new Set(all);
+  const resolveImport = (from: string, spec: string): string | undefined => {
+    if (!spec.startsWith(".")) return undefined;
+    const base = posix.normalize(posix.join(posix.dirname(from), spec));
+    return [...EXTS.map((x) => base + x), base.replace(/\.js$/, ".ts"), base.replace(/\.mjs$/, ".mts")].find((p) =>
+      fileSet.has(p),
+    );
+  };
   const related = new Map<string, number>(); // path → rank (lower = more relevant)
   const rank = (f: string, r: number) => {
     if (!have.has(f) && (related.get(f) ?? 99) > r) related.set(f, r);
   };
   for (const m of mandatory) {
     const dir = dirname(m);
-    const text = readFileSync(resolveSafe(root, m), "utf8");
+    const abs = resolveSafe(root, m);
+    if (!existsSync(abs)) continue;
+    const text = readFileSync(abs, "utf8");
     for (const [, spec] of text.matchAll(IMPORT_SPEC)) {
       if (!spec!.startsWith(".")) continue;
-      const base = posix.normalize(posix.join(dir, spec!));
-      const hit = EXTS.map((x) => base + x).find((c) => all.includes(c));
+      const hit = resolveImport(m, spec!);
       if (hit) rank(hit, 1); // direct dependency
     }
     const stem = posix
@@ -84,20 +95,12 @@ export function compile(
       if (posix.dirname(f) === dir && new RegExp(`^${stem}\\.[a-z.]*(test|spec)\\.`).test(posix.basename(f)))
         rank(f, 0); // sibling tests
   }
-  const stems = mandatory.map((m) => posix.basename(m).replace(/\.[^.]+$/, ""));
   for (const f of all) {
-    if (have.has(f) || !/\.(ts|tsx|js|jsx|mjs)$/.test(f)) continue;
+    if (have.has(f) || !/\.[cm]?[jt]sx?$/.test(f)) continue;
     const body = readFileSync(join(root, f), "utf8");
     for (const [, spec] of body.matchAll(IMPORT_SPEC)) {
-      if (
-        spec!.startsWith(".") &&
-        stems.some((st) => spec!.endsWith(`/${st}`) || spec === `./${st}`) &&
-        have.has(
-          posix.normalize(posix.join(posix.dirname(f), spec!)) +
-            (EXTS.find((x) => have.has(posix.normalize(posix.join(posix.dirname(f), spec!)) + x)) ?? ""),
-        )
-      )
-        rank(f, 2); // direct caller
+      const target = resolveImport(f, spec!);
+      if (target && have.has(target)) rank(f, 2);
     }
   }
   const omitted: Packet["omitted"] = [];

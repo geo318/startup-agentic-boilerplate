@@ -189,12 +189,12 @@ test("protection: unprotected, protected, and unknown are distinct; --require fa
   assert.equal(r.status, 0);
   assert.equal(prot(unprot, ["--require"]).status, 1);
   const ok = fakeGh(
-    `case "$*" in *protection*) echo '{"required_status_checks":{"contexts":["ci"]}}';; *rules/branches*) echo '[]';; esac`,
+    `case "$*" in *protection*) echo '{"enforce_admins":{"enabled":true},"required_status_checks":{"strict":true,"contexts":["checks","do-not-merge"]}}';; *rules/branches*) echo '[]';; esac`,
   );
   assert.match(prot(ok).stdout, /PROTECTED/);
   assert.equal(prot(ok, ["--require"]).status, 0);
   const rules = fakeGh(
-    `case "$*" in *protection*) echo '{"message":"Not Found"}' >&2; exit 1;; *rules/branches*) echo '[{"type":"required_status_checks"}]';; esac`,
+    `case "$*" in *protection*) echo '{"message":"Not Found"}' >&2; exit 1;; *rules/branches*) echo '[{"type":"required_status_checks","ruleset_id":7,"parameters":{"strict_required_status_checks_policy":true,"required_status_checks":[{"context":"checks"},{"context":"do-not-merge"}]}}]';; *rulesets/7*) echo '{"bypass_actors":[]}';; esac`,
   );
   assert.match(prot(rules).stdout, /PROTECTED/);
   const noaccess = fakeGh(`echo "HTTP 403" >&2; exit 1`);
@@ -571,4 +571,83 @@ test("token audit counts canonical skills once across Claude symlinks", () => {
   const audit = JSON.parse(r.stdout);
   assert.equal(audit.skills.count, 1);
   assert.equal(audit.usageSource, "claude-code-only");
+});
+
+test("protection without required checks or with bypass permissions fails --require", () => {
+  for (const p of [
+    { required_status_checks: null },
+    {
+      required_status_checks: { strict: true, contexts: ["checks", "do-not-merge"] },
+      enforce_admins: { enabled: false },
+    },
+  ]) {
+    const env = fakeGh(`case "$*" in *protection*) echo '${JSON.stringify(p)}';; *rules/branches*) echo '[]';; esac`);
+    const result = prot(env, ["--require"]);
+    assert.equal(result.status, 1);
+    assert.match(result.stdout, /INCOMPLETE/);
+  }
+});
+
+test("lean setup keeps commands and checks, omits generic architecture prose, and has valid links", () => {
+  const { t, r } = render({ flags: { LEAN: true } });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(!existsSync(join(t, "context/architecture/domain-modules.md")));
+  assert.ok(!existsSync(join(t, ".fallowrc.json")));
+  assert.ok(!existsSync(join(t, ".agents/skills/architect")));
+  assert.ok(readFileSync(join(t, "AGENTS.md"), "utf8").length / 4 < 1500);
+  for (const f of files(t).filter((f) => f.endsWith(".md"))) {
+    const body = readFileSync(join(t, f), "utf8").replace(/<!-- FILL:[\s\S]*?-->/g, "Setup fixture.");
+    writeFileSync(join(t, f), body);
+  }
+  const check = spawnSync(process.execPath, [join(t, "scripts/checks/docs-check.mjs"), "--root", t, "--strict"], {
+    encoding: "utf8",
+  });
+  assert.equal(check.status, 0, check.stdout + check.stderr);
+  noLeftovers(t);
+});
+
+test("token inventory counts Codex skills, folded descriptions, and imported instructions once", () => {
+  const home = tmp(),
+    target = tmp();
+  mkdirSync(join(home, ".codex/skills/folded"), { recursive: true });
+  writeFileSync(
+    join(home, ".codex/skills/folded/SKILL.md"),
+    `---\nname: folded\ndescription: >\n  ${"A useful description. ".repeat(40)}\n---\n`,
+  );
+  writeFileSync(join(target, "AGENTS.md"), "@rules.md\n");
+  writeFileSync(join(target, "rules.md"), "@AGENTS.md\nKeep edits small.\n");
+  const result = spawnSync(
+    process.execPath,
+    [join(root, "project-setup/scripts/token-audit.mjs"), "--target", target, "--harness", "codex"],
+    { encoding: "utf8", env: { ...process.env, HOME: home } },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  const data = JSON.parse(result.stdout);
+  assert.equal(data.skills.count, 1);
+  assert.ok(data.skills.tokens > 200);
+  assert.equal(data.instructionFiles.length, 2);
+  assert.deepEqual(data.skills.unused, []); // no telemetry is not evidence of non-use
+});
+
+test("mixed-harness inventories never infer skill non-use from Claude-only transcripts", () => {
+  const home = tmp(),
+    target = tmp();
+  for (const skill of [".codex/skills/codex-only", ".claude/skills/claude-only"]) {
+    mkdirSync(join(home, skill), { recursive: true });
+    writeFileSync(join(home, skill, "SKILL.md"), "---\nname: example\ndescription: Example skill.\n---\n");
+  }
+  const transcripts = join(home, ".claude/projects", target.replace(/[/.]/g, "-"));
+  mkdirSync(transcripts, { recursive: true });
+  writeFileSync(join(transcripts, "session.jsonl"), '{"type":"assistant","message":{"content":[]}}\n');
+  for (const harness of ["all", "codex", "claude"]) {
+    const result = spawnSync(
+      process.execPath,
+      [join(root, "project-setup/scripts/token-audit.mjs"), "--target", target, "--harness", harness],
+      { encoding: "utf8", env: { ...process.env, HOME: home } },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const data = JSON.parse(result.stdout);
+    assert.equal(data.sessionsScanned, 1);
+    assert.deepEqual(data.skills.unused, harness === "claude" ? ["claude-only"] : []);
+  }
 });

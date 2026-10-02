@@ -4,15 +4,19 @@
 //
 //   node token-audit.mjs [--target <dir>]
 //
-// Sizes are bytes / 4, an estimate. Usage is counted from this project's Claude Code transcripts.
+// Sizes are characters / 4, an estimate, not tokenizer measurements. Usage is counted from this project's Claude Code transcripts.
 
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { parseFrontmatter } from "../templates/scripts/skills/index.mjs";
 
 const argIdx = process.argv.indexOf("--target");
 const root = resolve(argIdx > 0 ? process.argv[argIdx + 1] : process.cwd());
 const home = homedir();
+const harnessArg = process.argv.indexOf("--harness");
+const harness = harnessArg >= 0 ? process.argv[harnessArg + 1] : "all";
+if (!["all", "codex", "claude"].includes(harness)) throw new Error("--harness must be all, codex, or claude");
 const tokens = (text) => Math.round(text.length / 4);
 const read = (path) => (existsSync(path) ? readFileSync(path, "utf8") : "");
 const json = (path) => {
@@ -24,23 +28,35 @@ const json = (path) => {
 };
 const dirs = (path) => (existsSync(path) ? readdirSync(path) : []);
 
-// Always-loaded instruction files.
-const instructionFiles = [
-  join(home, ".claude/CLAUDE.md"),
-  join(home, ".claude/RTK.md"),
-  join(root, "CLAUDE.md"),
+// Inventory plus explicit Markdown imports; harness/plugin loading can add more context.
+const instructionFiles = [];
+const seenInstructions = new Set();
+function instruction(path) {
+  if (!existsSync(path) || !statSync(path).isFile()) return;
+  const real = realpathSync(path);
+  if (seenInstructions.has(real)) return;
+  seenInstructions.add(real);
+  const body = read(real);
+  instructionFiles.push({ path: real, tokens: tokens(body) });
+  for (const [, ref] of body.matchAll(/^@([^\s]+\.md)\s*$/gm))
+    instruction(ref.startsWith("~/") ? join(home, ref.slice(2)) : resolve(dirname(real), ref));
+}
+for (const path of [
+  ...(harness !== "codex" ? [join(home, ".claude/CLAUDE.md"), join(root, "CLAUDE.md")] : []),
+  ...(harness !== "claude" ? [join(home, ".codex/AGENTS.md"), join(home, ".codex/AGENTS.override.md")] : []),
   join(root, "AGENTS.md"),
-  join(home, ".codex/AGENTS.md"),
-]
-  .filter(existsSync)
-  .map((path) => ({ path, tokens: tokens(read(path)) }));
+  join(root, "AGENTS.override.md"),
+])
+  instruction(path);
 
 // Skills: only the frontmatter description is always loaded.
 const skillRoots = [
   join(root, ".agents/skills"),
   join(home, ".agents/skills"),
-  join(root, ".claude/skills"),
-  join(home, ".claude/skills"),
+  ...(harness !== "codex" ? [join(root, ".claude/skills"), join(home, ".claude/skills")] : []),
+  ...(harness !== "claude"
+    ? [join(root, ".codex/skills"), join(home, ".codex/skills"), join(home, ".codex/skills/.system")]
+    : []),
 ];
 const seenSkills = new Set();
 const skills = skillRoots.flatMap((base) =>
@@ -55,7 +71,7 @@ const skills = skillRoots.flatMap((base) =>
     })
     .map((name) => {
       const text = read(join(base, name, "SKILL.md"));
-      const description = /^description:\s*(.*)$/m.exec(text)?.[1] ?? "";
+      const description = parseFrontmatter(text.split(/\r?\n/))?.description ?? "";
       return { name, tokens: tokens(description) + 20 };
     }),
 );
@@ -95,16 +111,25 @@ console.log(
   JSON.stringify(
     {
       usageSource: "claude-code-only",
+      harness,
+      tokenMethod: "estimated characters / 4; filesystem inventory, not measured session loading",
+      limitations: [
+        "Active plugin catalogs, deferred tool schemas, and ancestor instructions may add context",
+        "No Claude calls does not establish non-use in other harnesses; unused lists require --harness claude",
+      ],
       instructionFiles,
       skills: {
         count: skills.length,
         tokens: skills.reduce((n, s) => n + s.tokens, 0),
-        unused: unusedSkills.map((s) => s.name),
+        unused: used.sessions && harness === "claude" ? unusedSkills.map((s) => s.name) : [],
       },
       mcpServers: {
         configured: mcpServers,
         usedCalls: used.mcp,
-        unused: mcpServers.filter((s) => !Object.keys(used.mcp).some((u) => u.includes(s))),
+        unused:
+          used.sessions && harness === "claude"
+            ? mcpServers.filter((s) => !Object.keys(used.mcp).some((u) => u.includes(s)))
+            : [],
       },
       enabledPlugins,
       sessionsScanned: used.sessions,

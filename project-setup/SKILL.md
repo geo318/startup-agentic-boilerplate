@@ -1,6 +1,6 @@
 ---
 name: project-setup
-description: Turn a product plan into a ready-to-build project — agent rules (AGENTS.md/CLAUDE.md), a context/ documentation system (overview, code map, architecture, code standards, invariants, glossary, build plan, progress tracker, decisions), workflow skills (architect, review, recover, remember, imprint, add-library-skill), deterministic checks (Biome, oxlint, fallow boundaries/dead code, docs-check, optional harness hooks), git conventions with hooks, CI with a merge gate, and optionally the stack's code skeleton. Use when starting a new project from a brief/plan/PRD, bootstrapping or scaffolding a repo for agentic development, or retrofitting this documentation system onto an existing codebase.
+description: Set up or adopt a software project for coding agents from a plan: scoped instructions, project context, executable checks, hooks and CI. Supports a lean preset and an optional controlled coding runtime.
 ---
 
 # Project setup
@@ -81,6 +81,17 @@ Show the one-screen summary from intake.md. Do not write files until the user co
 Add one line per missing `tokenTools` entry with its install command from
 [references/token-tools.md](references/token-tools.md); the user may accept or skip each.
 
+### Lean preset
+
+For small projects, recommend `flags.LEAN: true` in the existing confirmation summary. It renders concise commands, invariants, a code map, build plan, progress and library docs, plus applicable hooks/CI. It omits generic architecture prose, workflow skills and fallow configuration. Existing projects keep their tooling. For lean setup:
+
+- Fill only the emitted files; do not create the omitted documents or domain skeleton.
+- Use framework generators only if requested, and keep their native structure.
+- Reuse the existing linter; for a new TS project, Biome is sufficient initially. Do not add fallow, oxlint or anti-slop merely to satisfy the full-preset defaults below.
+- Use official library docs unless a skill adds useful repeatable guidance.
+- Keep root instructions below approximately 1,500 tokens; run docs-check with `--strict`.
+- Full setup remains available for an explicitly chosen domain architecture.
+
 ### 4. Scaffold code (only if the user chose it)
 
 Run the preset's generators and skeleton steps from stack-presets.md **before** rendering docs.
@@ -110,7 +121,7 @@ the content. Order: `docs/archive/product-brief.md` (paste the brief verbatim) �
 `context/project-overview.md` → `glossary.md` → `AGENTS.md` invariants → `architecture.md` and its
 topics (including `architecture/domain-modules.md`, whose modules come from the product areas) →
 `code-map.md` (one row per module) → `code-standards.md` and `standards/code-organisation.md` →
-app `AGENTS.md` files → `build-plan.md` → decisions → the rest. Keep `AGENTS.md` under 200 lines.
+app `AGENTS.md` files → `build-plan.md` → decisions → the rest. Keep `AGENTS.md` under 200 lines and approximately 1,500 tokens. Move topic detail into linked references.
 
 ### 7. Wire tooling
 
@@ -145,7 +156,7 @@ app `AGENTS.md` files → `build-plan.md` → decisions → the rest. Keep `AGEN
   `tools/oxlint/anti-slop/` (already excluded in `biome.json` and `.fallowrc.json`), adds
   `@oxlint/plugins`, and writes `oxlint.config.ts`. Run `lint` and `fallow` once on the skeleton
   and fix what they report — a fresh skeleton must be clean.
-- Install library skills for the confirmed stack per
+- Install only useful library skills for the confirmed stack per
   [references/skills-catalog.md](references/skills-catalog.md); fill `.agents/README.md` and
   `context/library-docs.md` from what was actually installed, then regenerate the catalog with
   `<runtime> scripts/skills/index.mjs`. A dependency with no catalog entry goes through the
@@ -156,7 +167,7 @@ app `AGENTS.md` files → `build-plan.md` → decisions → the rest. Keep `AGEN
   is how subagents learn of them.
 - `git init -b <default-branch>` if the target is not a repository.
 - GitHub (if chosen): tell the user to create the `do-not-merge` label and make `Merge gate` and
-  `CI` required checks — do not do it for them unless asked.
+  the actual job contexts (`checks`, `do-not-merge`, and runtime `trusted-gates` when enabled) required checks — do not do it for them unless asked.
 
 ### 8. Verify
 

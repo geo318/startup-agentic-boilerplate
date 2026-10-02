@@ -430,9 +430,9 @@ test("an agent cannot flip the switch from inside a task: .agents/ is a protecte
 });
 
 // ---------- Jev auto-use when a key exists ----------
-test("jev auto: a key in the user-level store turns it on with no jev section in the policy; no key → untouched", async () => {
+test("jev requires explicit opt-in as well as a key; no key → untouched", async () => {
   const calls = { n: 0 };
-  const w = world({ policy: { egress: "hosted-allowed" } }); // note: no "jev" key at all
+  const w = world({ policy: { egress: "hosted-allowed", jev: { auto: true } } });
   w.qualifyAll();
   await c.taskCreate(w.env(), w.contract());
 
@@ -466,16 +466,16 @@ test("jev auto: opt-out and explicit modes win; local-only egress means key pres
     "fix-value",
   );
   assert.equal(calls.n, 0);
-  const local = world(); // default policy: egress local-only
+  const local = world({ policy: { jev: { auto: true } } }); // explicit opt-in, but local-only
   await c.doctor(local.env({ secrets: { JEV_API_KEY: "k" } }));
   assert.match(local.out.join("\n"), /jev\s+key\/config present but NOT used: policy egress is local-only/);
-  const hosted = world({ policy: { egress: "hosted-allowed" } });
+  const hosted = world({ policy: { egress: "hosted-allowed", jev: { auto: true } } });
   await c.doctor(hosted.env({ secrets: { JEV_API_KEY: "k" } }));
-  assert.match(hosted.out.join("\n"), /jev\s+on \(auto: key present\)/);
+  assert.match(hosted.out.join("\n"), /jev\s+on \(opt-in: jev.auto true and key present\)/);
   assert.doesNotMatch(hosted.out.join("\n"), /"k"/);
   const nokey = world({ policy: { egress: "hosted-allowed" } });
   await c.doctor(nokey.env());
-  assert.match(nokey.out.join("\n"), /jev\s+off \(no JEV_API_KEY/);
+  assert.match(nokey.out.join("\n"), /jev\s+off \(Jev is opt-in/);
 });
 
 test("process level: an unknown subcommand prints usage and runs NOTHING (regression: `jev <x>` used to fall through into `task`)", async () => {
@@ -511,4 +511,141 @@ test("do: derives the contract from --files or the changed tree, refuses to gues
   assert.equal(c.statusOf(w.env(), id).state, "AWAITING_ACCEPTANCE");
   assert.match(w.out.join("\n"), new RegExp(`next: node scripts/agentic.mjs status ${id}`));
   assert.match(w.out.join("\n"), /\(R1, budget narrow\)/);
+});
+
+test("approved write scope rejects a same-tier sibling edit", async () => {
+  const w = world();
+  writeFileSync(join(w.project, "other.txt"), "original");
+  writeFileSync(
+    join(w.project, "worker.replay.json"),
+    J([
+      J({
+        id: "x",
+        kind: "edit",
+        edits: [{ kind: "replace_file", path: "other.txt", expectHash: sha256("original"), content: "changed" }],
+      }),
+      edit,
+      finish,
+    ]),
+  );
+  w.qualifyAll();
+  await c.taskCreate(w.env(), w.contract({ scope: ["value.txt"] }));
+  await c.taskRun(w.env(), "fix-value");
+  assert.equal(readFileSync(join(w.home, "tasks/fix-value/candidate/other.txt"), "utf8"), "original");
+  assert.match(
+    readFileSync(join(w.home, "tasks/fix-value/state/events.jsonl"), "utf8"),
+    /outside approved write scope/,
+  );
+  assert.equal(c.statusOf(w.env(), "fix-value").state, "AWAITING_ACCEPTANCE");
+});
+
+test("existing colocated acceptance tests cannot be weakened, even inside write scope", async () => {
+  const w = world();
+  writeFileSync(join(w.project, "value.test.mjs"), "original assertion");
+  writeFileSync(
+    join(w.project, "worker.replay.json"),
+    J([
+      J({
+        id: "x",
+        kind: "edit",
+        edits: [
+          {
+            kind: "replace_file",
+            path: "value.test.mjs",
+            expectHash: sha256("original assertion"),
+            content: "weakened assertion",
+          },
+        ],
+      }),
+      edit,
+      finish,
+    ]),
+  );
+  w.qualifyAll();
+  await c.taskCreate(w.env(), w.contract({ scope: ["value.txt", "value.test.mjs"] }));
+  await c.taskRun(w.env(), "fix-value");
+  assert.equal(readFileSync(join(w.home, "tasks/fix-value/candidate/value.test.mjs"), "utf8"), "original assertion");
+  assert.match(readFileSync(join(w.home, "tasks/fix-value/state/events.jsonl"), "utf8"), /protected path/);
+});
+
+test("failed cheap worker routes its gate diagnostic to a strong worker", async () => {
+  const strongFile = join(tmp(), "strong.json");
+  writeFileSync(strongFile, J([edit, finish]));
+  const w = world({
+    roles: { workerStrong: "strong" },
+    extraProfiles: { strong: { kind: "replay", file: strongFile } },
+  });
+  writeFileSync(join(w.project, "worker.replay.json"), J([finish]));
+  w.qualifyAll();
+  w.qual("mock/replay:strong.json", "action-protocol");
+  const prompts: string[] = [];
+  const env = w.env({
+    wrapProvider: (p) => ({
+      id: p.id,
+      hosted: p.hosted,
+      generate: (req) => {
+        if (p.id.includes("strong")) prompts.push(req.prompt);
+        return p.generate(req);
+      },
+    }),
+  });
+  await c.taskCreate(env, w.contract({ budget: "standard" }));
+  await c.taskRun(env, "fix-value");
+  assert.equal(c.statusOf(env, "fix-value").state, "AWAITING_ACCEPTANCE");
+  assert.match(prompts[0]!, /Gate failure/);
+  assert.deepEqual(JSON.parse(w.out.at(-1)!).workers, ["mock/replay:worker.replay.json", "mock/replay:strong.json"]);
+});
+
+test("blocking review repairs use new action IDs and include findings", async () => {
+  const w = world();
+  writeFileSync(join(w.project, "worker.replay.json"), J([edit, finish, finish]));
+  writeFileSync(
+    join(w.project, "reviewer.replay.json"),
+    J([
+      J({
+        findings: [
+          {
+            severity: "blocking",
+            criterion: "correct",
+            location: "value.txt",
+            evidence: "REVIEW_FEEDBACK",
+            consequence: "recheck",
+          },
+        ],
+      }),
+      J({ findings: [] }),
+    ]),
+  );
+  w.qualifyAll();
+  const prompts: string[] = [];
+  const env = w.env({
+    wrapProvider: (p) => ({
+      id: p.id,
+      hosted: p.hosted,
+      generate: (req) => {
+        if (p.id.includes("worker")) prompts.push(req.prompt);
+        return p.generate(req);
+      },
+    }),
+  });
+  await c.taskCreate(env, w.contract({ riskTier: "R2", budget: "standard" }));
+  await c.taskRun(env, "fix-value");
+  await c.taskApprove(env, "fix-value");
+  await c.taskRun(env, "fix-value");
+  assert.equal(c.statusOf(env, "fix-value").state, "AWAITING_ACCEPTANCE");
+  assert.match(prompts.at(-1)!, /REVIEW_FEEDBACK/);
+  assert.doesNotMatch(readFileSync(join(w.home, "tasks/fix-value/state/events.jsonl"), "utf8"), /duplicate action id/);
+});
+
+test("Jev key alone makes no calls; explicit opt-in is required", async () => {
+  const w = world({ policy: { egress: "hosted-allowed" } });
+  w.qualifyAll();
+  await c.taskCreate(w.env(), w.contract());
+  const calls = { n: 0 };
+  await c.taskRun(
+    w.env({ secrets: { JEV_API_KEY: "k" }, jevTransport: jevFake(() => "standard-worker", 0.99, calls) }),
+    "fix-value",
+  );
+  assert.equal(calls.n, 0);
+  assert.equal(existsSync(join(w.home, "telemetry/jev.jsonl")), false);
 });

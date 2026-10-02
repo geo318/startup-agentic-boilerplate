@@ -212,7 +212,14 @@ test("ollama worker through the driver: fake server replies drive a real run to 
   assert.equal(run.ledger.tokens, 480);
   f.close(); // close first: a failing assertion must not leave the server holding the process open
   assert.equal(f.seen[0].format.additionalProperties, false); // constrained output was requested, and it is closed
-  assert.deepEqual(f.seen[0].format.properties.kind.enum, ["read", "edit", "run_gate", "finish", "blocked"]);
+  assert.deepEqual(f.seen[0].format.properties.kind.enum, [
+    "read",
+    "edit",
+    "edit_and_finish",
+    "run_gate",
+    "finish",
+    "blocked",
+  ]);
 });
 
 test("Ollama identity binds every profile field and is stable across key order", () => {

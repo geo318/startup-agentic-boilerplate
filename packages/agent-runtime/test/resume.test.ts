@@ -209,6 +209,7 @@ test("interrupted worker, architect and reviewer calls stop on every resume with
     );
     const reserved = a.ledger.tokens;
     assert.ok(reserved > 0);
+    a.record("execution_finished", { durationMs: 1 });
     crash(a);
     for (let retry = 0; retry < 2; retry++) {
       const b = new Run(policy);
@@ -217,9 +218,28 @@ test("interrupted worker, architect and reviewer calls stop on every resume with
       assert.equal(b.uncertainBilling, true);
       assert.equal(b.ledger.tokens, reserved);
       assert.equal(b.ledger.unknownUsageCalls, 1);
+      assert.equal(b.ledger.unknownCostCalls, 1);
       assert.equal(await drive(b, provider, ws, { goal: "g", acceptance: [], files: ["value.txt"] }), 0);
       b.close();
     }
     assert.equal(calls, 1);
+  }
+});
+
+test("resuming a cancelled local call preserves cancellation and never invents hosted billing", () => {
+  const { policy } = setup();
+  const a = new Run(policy);
+  a.start();
+  a.ledger.reserve(100);
+  a.beginCall(100, false);
+  a.cancel();
+  a.close();
+  for (let i = 0; i < 2; i++) {
+    const b = new Run(policy);
+    b.resume();
+    assert.equal(b.state, "CANCELLED");
+    assert.equal(b.ledger.unknownUsageCalls, 1);
+    assert.equal(b.ledger.unknownCostCalls, 0);
+    b.close();
   }
 });

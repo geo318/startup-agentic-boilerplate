@@ -1,3 +1,4 @@
+import { canonical, sha256 } from "./hash.ts";
 import type { GenerateRequest, GenerateResult, GenerationProvider } from "./provider.ts";
 
 export type ChatProfile = {
@@ -19,7 +20,7 @@ export class ChatCompletionsProvider implements GenerationProvider {
   constructor(profile: ChatProfile) {
     this.#p = profile;
     this.hosted = profile.hosted;
-    this.id = `chat/${profile.model}@${new URL(profile.baseUrl).host}`;
+    this.id = `chat/${profile.model}@${new URL(profile.baseUrl).host}/${sha256(canonical(profile))}`;
   }
   async generate(req: GenerateRequest): Promise<GenerateResult> {
     const started = Date.now();

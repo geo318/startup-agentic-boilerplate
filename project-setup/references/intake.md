@@ -48,6 +48,8 @@ Always offer a default the user can accept. Typical first round when the brief i
    request-path skeleton.
 4. **Forge** — GitHub (CI + PR protocol + merge gate) or none yet.
 
+For small projects, recommend `flags.LEAN: true` in the same summary: concise project-specific docs, native tooling, and no generic domain skeleton. Choose the full preset when the brief needs those architectural conventions. No additional approval round is needed.
+
 Stop asking once every value that changes the generated files is known. Everything else is
 recorded as an open question in the build plan — never invented.
 
@@ -147,6 +149,7 @@ re-rendered). All `vars` values are strings; all `flags` are booleans.
 
 Notes:
 
+- `LEAN` selects minimal project docs and omits generic architecture/workflow skills and fallow configuration. Full mode is retained when false or absent. Existing files are not deleted on sync.
 - `CLAUDE_CODE` enables Claude settings and its Stop hook; `CLAUDE_SKILL_LINKS` enables compatibility symlinks. Set them for the confirmed harnesses, not the model provider. Codex and other agents use `AGENTS.md` and `.agents/skills/` without these flags.
 
 - `RUNTIME` runs the generated `.mjs` scripts: `bun` when `BUN`, else `node`.
@@ -170,7 +173,7 @@ Notes:
   `.fallowrc.json` to be written from the real layout. `OWN_LINTER`, `OWN_HOOKS`, `OWN_CI` keep the
   project's linter, git hooks, and CI: `biome.json`, `.githooks/`, and `ci.yml` are not rendered
   and the checks are added to the existing tools ([adopt.md](adopt.md)). `detect.mjs` sets all four.
-- `CMD_FALLOW` is required when `TYPESCRIPT`: the package script that runs fallow (strict on a new
+- `CMD_FALLOW` is required when `TYPESCRIPT` and not `LEAN`: the package script that runs fallow (strict on a new
   repo, `fallow audit` on adopt/upgrade — see SKILL.md step 7).
 
 ## Optional: controlled runtime (`AGENTIC_RUNTIME`)
@@ -185,7 +188,7 @@ and `scripts/agentic.mjs`, and the skills gain a short "Managed mode" section. I
 - `CMD_TEST` (already required): split on whitespace into the gate's argv. No shell, so no pipes or `&&`.
 - `GATE_DISCOVER_REGEX`: one capture group giving the number of tests the runner discovered. A gate that
   discovers none is *incomplete*, never a pass. Common runners (check against your runner's real output):
-  vitest `(\\d+) passed` · jest `Tests:.*?(\\d+) passed` · bun test `(\\d+) pass` · node:test `# pass (\\d+)`.
+  vitest `(\\d+) passed` · jest `Tests:.*?(\\d+) passed` · bun test `(\\d+) pass` · node:test `(?:#|ℹ) tests (\\d+)`.
 - `AGENTIC_ALLOW_HOSTED` (flag, default false): true lets hosted providers receive source. Leave false for
   local-only data.
 

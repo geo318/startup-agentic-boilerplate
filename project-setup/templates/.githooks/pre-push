@@ -7,7 +7,9 @@ node scripts/agentic.mjs pr-summary --update >/dev/null 2>&1 || true
 {{#if TYPESCRIPT}}
 {{RUNTIME}} scripts/checks/docs-check.mjs || exit 1
 {{CMD_LINT}} || exit 1
+{{#unless LEAN}}
 exec {{CMD_FALLOW}}
+{{/unless}}
 {{else}}
 exec {{RUNTIME}} scripts/checks/docs-check.mjs
 {{/if}}

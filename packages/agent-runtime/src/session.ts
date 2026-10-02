@@ -2,17 +2,19 @@ import { spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { type GateResult, type GateSpec, runGate } from "./gates.ts";
+import { canonical, sha256 } from "./hash.ts";
 import { riskFloor, type RiskTier } from "./risk.ts";
 import { snapshot } from "./run.ts";
 
 // Automatic after-the-fact check, called from the project's Stop hook: run the policy's required gates on whatever
 // the working tree now contains and record one row. The controller did not drive any model here, so this is
-// verification evidence only (no cost, no worker routing). One row per distinct tree digest; repeats reuse it.
+// verification evidence only (no cost, no worker routing). Reuse is explicit because external state can change.
 export type SessionRow = {
   ts: string;
   project: string;
   branch: string;
   digest: string;
+  checkKey?: string;
   changed: number;
   tier: RiskTier;
   passed: boolean;
@@ -21,16 +23,26 @@ export type SessionRow = {
 };
 
 const file = (home: string) => join(home, "sessions.jsonl");
-export function readSessions(home: string): SessionRow[] {
+export function readSessions(home: string, strict = false): SessionRow[] {
   return existsSync(file(home))
     ? readFileSync(file(home), "utf8")
         .split("\n")
         .filter(Boolean)
-        .flatMap((l) => {
+        .flatMap((l, i) => {
           try {
-            return [JSON.parse(l) as SessionRow];
+            const row = JSON.parse(l) as SessionRow;
+            if (
+              !row ||
+              typeof row.project !== "string" ||
+              !Number.isFinite(Date.parse(row.ts)) ||
+              typeof row.passed !== "boolean"
+            )
+              throw new Error("invalid session row");
+            return [row];
           } catch {
-            return []; // a torn last line must not break stats
+            if (strict)
+              throw new Error(`Cannot report complete stats: unreadable session record at ${file(home)} line ${i + 1}`);
+            return []; // best-effort consumers can ignore a torn last line
           }
         })
     : [];
@@ -45,6 +57,7 @@ export async function sessionCheck(o: {
   gates: GateSpec[];
   requiredGates: string[];
   out: (s: string) => void;
+  reuse?: boolean; // explicit: dependency/environment state cannot be inferred from source hashes
 }): Promise<number> {
   const paths = git(o.project, "status", "--porcelain", "--untracked-files=all")
     .stdout.split("\n")
@@ -60,9 +73,27 @@ export async function sessionCheck(o: {
   }
   if (paths.length === 0 || paths.every((p) => /\.mdx?$/.test(p))) return 0; // nothing to test
   const digest = snapshot(o.project);
-  const prior = readSessions(o.home)
-    .reverse()
-    .find((r) => r.project === o.project && r.digest === digest);
+  const checkKey = sha256(
+    canonical({
+      gates: o.gates,
+      required: o.requiredGates,
+      node: process.version,
+      platform: process.platform,
+      path: process.env.PATH ?? "",
+    }),
+  );
+  const prior = o.reuse
+    ? readSessions(o.home)
+        .reverse()
+        .find(
+          (r) =>
+            r.project === o.project &&
+            r.branch === currentBranch(o.project) &&
+            r.digest === digest &&
+            r.checkKey === checkKey &&
+            r.passed,
+        )
+    : undefined;
   if (prior) {
     if (!prior.passed && prior.tail) o.out(prior.tail);
     return prior.passed ? 0 : 2;
@@ -88,6 +119,7 @@ export async function sessionCheck(o: {
     project: o.project,
     branch: currentBranch(o.project),
     digest,
+    checkKey,
     changed: new Set(paths).size,
     tier: riskFloor({ paths }),
     passed: !bad && results.length === o.requiredGates.length,

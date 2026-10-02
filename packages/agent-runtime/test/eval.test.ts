@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { cpSync, mkdtempSync, writeFileSync } from "node:fs";
+import { cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -68,6 +68,8 @@ const r = (o: Partial<CaseResult>): CaseResult => ({
   costUsd: 0.01,
   wallMs: 1000,
   unknownUsageCalls: 0,
+  unknownCostCalls: 0,
+  qualificationCostUsd: 0,
   ...o,
 });
 
@@ -126,4 +128,137 @@ test("eval discovery accepts Node 22 TAP and Node 24 spec summaries, including z
       assert.equal(Number(match?.[1]), count);
     }
   }
+});
+
+test("suite spending includes qualification and stops before another task can exceed remaining allowance", async () => {
+  const { runSuite } = await import("../src/eval.ts");
+  let calls = 0,
+    reported = 0;
+  const results: CaseResult[] = [];
+  await assert.rejects(
+    runSuite({
+      onResult: (result) => results.push(result),
+      evalsRoot: evals,
+      suite: "dev-r1",
+      trials: 1,
+      budgetUsd: 0.0065,
+      hosted: true,
+      profile: { name: "fake", def: { kind: "claude-cli", model: "fake" } },
+      provider: {
+        id: "fake",
+        hosted: true,
+        supportsCostLimit: true,
+        async generate(req) {
+          calls++;
+          const action = req.prompt.includes("File f.txt")
+            ? {
+                id: "p",
+                kind: "edit",
+                edits: [
+                  {
+                    kind: "replace",
+                    path: "f.txt",
+                    expectHash: req.prompt.match(/hash ([a-f0-9]+)/)![1],
+                    find: "alpha",
+                    replace: "beta",
+                  },
+                ],
+              }
+            : req.prompt.includes("Reply with the finish action")
+              ? { id: "p", kind: "finish" }
+              : { id: "p", kind: "blocked", reason: "fixture abstention" };
+          return {
+            content: JSON.stringify(action),
+            finishReason: "stop",
+            latencyMs: 1,
+            usage: { input: 10, output: 5 },
+            costUsd: Math.min(0.001, req.maxCostUsd!),
+          };
+        },
+      },
+      onSpend: (s) => {
+        reported = s.costUsd;
+      },
+    }),
+    /evaluation incomplete: spending stopped after 1\/8 cases/,
+  );
+  assert.equal(calls, 7); // six qualification calls, then one task
+  assert.equal(results.length, 1);
+  assert.ok(Math.abs(reported - 0.0065) < 1e-10);
+  assert.ok(Math.abs(results[0]!.costUsd - reported) < 1e-10);
+  assert.ok(results[0]!.qualificationCostUsd! > 0);
+});
+
+test("comparison refuses different trial pairs and incomplete billing has no cost per success", () => {
+  assert.throws(() => compare([r({})], [r({ caseId: "different" })]), /same nonempty cases/);
+  assert.equal(summarize([r({ unknownCostCalls: 1 })]).costPerAcceptedTask, null);
+});
+
+test("comparison rejects unknown, legacy, invalid or contradictory evidence", () => {
+  for (const patch of [
+    { unknownCostCalls: undefined },
+    { unknownUsageCalls: 1 },
+    { qualificationCostUsd: undefined },
+    { costUsd: NaN },
+    { tokens: -1 },
+    { wallMs: Infinity },
+    { qualificationCostUsd: 1 },
+    { trial: 0 },
+    { runtimeAccepted: true, independentlyCorrect: null },
+    { falseAcceptance: true },
+  ])
+    assert.throws(() => compare([r({})], [r(patch)]));
+  assert.throws(() => compare([r({})], [r({ family: "other" })]), /same nonempty cases/);
+});
+
+test("comparison CLI rejects partial reports and spend missing from result rows", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "compare-evals-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const a = join(dir, "baseline.json"),
+    b = join(dir, "candidate.json");
+  const report = {
+    results: [r({})],
+    spend: { costUsd: 0.01, tokens: 1000, unknownCostCalls: 0, unknownUsageCalls: 0 },
+  };
+  writeFileSync(a, JSON.stringify(report));
+  const cli = join(evals, "..", "packages/agent-runtime/scripts/compare-evals.ts");
+  for (const [candidate, ok] of [
+    [report, true],
+    [{ ...report, failure: "interrupted after a billed call" }, false],
+    [{ ...report, spend: { ...report.spend, costUsd: 0.02 } }, false],
+    [{ ...report, spend: { ...report.spend, tokens: 2000 } }, false],
+    [{ ...report, results: [r({ unknownCostCalls: undefined })] }, false],
+    [{ results: null }, false],
+  ] as const) {
+    writeFileSync(b, JSON.stringify(candidate));
+    const result = spawnSync(process.execPath, [cli, a, b], { encoding: "utf8" });
+    assert.equal(result.status === 0, ok, result.stdout + result.stderr);
+    if (ok) assert.match(result.stdout, /Observed deltas/);
+    else assert.doesNotMatch(result.stdout, /Observed deltas/);
+  }
+});
+
+test("evaluation refuses a hosted injected provider without egress consent before qualification", async () => {
+  const { runSuite } = await import("../src/eval.ts");
+  let calls = 0;
+  await assert.rejects(
+    runSuite({
+      evalsRoot: evals,
+      suite: "dev-r1",
+      trials: 1,
+      budgetUsd: 1,
+      hosted: false,
+      profile: { name: "fake", def: { kind: "claude-cli", model: "fake" } },
+      provider: {
+        id: "fake",
+        hosted: true,
+        async generate() {
+          calls++;
+          throw new Error("must not call");
+        },
+      },
+    }),
+    /explicit egress consent/,
+  );
+  assert.equal(calls, 0);
 });

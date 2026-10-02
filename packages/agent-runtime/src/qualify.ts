@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ACTION_SCHEMA, parseAction } from "./actions.ts";
@@ -52,6 +52,11 @@ export async function probeActionProtocol(
     context_fit: "not-probed",
     attempts: String(attempts),
   };
+  let tokens = 0,
+    costUsd = 0,
+    unknownUsageCalls = 0,
+    unknownCostCalls = 0,
+    calls = 0;
   const sys =
     'Reply with ONE JSON object only. Allowed kinds: finish, edit (edits:[{kind:"replace",path,expectHash,find,replace}]). An edit action has only id, kind and edits.';
   let validOk = 0,
@@ -61,16 +66,27 @@ export async function probeActionProtocol(
   const attempt = async (prompt: string, check: (content: string) => boolean): Promise<[boolean, boolean]> => {
     let feedback = "";
     for (let t = 0; t < 2; t++) {
+      let received = false;
       try {
+        calls++;
         const r = await p.generate({
           system: sys,
           prompt: prompt + feedback,
           maxOutputTokens: 300,
           schema: ACTION_SCHEMA,
         });
+        received = true;
+        if (r.usage) tokens += r.usage.input + r.usage.output;
+        else unknownUsageCalls++;
+        if (r.costUsd !== undefined) costUsd += r.costUsd;
+        else if (p.hosted) unknownCostCalls++;
         if (r.finishReason === "stop" && check(r.content)) return [true, t === 0];
         feedback = "\nYour previous reply was rejected as invalid. Reply again with exactly one valid action.";
       } catch (e) {
+        if (!received) {
+          unknownUsageCalls++;
+          if (p.hosted) unknownCostCalls++;
+        }
         feedback = `\nYour previous reply was rejected: ${(e as Error).message}. Reply again with exactly one valid action.`;
       }
     }
@@ -93,9 +109,17 @@ export async function probeActionProtocol(
         return readFileSync(join(dir, "f.txt"), "utf8") === "beta";
       },
     );
+    rmSync(dir, { recursive: true, force: true });
     patchOk += pa ? 1 : 0;
     patchFirst += pf ? 1 : 0;
   }
+  Object.assign(detail, {
+    calls: String(calls),
+    tokens: String(tokens),
+    reported_cost_usd: String(costUsd),
+    unknown_usage_calls: String(unknownUsageCalls),
+    unknown_cost_calls: String(unknownCostCalls),
+  });
   detail.valid_output = `${validOk}/${attempts}`;
   detail.patch_apply = `${patchOk}/${attempts}`;
   detail.first_try = `${validFirst + patchFirst}/${attempts * 2}`;

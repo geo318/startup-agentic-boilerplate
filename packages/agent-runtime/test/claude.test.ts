@@ -121,3 +121,37 @@ test("hosted allowed: call happens and cost lands in the ledger", async () => {
   assert.equal(run.ledger.costUsd, 0.003);
   assert.equal(run.ledger.tokens, 1250);
 });
+
+test("Claude failures retain billed usage and respect the remaining requested cap", async () => {
+  const fake = fakeClaude({ ...ok, is_error: true });
+  const result = await new ClaudeCliProvider(profile(fake.bin)).generate({
+    system: "",
+    prompt: "",
+    maxOutputTokens: 100,
+    maxCostUsd: 0.01,
+  });
+  assert.equal(result.finishReason, "error");
+  assert.equal(result.content, "");
+  assert.equal(result.costUsd, 0.003);
+  assert.deepEqual(result.usage, { input: 1200, output: 50 });
+  const args = fake.seen().argv;
+  assert.equal(args[args.indexOf("--max-budget-usd") + 1], "0.01");
+});
+
+test("Claude refuses invalid profile and request caps before spawning", () => {
+  const f = fakeClaude(ok);
+  for (const cap of [0, -1, NaN, Infinity]) {
+    assert.throws(() => new ClaudeCliProvider({ ...profile(f.bin), maxBudgetUsd: cap }), /positive finite dollar cap/);
+    assert.throws(
+      () =>
+        new ClaudeCliProvider(profile(f.bin)).generate({
+          system: "",
+          prompt: "",
+          maxOutputTokens: 1,
+          maxCostUsd: cap,
+        }),
+      /positive finite dollar cap/,
+    );
+  }
+  assert.throws(() => f.seen());
+});

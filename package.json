@@ -1,0 +1,11 @@
+{
+  "name": "startup-agentic-boilerplate",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "verify": "node scripts/verify.mjs"
+  }
+}
