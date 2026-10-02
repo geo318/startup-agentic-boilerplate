@@ -1205,6 +1205,7 @@ export async function sessionCheckCmd(env: Env, reuse = false): Promise<number> 
     project: env.project,
     gates: pp.gates,
     requiredGates: pp.requiredGates,
+    protectedPaths: pp.protectedPaths,
     reuse,
     out: env.out,
   });

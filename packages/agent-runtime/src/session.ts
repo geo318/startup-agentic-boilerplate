@@ -56,6 +56,7 @@ export async function sessionCheck(o: {
   project: string;
   gates: GateSpec[];
   requiredGates: string[];
+  protectedPaths?: string[];
   out: (s: string) => void;
   reuse?: boolean; // explicit: dependency/environment state cannot be inferred from source hashes
 }): Promise<number> {
@@ -73,10 +74,13 @@ export async function sessionCheck(o: {
   }
   if (paths.length === 0 || paths.every((p) => /\.mdx?$/.test(p))) return 0; // nothing to test
   const digest = snapshot(o.project);
+  const source = snapshot(o.project, undefined, true);
+  const protectedDigest = snapshot(o.project, o.protectedPaths ?? []);
   const checkKey = sha256(
     canonical({
       gates: o.gates,
       required: o.requiredGates,
+      protectedPaths: o.protectedPaths ?? [],
       node: process.version,
       platform: process.platform,
       path: process.env.PATH ?? "",
@@ -103,7 +107,11 @@ export async function sessionCheck(o: {
     const spec = o.gates.find((g) => g.id === id);
     if (!spec) throw new Error(`required gate not defined: ${id}`);
     let r = await runGate(spec, o.project, digest);
-    if (r.status === "pass" && snapshot(o.project) !== digest)
+    if (
+      r.status === "pass" &&
+      (snapshot(o.project, undefined, true) !== source ||
+        snapshot(o.project, o.protectedPaths ?? []) !== protectedDigest)
+    )
       r = { ...r, status: "fail", note: "gate modified the working tree; its result does not describe these bytes" };
     results.push(r);
     if (r.status !== "pass") break;
@@ -118,7 +126,7 @@ export async function sessionCheck(o: {
     ts: new Date().toISOString(),
     project: o.project,
     branch: currentBranch(o.project),
-    digest,
+    digest: bad ? digest : snapshot(o.project),
     checkKey,
     changed: new Set(paths).size,
     tier: riskFloor({ paths }),

@@ -111,3 +111,40 @@ test("explicit successful reuse binds gate configuration; default always recheck
     2,
   );
 });
+
+test("session checks allow generated caches but preserve explicitly protected cache paths", async () => {
+  for (const tamper of [false, true]) {
+    const r = repo();
+    writeFileSync(
+      join(r.project, "check.mjs"),
+      [
+        'import {mkdirSync, writeFileSync} from "node:fs";',
+        'mkdirSync(".next/types", {recursive:true}); writeFileSync(".next/types/generated.ts", "export {}");',
+        'writeFileSync("build.tsbuildinfo", "metadata");',
+        tamper ? 'writeFileSync("protected.tsbuildinfo", "changed");' : "",
+        'console.log("tests 2");',
+      ].join("\n"),
+    );
+    writeFileSync(join(r.project, "protected.tsbuildinfo"), "original");
+    const options = {
+      home: r.home,
+      project: r.project,
+      gates: [
+        {
+          id: "unit",
+          argv: [process.execPath, "check.mjs"],
+          timeoutMs: 5000,
+          discover: { regex: "tests (\\d+)", min: 1 },
+        },
+      ],
+      requiredGates: ["unit"],
+      protectedPaths: ["protected.tsbuildinfo"],
+      out: () => {},
+    };
+    assert.equal(await sessionCheck(options), tamper ? 2 : 0);
+    if (!tamper) {
+      assert.equal(await sessionCheck({ ...options, reuse: true }), 0);
+      assert.equal(readSessions(r.home).length, 1); // full digest is updated after legitimate cache generation
+    }
+  }
+});

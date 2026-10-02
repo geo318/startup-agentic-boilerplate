@@ -89,3 +89,11 @@ Do not delete task history or disable policy to resume a refused task.
 - Select `flags.LEAN: true` for a new small project. Sync does not delete old full-preset docs; remove obsolete files and links deliberately when migrating an existing project.
 
 - Stats now verifies event chains and refuses unreadable task/session history. Preserve and repair damaged records from a known-good backup before reporting. New tasks record controller execution time separately from elapsed time; older histories show execution timing as unavailable. Interrupted hosted calls are flagged as unknown cost before or after resume.
+
+
+## Generated build outputs
+
+Re-pin after pulling the gate-output fix. Checks can write `.next/`, `.turbo/` and `*.tsbuildinfo` without consuming a repair
+solely because the cache changed. Protected files remain checked; acceptance still binds the full candidate, including
+cache files. Existing failed/terminal tasks are not rewritten or reopened. Use a new task to retry the scoped change.
+This reduces a known source of false failures; it is not a measured end-to-end token-savings result.

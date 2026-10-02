@@ -155,5 +155,12 @@ create a smaller replacement contract; existing history and approvals are not re
 Token reservations are estimates, including schemas, not hard provider limits. Reported overruns stop further actions.
 Unknown hosted cost is separate from unknown token usage; incomplete billing has no defined cost-per-verified result.
 
+Checks may create/update `.next/`, `.turbo/` and `*.tsbuildinfo` outputs without a false source-mutation failure.
+Protected paths and existing managed-task tests remain protected, including inside those directories. Workers cannot
+edit these output paths directly, and generated output is omitted from review diffs and exported patches. Other generated
+source (for example `next-env.d.ts`) still requires an explicit source change or preparation before verification.
+Full candidate hashes still include caches: changing any files after verification can invalidate review/acceptance.
+Gate-generated changes are recorded so a normal task resume does not mistake them for external edits.
+
 `session-check` reruns by default. `--reuse` reuses only a successful matching source/configuration/branch result. It is an explicit
 assertion that dependencies and services did not change, not an automatic environment fingerprint.

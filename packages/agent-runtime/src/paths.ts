@@ -29,7 +29,7 @@ export function resolveSafe(root: string, rel: string, protectedPaths: string[] 
       if (protectedPaths.some((p) => resolvedPath === p || resolvedPath.startsWith(p.endsWith("/") ? p : `${p}/`)))
         throw new PathRejected(`protected path through symlink: ${rel}`);
       if (st.isFile() && st.nlink > 1) throw new PathRejected(`hardlinked file: ${rel}`);
-      break;
+      return resolve(target, relative(probe, full));
     } catch (e) {
       if (e instanceof PathRejected) throw e;
       const parent = dirname(probe);

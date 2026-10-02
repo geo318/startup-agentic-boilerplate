@@ -15,11 +15,14 @@ export type { RiskTier };
 import { resolveSafe } from "./paths.ts";
 
 const SKIP = new Set([".git", "node_modules"]);
+const generated = (path: string) =>
+  path.split("/").some((part) => part === ".next" || part === ".turbo" || part.endsWith(".tsbuildinfo"));
 
 // Digest of every file (tracked or untracked) under the workspace; optionally only some prefixes.
-export function snapshot(root: string, only?: string[]): string {
+// ignoreGenerated is only for detecting source mutations during gates. Evidence uses complete snapshots.
+export function snapshot(root: string, only?: string[], ignoreGenerated = false): string {
   const files: Record<string, string> = {};
-  for (const rel of listFiles(root)) {
+  for (const rel of listFiles(root, ignoreGenerated)) {
     if (!only || only.some((p) => rel === p || rel.startsWith(p.endsWith("/") ? p : `${p}/`))) {
       files[rel] = sha256(readFileSync(join(root, rel)));
     }
@@ -27,11 +30,11 @@ export function snapshot(root: string, only?: string[]): string {
   return sha256(canonical(files));
 }
 
-function listFiles(root: string): string[] {
+function listFiles(root: string, ignoreGenerated = false): string[] {
   const out: string[] = [];
   const walk = (dir: string) => {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
-      if (SKIP.has(e.name)) continue;
+      if (SKIP.has(e.name) || (ignoreGenerated && generated(e.name))) continue;
       const full = join(dir, e.name);
       if (e.isDirectory()) walk(full);
       else if (e.isFile()) out.push(relative(root, full).split(sep).join("/"));
@@ -96,11 +99,13 @@ export class Run {
   }
 
   #checkScope(paths: string[]): void {
-    if (!this.#policy.writePaths) return;
     const root = this.#policy.workspace;
     for (const path of paths) {
       const resolved = resolveSafe(root, path);
+      if (generated(relative(root, resolved).split(sep).join("/")))
+        throw new Error("generated build outputs cannot be worker edits; run the configured gate instead");
       if (
+        this.#policy.writePaths &&
         !this.#policy.writePaths.some((p) => {
           const allowed = resolveSafe(root, p);
           return resolved === allowed || (p.endsWith("/") && resolved.startsWith(allowed + sep));
@@ -110,13 +115,31 @@ export class Run {
     }
   }
 
-  #gate(spec: GateSpec, digest: string): Promise<GateResult> {
-    return runGate(
+  async #gate(spec: GateSpec, digest: string): Promise<GateResult> {
+    const workspace = this.#policy.workspace;
+    const before = this.state === "RECEIVED" ? undefined : snapshot(workspace, undefined, true);
+    let result = await runGate(
       spec,
       this.#policy.workspace,
       digest,
       join(this.#policy.stateDir, "logs", `${spec.id}-${randomUUID()}.log`),
     );
+    if (before !== undefined) {
+      const sourceChanged = snapshot(workspace, undefined, true) !== before;
+      const protectedChanged = snapshot(workspace, this.#protectedPaths()) !== this.#protectedBase;
+      if (result.status === "pass" && (sourceChanged || protectedChanged))
+        result = {
+          ...result,
+          status: "fail",
+          note: "gate modified the candidate; evidence would not match the tested bytes",
+        };
+      // Only trusted gate output can advance the full candidate digest without a worker edit.
+      if (!sourceChanged && !protectedChanged) {
+        const after = snapshot(workspace);
+        if (after !== digest) this.#log.append("candidate", { digest: after });
+      }
+    }
+    return result;
   }
 
   #protectedPaths(): string[] {
@@ -222,7 +245,7 @@ export class Run {
         )
       : [];
     this.#protectedBase = snapshot(workspace, this.#protectedPaths());
-    for (const rel of listFiles(workspace)) this.#baseFiles.set(rel, readText(workspace, rel));
+    for (const rel of listFiles(workspace, true)) this.#baseFiles.set(rel, readText(workspace, rel));
     writeFileSync(
       join(this.#policy.stateDir, "base.json"),
       JSON.stringify({
@@ -361,9 +384,10 @@ export class Run {
   // Files that differ from the start of the run (text only), for reviewers and risk recomputation.
   changed(): Array<{ path: string; before: string | null; after: string | null }> {
     const { workspace } = this.#policy;
-    const now = new Set(listFiles(workspace));
+    const now = new Set(listFiles(workspace, true));
     const out: Array<{ path: string; before: string | null; after: string | null }> = [];
     for (const rel of new Set([...this.#baseFiles.keys(), ...now])) {
+      if (generated(rel)) continue;
       const before = this.#baseFiles.has(rel) ? this.#baseFiles.get(rel)! : null;
       const after = now.has(rel) ? readText(workspace, rel) : null;
       if (before !== after) out.push({ path: rel, before, after });
@@ -466,9 +490,6 @@ export class Run {
       if (!spec) throw new Error(`required gate not defined: ${id}`);
       const before = snapshot(workspace);
       let r = await this.#gate(spec, before);
-      // A gate that rewrites the candidate certifies bytes it never tested.
-      if (r.status === "pass" && snapshot(workspace) !== before)
-        r = { ...r, status: "fail", note: "gate modified the candidate; evidence would not match the tested bytes" };
       // Deleting or skipping tests must not pass: fewer discovered tests than the green baseline is a failure.
       const floor = this.#baselineDiscovered[id];
       if (r.status === "pass" && floor !== undefined && (r.discovered ?? 0) < floor) {
