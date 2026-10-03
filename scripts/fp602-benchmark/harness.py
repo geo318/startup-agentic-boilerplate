@@ -217,7 +217,10 @@ def native_call(attempt, project, label, prompt, readonly=False, schema=None):
                 break
     if native:
         prefix.with_suffix('.native.jsonl').write_bytes(native.read_bytes())
-        write_json(prefix.with_suffix('.usage.json'), usage(native))
+        measured = usage(native)
+        write_json(prefix.with_suffix('.usage.json'), measured)
+        if not measured['tokens']:
+            reason = reason or 'native token counters unavailable; refusing unmetered continuation'
     elif profile["kind"] == "codex-cli":
         write_json(prefix.with_suffix('.usage.json'), {'tokens': None, 'actual_billed_usd': None,
                    'native_session_unavailable': True})

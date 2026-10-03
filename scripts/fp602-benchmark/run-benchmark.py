@@ -1,4 +1,4 @@
-"""Five sequential paired attempts on the frozen baseline; preserve every result."""
+"""Sequential paired attempts on the frozen baseline; preserve every result."""
 import hashlib
 import json
 import pathlib
@@ -6,11 +6,12 @@ import os
 import subprocess
 import sys
 import time
-from harness import BASE, NODE, ROOT, RUNTIME, attempt_tokens, clean_env, command, log, native_call, start_phase, stop_remaining_processes, write_json
+from harness import BASE, NODE, ROOT, RUNTIME, attempt_tokens, clean_env, command, log, native_call, start_phase, stop_reason, stop_remaining_processes, write_json
 from broker import serve
 from native_profile import load_profile, profile_label
 from grade import grade
 import shared_contract
+from experiment import preflight, settings
 
 PROFILE = 'benchmark-native'
 
@@ -74,7 +75,7 @@ def capability_evals(attempt, project):
     return results
 
 
-def setup(attempt, project, arm):
+def setup(attempt, project, arm, qualification_file=None):
     code, _ = command(attempt, ['rtk', 'git', '--git-dir=' + str(ROOT / 'seed.git'),
                       'worktree', 'add', '--detach', str(project), BASE], ROOT, 'fresh-worktree')
     if code:
@@ -105,12 +106,14 @@ def setup(attempt, project, arm):
     assert code == 0 and ('workflow             ON' if arm == 'B' else 'workflow             OFF') in text
     code, _ = command(attempt, ['rtk', NODE, str(RUNTIME), 'jev', 'status', '--project', str(project)], project, 'jev-state')
     assert code == 0
-    if arm == 'B':
+    if arm == 'B' and qualification_file:
+        (attempt / 'state/qualifications.json').write_bytes(qualification_file.read_bytes())
+    if arm == 'B' and not qualification_file:
         code = serve(attempt, project, ['qualify', PROFILE])
         if code:
             raise RuntimeError('managed worker action-protocol qualification failed')
         capability_evals(attempt, project)
-    log(attempt, 'arm_setup_ready', arm=arm, qualifications='fresh evaluated probes' if arm == 'B' else 'not needed')
+    log(attempt, 'arm_setup_ready', arm=arm, qualifications=('prepared evaluated probes' if qualification_file else 'fresh evaluated probes') if arm == 'B' else 'not needed')
 
 
 def final_candidate(attempt, project, arm):
@@ -143,7 +146,9 @@ def patch(attempt, candidate):
                                stdout=stream, stderr=subprocess.STDOUT)
 
 
-def run_one(index, trial, arm, protocol="discovery-v1"):
+def run_one(index, trial, arm, protocol="discovery-v1", config=None, preparation=None):
+    config = config or settings(ROOT)
+    limits = config["limits"]
     shared = shared_contract.load(ROOT) if protocol == "shared-contract-v1" else None
     attempt = ROOT / 'attempts' / (f'{index:02d}' + arm)
     attempt.mkdir()
@@ -151,12 +156,12 @@ def run_one(index, trial, arm, protocol="discovery-v1"):
     (attempt / 'calls').mkdir()
     project = attempt / 'worktree'
     started = time.monotonic()
-    start_phase(attempt, 'workflow', 1200, 1_000_000)
+    start_phase(attempt, 'workflow', limits['workflow_seconds'], limits['workflow_tokens'])
     log(attempt, 'attempt_started', trial=trial, arm=arm)
     print(f'START pair {trial} arm {arm}: {attempt}', flush=True)
     failure = None
     try:
-        setup(attempt, project, arm)
+        setup(attempt, project, arm, preparation["qualification_file"] if preparation and arm == "B" else None)
         common = (ROOT / 'worker-ticket.md').read_text()
         common += ('\n\nCoordinator authorization: resolve routine implementation choices from the '
                    'frozen requirements and project rules; save a concrete blueprint before code. '
@@ -168,8 +173,8 @@ def run_one(index, trial, arm, protocol="discovery-v1"):
                    'the broker usage below, other attempt directories, native session stores or '
                    'memory from previous work. No shared database mutations or real notifications. '
                    'Use dedicated synthetic local fixtures and ports, not the original repo servers. '
-                   'External attempt ceilings including setup are 20 minutes and 1,000,000 native '
-                   'aggregate tokens. Required relevant checks stay unchanged. No task-budget resets. '
+                   f"External attempt ceilings including setup are {limits['workflow_seconds']} seconds and "
+                   f"{limits['workflow_tokens']} aggregate native tokens. Required relevant checks stay unchanged. No task-budget resets. "
                    'Keep every incomplete candidate and report it honestly.\n')
         if arm == 'A':
             common += 'Arm A: managed execution is OFF. Implement through normal direct development and ordinary project skills/checks.\n'
@@ -204,6 +209,8 @@ def run_one(index, trial, arm, protocol="discovery-v1"):
     candidate = final_candidate(attempt, project, arm) if project.exists() else None
     result = {'trial': trial, 'arm': arm, 'index': index, 'workflow_protocol': protocol,
               'shared_preparation_native_tokens': shared['preparation_native_tokens'] if shared else None,
+              'qualification_native_tokens': preparation['tokens'] if preparation and arm == 'B' else 0,
+              'qualification_wall_seconds': preparation['wall_seconds'] if preparation and arm == 'B' else 0,
               'wall_seconds': ready - started, 'workflow_native_tokens': tokens,
               'actual_billed_usd': None, 'failure_reason': failure,
               'actual_candidate': str(candidate) if candidate else None,
@@ -214,7 +221,7 @@ def run_one(index, trial, arm, protocol="discovery-v1"):
     if candidate:
         try:
             patch(attempt, candidate)
-            result['grading'] = grade(attempt, candidate)
+            result['grading'] = grade(attempt, candidate, seconds=limits['grading_seconds'], token_allowance=limits['grading_tokens'])
         except Exception as error:
             result['grading'] = {'correct': False, 'grading_error': str(error)}
         stop_remaining_processes(attempt)
@@ -224,26 +231,68 @@ def run_one(index, trial, arm, protocol="discovery-v1"):
     return result
 
 
-if __name__ == '__main__':
-    if not os.environ.get('BENCHMARK_ROOT'):
-        raise SystemExit('Set BENCHMARK_ROOT to a NEW prepared experiment directory; never reuse frozen evidence.')
-    if (ROOT / 'attempts').exists() or (ROOT / 'results.json').exists():
-        raise SystemExit('Refusing to overwrite an existing experiment. Prepare a fresh BENCHMARK_ROOT.')
+def prepare_qualifications(config):
+    # This process, not a chat's retrospective transcript scan, owns every billable preparation call.
+    directory = ROOT / 'preparation'
+    directory.mkdir()
+    attempt = directory / '00P'
+    attempt.mkdir()
+    (attempt / 'state').mkdir()
+    (attempt / 'calls').mkdir()
+    limits = config['limits']
+    start_phase(attempt, 'preparation', limits['preparation_seconds'], limits['preparation_tokens'])
+    started = time.monotonic()
+    failure = None
+    try:
+        setup(attempt, attempt / 'worktree', 'B')
+        reason = stop_reason(attempt)
+        if reason:
+            raise RuntimeError(reason)
+    except Exception as error:
+        failure = str(error)
+    finally:
+        stop_remaining_processes(attempt)
+    result = {'tokens': attempt_tokens(attempt), 'wall_seconds': time.monotonic() - started,
+              'failure': failure, 'qualification_file': str(attempt / 'state/qualifications.json')}
+    write_json(directory / 'result.json', result)
+    if failure:
+        raise RuntimeError('supervised qualification preparation failed; no arms launched: ' + failure)
+    return {**result, 'qualification_file': pathlib.Path(result['qualification_file'])}
+
+
+def main(argv):
+    if argv not in (['--preflight'], ['--execute']):
+        raise ValueError('Use --preflight (no inference) or --execute (live inference); no implicit launch')
+    config = preflight(ROOT)
+    if argv == ['--preflight']:
+        print(json.dumps({'ready': True, 'mode': config['mode'], 'limits': config['limits'],
+                          'pairs': len(config['trial_order']['paired_orders']),
+                          'jev': 'disabled/inactive', 'model_calls': 0}, indent=2))
+        return
     profile = load_profile(ROOT)
     with (ROOT / 'native-profile.frozen.json').open('x') as stream:
         json.dump(profile, stream, indent=2)
-    config = json.loads((ROOT / 'frozen-configuration.json').read_text())
-    protocol = config.get('workflow_protocol', 'discovery-v1')
-    if protocol not in ('discovery-v1', 'shared-contract-v1'):
-        raise SystemExit('Unknown workflow_protocol')
+    # All execution limits are resolved once; workers cannot change them midway.
+    write_json(ROOT / 'execution-settings.json', config)
+    protocol = config['workflow_protocol']
     if protocol == 'shared-contract-v1':
         shared_contract.freeze(ROOT)
+    preparation = prepare_qualifications(config) if config['mode'] == 'quick-pilot-v1' else None
     (ROOT / 'attempts').mkdir()
     results = []
     index = 0
     for trial, order in enumerate(config['trial_order']['paired_orders'], 1):
         for arm in order:
             index += 1
-            results.append(run_one(index, trial, arm, protocol))
+            results.append(run_one(index, trial, arm, protocol, config, preparation))
             write_json(ROOT / 'results.json', results)
-    print('ALL TEN ATTEMPTS RECORDED', flush=True)
+    print(f'ALL {len(results)} ATTEMPTS RECORDED', flush=True)
+
+
+if __name__ == '__main__':
+    if not os.environ.get('BENCHMARK_ROOT'):
+        raise SystemExit('Set BENCHMARK_ROOT to a NEW prepared experiment directory; never reuse evidence.')
+    try:
+        main(sys.argv[1:])
+    except (ValueError, RuntimeError, OSError, KeyError) as error:
+        raise SystemExit(str(error))

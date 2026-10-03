@@ -59,8 +59,8 @@ def prepare_candidate(attempt, candidate):
     return project
 
 
-def grade(attempt, candidate):
-    start_phase(attempt, 'grading', 600, 200_000)
+def grade(attempt, candidate, *, seconds=600, token_allowance=200_000):
+    start_phase(attempt, 'grading', seconds, token_allowance)
     start = time.monotonic()
     retained = fingerprint(candidate)
     try:
