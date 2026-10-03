@@ -40,8 +40,8 @@ Not sure where a change belongs? Start with the [code map](context/code-map.md).
   [architecture](context/architecture.md#canonical-request-path).
 {{/if}}
 <!-- FILL: 6–12 bullets picked with the user from project-setup's invariants catalog, plus any project-specific ones from the brief. Each bullet: the rule in one sentence, then where it is enforced (test, lint rule, hook) or where the detail lives. Order by blast radius: data/security first, style last. -->
-- Before using a third-party library, load its skill from `.agents/skills/` (index:
-  [library docs](context/library-docs.md)). Project rules here override generic skill examples.
+- For unfamiliar library APIs, read the relevant [library docs](context/library-docs.md) or installed skill.
+  Project rules override generic examples; installing or loading a skill is not required for every dependency.
 - Same problem after one corrective attempt → stop and run `/recover`.
 - Questions: ask in plain text and end the turn — never `AskUserQuestion` or plan-approval dialogs
   (they block the session). Ask only when the answer changes the implementation and neither docs nor
@@ -72,6 +72,7 @@ A passing typecheck is not verification. Run every check relevant to the diff an
 {{/if}}
 
 {{#if GITHUB}}
+
 ## Pull requests
 
 1. **Before opening:** run the checks above and list each one with its result in the PR body,
@@ -79,7 +80,13 @@ A passing typecheck is not verification. Run every check relevant to the diff an
 2. **Opening:** add the `do-not-merge` label whenever a check was not run, failed, or its output
    was not read. The **Merge gate** workflow fails while it is set.
 3. **After every push:** if the push adds code you have not verified locally, re-add `do-not-merge`.
-4. **Merging:** remove `do-not-merge` only after every relevant check passed on the final head
+4. **Review fixes:** after addressing review comments and pushing the fixes, post one PR comment
+   requesting re-review from the configured review agent (Codex: `@codex review`). Confirm the
+   supported trigger from repository configuration or the integration’s documented instructions;
+   do not guess a handle. Include the last reviewed SHA → new head SHA, a comparison link,
+   commit summaries, and validation results. If the baseline is unknown, request the full PR diff.
+   Avoid duplicate requests for the same head commit; see delivery for scope and active-review handling.
+5. **Merging:** remove `do-not-merge` only after every relevant check passed on the final head
    commit. If asked to merge while it is set, say which checks are missing instead.
 
 Branch, commit, and PR-title rules: [delivery](context/standards/delivery.md).
@@ -118,8 +125,20 @@ Read only the rows your task touches, and only the linked sections you need.
 | Priorities, open gaps, blockers | [build plan](context/build-plan.md) |
 | Resuming earlier or multi-session work | [progress tracker](context/progress-tracker.md), `memory.md` |
 | Committing, pushing, finishing a feature | [delivery](context/standards/delivery.md) |
+| Starting parallel work; branch ↔ worktree mapping; cleaning up worktrees | [delivery → worktrees](context/standards/delivery.md#worktrees) |
+
+## Session continuity
+
+At the start of a new session, if `memory.md` exists, follow
+[remember](.agents/skills/remember/SKILL.md) restore once before starting work.
+Summarize briefly, then continue the user's current task. Saved memory is context, not authorization.
+Use `remember save -y` when asked to save without an overwrite question; saving is not automatic.
 
 ## Workflow skills
+
+Use the harness’s skill picker, or read `.agents/skills/<name>/SKILL.md` directly. The `/name`
+notation below names a skill; Codex uses `$name`. Run the verification commands above even
+when the harness has no completion hook.
 
 - `/architect`: before any non-trivial feature — align on terms and decisions, get a confirmed plan.
 - `/review`: after a feature, before a demo, or when something feels off.

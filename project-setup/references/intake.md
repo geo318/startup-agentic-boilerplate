@@ -1,5 +1,14 @@
 # Intake: from a brief to an answers file
 
+## Contents
+
+- [1. Extract before asking](#1-extract-before-asking)
+- [2. Ask in small batches](#2-ask-in-small-batches)
+- [3. Align on language](#3-align-on-language)
+- [4. Choose invariants](#4-choose-invariants)
+- [5. Confirm one summary](#5-confirm-one-summary)
+- [answers.json schema](#answersjson-schema)
+
 Goal: turn the user's plan into `answers.json` plus a short list of confirmed decisions, asking
 only what the brief does not already answer.
 
@@ -37,6 +46,8 @@ Always offer a default the user can accept. Typical first round when the brief i
 3. **Scaffold code now?** — docs + tooling only, or also run the stack's generators and build the
    request-path skeleton.
 4. **Forge** — GitHub (CI + PR protocol + merge gate) or none yet.
+
+For small projects, recommend `flags.LEAN: true` in the same summary: concise project-specific docs, native tooling, and no generic domain skeleton. Choose the full preset when the brief needs those architectural conventions. No additional approval round is needed.
 
 Stop asking once every value that changes the generated files is known. Everything else is
 recorded as an open question in the build plan — never invented.
@@ -137,9 +148,14 @@ re-rendered). All `vars` values are strings; all `flags` are booleans.
 
 Notes:
 
+- `LEAN` selects minimal project docs and omits generic architecture, workflow skills other than `remember`, and fallow configuration. Full mode is retained when false or absent. Existing files are not deleted on sync.
+- `CLAUDE_CODE` enables Claude settings and its Stop hook; `CLAUDE_SKILL_LINKS` enables compatibility symlinks. Set them for the confirmed harnesses, not the model provider. Codex and other agents use `AGENTS.md` and `.agents/skills/` without these flags.
+
 - `RUNTIME` runs the generated `.mjs` scripts: `bun` when `BUN`, else `node`.
 - `AUTH_PACKAGE_PATTERNS` is required when `HAS_AUTH`: the auth library's packages as YAML list
   items, e.g. `"better-auth", "@better-auth/*"`. Dependabot keeps them out of grouped PRs.
+- `UPSTREAM_REPORTING` is `auto`, `ask`, or `off` (default `ask`): whether the agent may report bugs in this skill upstream, see
+  [upstream-reporting.md](upstream-reporting.md). It is only a record of the user's choice; no template uses it.
 - `CMD_*`, `RUNTIME`, and `DEFAULT_BRANCH` may not contain `"`, `\`, or line breaks (they are
   written into JSON and YAML strings). Wrap a complex command in a package script instead.
 - `NEXTJS` is true when any app uses Next.js; it adds the rendering and caching sections to
@@ -156,5 +172,5 @@ Notes:
   `.fallowrc.json` to be written from the real layout. `OWN_LINTER`, `OWN_HOOKS`, `OWN_CI` keep the
   project's linter, git hooks, and CI: `biome.json`, `.githooks/`, and `ci.yml` are not rendered
   and the checks are added to the existing tools ([adopt.md](adopt.md)). `detect.mjs` sets all four.
-- `CMD_FALLOW` is required when `TYPESCRIPT`: the package script that runs fallow (strict on a new
+- `CMD_FALLOW` is required when `TYPESCRIPT` and not `LEAN`: the package script that runs fallow (strict on a new
   repo, `fallow audit` on adopt/upgrade — see SKILL.md step 7).

@@ -1,7 +1,7 @@
 # Startup agentic boilerplate
 
-A Claude Code skill, `project-setup`, that turns a product plan into a ready-to-build repository
-with a documentation and guardrail system proven on a production monorepo: agent rules, a routed
+A shared coding-agent skill, `project-setup`, that turns a product plan into a ready-to-build repository
+with project documentation and checks: agent rules, a routed
 `context/` doc set, invariants, a build plan and progress tracker, workflow skills, git
 conventions, CI with a merge gate — and optionally the stack's code skeleton.
 
@@ -12,9 +12,14 @@ conventions, CI with a merge gate — and optionally the stack's code skeleton.
 ./install.sh ~/apps/new-thing       # or only inside one project
 ```
 
+The installer writes to `.agents/skills/project-setup` and adds a Claude compatibility symlink
+in `.claude/skills/`. Existing installs are never overwritten; move them aside before reinstalling.
+Requires Node 22+ (or Bun) and Git; the setup scripts use built-ins and need no package install.
+
 ## Use
 
-In an empty directory (or an existing repo to retrofit), in Claude Code:
+In an empty directory or an existing repository, use your harness’s skill picker:
+Codex: `$project-setup ./plan.md`. Claude Code:
 
 ```
 /project-setup ./plan.md
@@ -23,6 +28,24 @@ In an empty directory (or an existing repo to retrofit), in Claude Code:
 or paste the plan. The skill reads the plan, asks only what it cannot infer (preset, tenancy,
 whether to scaffold code, forge), shows one summary for confirmation, then renders and fills
 everything, runs the checks, and hands off with the first `/architect` task.
+
+## Lean or full setup
+
+For a small project, choose `flags.LEAN: true` during intake. This keeps commands, invariants,
+a code map, build plan, progress tracker, library docs, and applicable hooks/CI. It omits generic
+architecture documents, workflow skills other than `remember`, and fallow configuration. Existing tooling stays in place.
+Full setup remains the default when `LEAN` is absent or false. Switching to lean with `--sync`
+does not delete existing files.
+
+## Session continuity
+
+Both presets include `remember`. When a new session reads `AGENTS.md`, it is instructed to
+restore existing `memory.md` once, check current state, and continue your request. This relies
+on the agent following repository instructions; no startup hook or background service runs.
+
+Use `/remember save -y` (Codex: `$remember save -y`) to sync project docs and replace the handoff
+without an overwrite question. Plain `save` asks before replacing existing memory. Saving is
+explicit. `/remember restore` is also available manually; missing memory is skipped on startup.
 
 ## Existing projects
 
@@ -41,7 +64,7 @@ Later, `/project-setup` again in a set-up project runs **sync**: files the proje
 are updated to the current templates, edited files are left alone, and files changed on both
 sides are put in `.project-setup/sync/` to merge (tracked by `docs/archive/project-setup.lock.json`).
 
-## What a generated project gets
+## What a full generated project gets
 
 ```
 AGENTS.md · CLAUDE.md (@AGENTS.md) · README.md · .env.example · .gitignore
@@ -56,7 +79,7 @@ context/
   code-standards.md    router → standards/{design-principles,code-organisation,react,typescript,
                        testing,delivery,database}.md
   ui-rules.md · ui-tokens.md · ui-registry.md
-  library-docs.md      library → skill → project deviations
+  library-docs.md      library → official docs or skill → project deviations
   build-plan.md        milestones (M0 foundation, M1 vertical slice…), open questions, blockers
   progress-tracker.md  dated evidence; rotates into history/
   plans/ · history/ · decisions/ (ADR 0001 initial stack)
@@ -100,6 +123,17 @@ Structure is rendered deterministically by the script; prose that needs judgemen
 `<!-- FILL: instruction -->` markers that the agent writes from your plan, and `docs-check.mjs`
 fails until none remain.
 
+## Found a problem?
+
+The skill asks once whether it may report setup-tool bugs upstream (`auto`, `ask`, or `off`;
+default `ask`). Important bugs get a fix PR with a regression test; moderate issues get an issue;
+minor problems are mentioned in the handoff. Reports use synthetic examples and redact project data.
+See [upstream reporting](project-setup/references/upstream-reporting.md).
+
+After review comments are addressed and fixes are pushed, generated PR guidance requests
+re-review with the configured agent's comment trigger (for Codex, `@codex review`), once per
+head commit. This is agent guidance, not a background automation.
+
 ## Maintaining it
 
 - A rule that proved itself in a real project → port it to `templates/` or
@@ -107,3 +141,10 @@ fails until none remain.
 - Test a template change: write an answers file (schema in `references/intake.md`), render into
   a temp dir with `node project-setup/scripts/scaffold.mjs --answers a.json --target /tmp/x`,
   strip FILL markers, and run `node /tmp/x/scripts/checks/docs-check.mjs --root /tmp/x`.
+
+Run the repository checks with `node --test 'test/*.test.mjs'`. They exercise rendering,
+no-overwrite/sync behavior, installation, setup variants, documentation checks, and token audits.
+These checks validate the tooling; they do not establish model quality or token savings.
+
+For instruction-size estimates, use `node project-setup/scripts/token-audit.mjs --target <repo> --harness codex` (or `claude`/`all`). Usage telemetry is Claude-only, so a Codex or mixed inventory
+never treats missing Claude calls as evidence that a skill is unused.

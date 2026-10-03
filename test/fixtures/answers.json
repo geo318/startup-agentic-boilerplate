@@ -1,0 +1,34 @@
+{
+  "vars": {
+    "PROJECT_NAME": "Fixture",
+    "PROJECT_SLUG": "fixture",
+    "RUNTIME": "node",
+    "DEFAULT_BRANCH": "main",
+    "ONE_LINER": "A fixture project.",
+    "STACK_SUMMARY": "TypeScript",
+    "SETUP_DATE": "2026-10-01",
+    "CMD_DEV": "npm run dev",
+    "CMD_LINT": "npm run lint",
+    "CMD_TEST": "npm test",
+    "CMD_TEST_CHANGED": "npm test",
+    "CMD_INSTALL": "npm install",
+    "CMD_FALLOW": "npm run fallow",
+    "CMD_TYPECHECK": "npm run typecheck",
+    "CMD_INSTALL_CI": "npm ci"
+  },
+  "flags": {
+    "TYPESCRIPT": true,
+    "GITHUB": true,
+    "CLAUDE_CODE": true
+  },
+  "apps": [
+    {
+      "APP_DIR": "apps/web",
+      "APP_PURPOSE": "web app",
+      "APP_FRAMEWORK": "Next",
+      "APP_DEV": "npm run dev",
+      "APP_PORT": "3000",
+      "APP_NAME": "web"
+    }
+  ]
+}

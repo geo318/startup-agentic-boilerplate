@@ -30,6 +30,42 @@
   shrink, never an example.
 {{/if}}
 
+## Guardrails: write the test that earns its place
+
+A test is worth keeping only if it would fail on a real regression. Before adding one, name the bug
+it prevents. If you cannot, skip it.
+
+**Write a test when:**
+
+- **A bug was fixed.** Reproduce it first and watch it fail; the test is the permanent guard. Fix
+  the class of bug, not only the instance (test the sibling callers too).
+- **An invariant exists.** Each invariant in `AGENTS.md` that code can break (tenant scoping,
+  authorization, money in minor units, idempotent jobs) has one test that tries to violate it.
+- **Logic branches or has edge cases:** parsing, state transitions, permissions, money, dates,
+  retries. Cover boundaries and the error path, not three happy-path variants.
+- **A contract crosses a boundary:** a repository against the real database, an adapter against
+  its port, a webhook or API payload shape. Integration tests, not mocks, prove these.
+- **A user-critical flow spans layers** (sign-up, checkout, the main job of the product): one e2e
+  per flow, happy path plus the single failure that costs the most. Not one per component.
+
+**Do not write:**
+
+- Tests that restate the implementation: mock returns X, assert X was returned; asserting a
+  constant, a type, a default, or that a call happened with the arguments you just passed.
+- Snapshots of large output, or tests of getters, pass-throughs, config, and framework behaviour.
+- Several tests for one behaviour. Use a table of cases when only the data differs.
+- E2E for what a unit or integration test proves faster. Pick the lowest layer that can fail for
+  the reason you care about.
+- Mocks of the thing under test, or fakes that cannot fail the way the real adapter does.
+
+**Hygiene:**
+
+- Deterministic: inject clocks, ids, and randomness. No sleeps, no order dependence, no live
+  network or third-party calls outside a deliberately marked live script.
+- Never weaken or delete a failing test to get green. Fix the code, or change the test and say why
+  the old expectation was wrong.
+- Before finishing, delete any test you added that you could not justify by the rules above.
+
 ## What counts as verified
 
 Unit tests prove logic. They do not prove that a route is mounted at the path you think, that a

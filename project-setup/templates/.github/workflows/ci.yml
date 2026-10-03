@@ -66,12 +66,14 @@ jobs:
       - name: Install
         run: "{{CMD_INSTALL_CI}}"
       - name: Docs
-        run: "{{RUNTIME}} scripts/checks/docs-check.mjs"
+        run: "{{RUNTIME}} scripts/checks/docs-check.mjs{{#if LEAN}} --strict{{/if}}"
       - name: Lint
         run: "{{CMD_LINT}}"
 {{#if TYPESCRIPT}}
+{{#unless LEAN}}
       - name: Architecture, dead code, duplication, complexity
         run: "{{CMD_FALLOW}}"
+{{/unless}}
       - name: Typecheck
         run: "{{CMD_TYPECHECK}}"
 {{/if}}

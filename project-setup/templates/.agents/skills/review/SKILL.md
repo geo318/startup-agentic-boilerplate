@@ -14,7 +14,7 @@ Read the `/architect` plan (conversation or `context/plans/`), the original requ
 `AGENTS.md` invariants. Then get the diff (`git diff {{DEFAULT_BRANCH}}...HEAD` plus uncommitted
 changes) and read every changed file in full, not only the hunks.
 
-## 2. Check, in this order
+## 2. Check what the diff touches
 
 1. **Plan fidelity** — everything planned exists; nothing unplanned slipped in; agreed terms are
    used in code and UI.
@@ -40,6 +40,7 @@ changes) and read every changed file in full, not only the hunks.
    (`/add-library-skill`); a new rule that a tool can enforce went into the tool's config, with
    a one-line pointer in the docs instead of a paragraph.
 
+Choose the review order based on the diff’s risks; omit checks that do not apply.
 Run the verification checks in `AGENTS.md` and read their output. They catch the mechanical
 issues (imports, boundaries, dead code, missing doc rows); spend the review on what they cannot.
 

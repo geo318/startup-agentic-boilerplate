@@ -26,11 +26,54 @@ in CI on every PR{{/if}}.
   colon marks a breaking change, explained in the body.
 - Check before pushing: `{{RUNTIME}} scripts/git/conventions.mjs current`.
 
+## Worktrees
+
+For independent tasks or parallel work, use one branch and worktree per task/PR:
+
+```bash
+git fetch origin
+git worktree add ../<repo>-<task> -b feat/<task> origin/{{DEFAULT_BRANCH}}
+```
+
+Install dependencies per worktree; keep secrets out of Git. Use separate ports when running
+multiple dev servers. Do not modify or remove another person's worktree. After merge, check
+for uncommitted and unpushed work before using `git worktree remove <path>` and `git branch -d <branch>`.
+Never force cleanup to bypass those checks.
+
 {{#if GITHUB}}
 ## Pull requests
 
 Follow [AGENTS.md → Pull requests](../../AGENTS.md#pull-requests): checks recorded in the body,
 `do-not-merge` until they are verified green.
+
+After pushing review fixes, confirm the PR head contains the fixes, then request another review
+with the configured agent's supported PR-comment trigger. For Codex, post `@codex review`;
+for another integration, use its documented trigger. Check existing comments and review activity
+to avoid a duplicate request or an already-running review of that head. If no review integration
+or trigger is known, report that a manual review request is needed. A request is not a completed
+review: report whether re-review was requested, is pending, or completed.
+
+Make the request concrete: name the last completed review's commit and the new head SHA,
+link their comparison (`<reviewed-sha>..<head-sha>`), list the commits in that range, and briefly
+summarize the fixes and checks. Ask the reviewer to verify the prior findings and inspect the
+new changes for regressions, reading surrounding code as needed. Use commit SHAs rather than
+"last commit" or "last three commits", which become ambiguous after another push. Confirm the
+reviewed commit is an ancestor of the head; if it is unknown or history was rewritten, request
+the full PR diff and state that scope instead of guessing a range.
+
+Example comment (replace the trigger for the configured integration):
+
+```text
+@codex review
+Please review <reviewed-sha>..<head-sha> (<comparison URL>).
+Commits: <SHA — summary for each commit>.
+Focus: verify the previous findings are fixed and check the new changes for regressions.
+Validation: <checks and results; anything not verified>.
+```
+
+If a review is already running, clarify its scope by editing the existing request instead of
+posting a duplicate trigger. An edit does not guarantee the active run picks up a newer head;
+check the reviewed SHA when it finishes and request the remaining range if needed.
 
 {{/if}}
 ## Documentation hygiene

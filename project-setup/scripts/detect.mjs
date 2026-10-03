@@ -97,9 +97,7 @@ function workspaceGlobs(root, pkg) {
   if (!existsSync(pnpm)) {
     return [];
   }
-  return [...readFileSync(pnpm, "utf8").matchAll(/^\s*-\s*["']?([^"'\s#]+)["']?/gm)].map(
-    (match) => match[1],
-  );
+  return [...readFileSync(pnpm, "utf8").matchAll(/^\s*-\s*["']?([^"'\s#]+)["']?/gm)].map((match) => match[1]);
 }
 
 // ponytail: supports "dir/*" and exact paths, the shapes real workspace globs use; add "**" if needed.
@@ -152,7 +150,9 @@ function detectMode(root) {
   if (existsSync(join(root, "AGENTS.md")) || existsSync(join(root, "context"))) {
     return "upgrade";
   }
-  const meaningful = listDir(root).filter((entry) => ![".git", ".claude"].includes(entry.name));
+  const meaningful = listDir(root).filter(
+    (entry) => ![".git", ".claude", ".agents", ".codex", ".cursor"].includes(entry.name),
+  );
   return meaningful.length === 0 ? "new" : "adopt";
 }
 
@@ -221,7 +221,15 @@ function main() {
     ?.split("/")[0];
 
   const linters = [
-    ...["eslint.config.js", "eslint.config.mjs", "eslint.config.ts", ".eslintrc", ".eslintrc.js", ".eslintrc.json", ".eslintrc.cjs"]
+    ...[
+      "eslint.config.js",
+      "eslint.config.mjs",
+      "eslint.config.ts",
+      ".eslintrc",
+      ".eslintrc.js",
+      ".eslintrc.json",
+      ".eslintrc.cjs",
+    ]
       .filter(has)
       .map(() => "eslint")
       .slice(0, 1),
@@ -245,6 +253,7 @@ function main() {
     ".cursor/rules",
     ".agents",
     ".claude/settings.json",
+    ".codex/config.toml",
     "skills-lock.json",
     "context",
   ].filter(has);
@@ -256,7 +265,9 @@ function main() {
     conflicts.push(`linter present (${linters.join(", ")}) → OWN_LINTER: keep it; architecture rules go in oxlint`);
   }
   if (ownHooks) {
-    conflicts.push(`git hooks present (${hooks.join(", ")}) → OWN_HOOKS: add our checks to them; never run install-hooks`);
+    conflicts.push(
+      `git hooks present (${hooks.join(", ")}) → OWN_HOOKS: add our checks to them; never run install-hooks`,
+    );
   }
   if (ownCi) {
     conflicts.push(`CI present (${workflows.join(", ")}) → OWN_CI: add steps to the PR workflow`);
@@ -314,8 +325,8 @@ function main() {
     HAS_E2E: uses(E2E_DEPS),
     REQUEST_PATH_SET: false,
     GITHUB: has(".github") || git(root, ["remote", "get-url", "origin"]).includes("github.com"),
-    CLAUDE_CODE: true,
-    CLAUDE_SKILL_LINKS: true,
+    CLAUDE_CODE: has(".claude"),
+    CLAUDE_SKILL_LINKS: has(".claude"),
     ADOPT: mode === "adopt" || mode === "upgrade",
     OWN_LINTER: ownLinter,
     OWN_HOOKS: ownHooks,
