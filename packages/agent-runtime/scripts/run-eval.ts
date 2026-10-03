@@ -1,15 +1,16 @@
-// Live evaluation run (spends money; hosted Claude). The approved cap must be passed explicitly:
-//   MODEL=<id> PROFILE=<name> BUDGET_USD=<cap> TRIALS=<n> [SUITE=dev-r1] node scripts/run-eval.ts
+// Live evaluation using a configured runtime profile. Hosted use requires ALLOW_HOSTED=1.
+//   MODELS=<models.json> PROFILE=<name> BUDGET_USD=<cap> TRIALS=<n> [SUITE=dev-r1] node scripts/run-eval.ts
 // Writes evals/baselines/<suite>-<profile>-<utc>.json (results contain no source, keys, or prompts).
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { selectedProfile } from "./profile.ts";
 import { formatSummary, runSuite, summarize, type CaseResult } from "../src/eval.ts";
 
-const model = process.env.MODEL,
-  name = process.env.PROFILE,
-  cap = Number(process.env.BUDGET_USD);
-if (!model || !name || !(cap > 0)) throw new Error("set MODEL, PROFILE and BUDGET_USD (the approved spending cap)");
+const { profile, hosted } = selectedProfile();
+const { name } = profile;
+const cap = Number(process.env.BUDGET_USD);
+if (!(cap > 0)) throw new Error("set BUDGET_USD (the approved spending cap)");
 const suite = process.env.SUITE ?? "dev-r1";
 const evalsRoot = join(fileURLToPath(import.meta.url), "..", "..", "..", "..", "evals");
 const results: CaseResult[] = [];
@@ -23,7 +24,8 @@ const save = () =>
     JSON.stringify(
       {
         suite,
-        model,
+        model: profile.def.model ?? profile.def.label,
+        adapter: profile.def.kind,
         profile: name,
         trials: Number(process.env.TRIALS ?? 1),
         results,
@@ -39,8 +41,8 @@ await runSuite({
   suite,
   trials: Number(process.env.TRIALS ?? 1),
   budgetUsd: cap,
-  hosted: true,
-  profile: { name, def: { kind: "claude-cli", model, maxBudgetUsd: Number(process.env.CALL_CAP_USD ?? 0.05) } },
+  hosted,
+  profile,
   onSpend: (s) => {
     spend = s;
     save();

@@ -33,6 +33,7 @@
         "src/claude.ts",
         "src/chat.ts",
         "src/manual.ts",
+        "src/models.ts",
         "src/serial.ts",
         "src/jev/client.ts"
       ],

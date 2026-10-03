@@ -2,6 +2,7 @@ import type { Edit } from "./edits.ts";
 
 export type Action =
   | { id: string; kind: "read"; path: string }
+  | { id: string; kind: "read_many"; paths: string[] }
   | { id: string; kind: "edit" | "edit_and_finish"; edits: Edit[] }
   | { id: string; kind: "run_gate"; gateId: string }
   | { id: string; kind: "finish" }
@@ -13,6 +14,7 @@ export class InvalidAction extends Error {
 
 const KEYS: Record<string, string[]> = {
   read: ["id", "kind", "path"],
+  read_many: ["id", "kind", "paths"],
   edit: ["id", "kind", "edits"],
   edit_and_finish: ["id", "kind", "edits"],
   run_gate: ["id", "kind", "gateId"],
@@ -29,7 +31,8 @@ const isStr = (v: unknown): v is string => typeof v === "string" && v.length <= 
 function closed(o: Record<string, unknown>, keys: string[], what: string) {
   for (const k of Object.keys(o)) if (!keys.includes(k)) throw new InvalidAction(`${what}: unknown field ${k}`);
   for (const k of keys)
-    if (!isStr(o[k]) && !(k === "edits" && Array.isArray(o[k]))) throw new InvalidAction(`${what}: bad field ${k}`);
+    if (!isStr(o[k]) && !(["edits", "paths"].includes(k) && Array.isArray(o[k])))
+      throw new InvalidAction(`${what}: bad field ${k}`);
 }
 
 // Closed-object validation of untrusted model output. Anything unrecognised is rejected, never repaired.
@@ -39,6 +42,17 @@ export function parseAction(raw: unknown): Action {
   const keys = typeof o.kind === "string" ? KEYS[o.kind] : undefined;
   if (!keys) throw new InvalidAction(`unsupported action kind: ${String(o.kind)}`);
   closed(o, keys, String(o.kind));
+  if (o.kind === "read_many") {
+    const paths = o.paths;
+    if (
+      !Array.isArray(paths) ||
+      paths.length === 0 ||
+      paths.length > 20 ||
+      paths.some((p) => !isStr(p) || !p.length) ||
+      new Set(paths).size !== paths.length
+    )
+      throw new InvalidAction("read_many: 1-20 distinct nonempty paths required");
+  }
   if (o.kind === "edit" || o.kind === "edit_and_finish") {
     const edits = o.edits as unknown[];
     if (edits.length === 0 || edits.length > 20) throw new InvalidAction("edit: 1-20 edits required");
@@ -64,8 +78,9 @@ export const ACTION_SCHEMA = {
   required: ["id", "kind"],
   properties: {
     id: str,
-    kind: { enum: ["read", "edit", "edit_and_finish", "run_gate", "finish", "blocked"] },
+    kind: { enum: ["read", "read_many", "edit", "edit_and_finish", "run_gate", "finish", "blocked"] },
     path: str,
+    paths: { type: "array", minItems: 1, maxItems: 20, items: str },
     gateId: str,
     reason: str,
     edits: {

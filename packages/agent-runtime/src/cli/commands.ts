@@ -13,19 +13,16 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BudgetExceeded, type Limits } from "../budget.ts";
-import { ChatCompletionsProvider } from "../chat.ts";
-import { ClaudeCliProvider } from "../claude.ts";
 import { compile, ContextTooLarge, render } from "../context.ts";
 import { drive } from "../drive.ts";
 import { EventLog } from "../events.ts";
 import { canonical, sha256 } from "../hash.ts";
 import { pinProject } from "../pin.ts";
-import { ManualProvider } from "../manual.ts";
-import { OllamaProvider } from "../ollama.ts";
-import { type GenerationProvider, MockProvider } from "../provider.ts";
+import type { GenerationProvider } from "../provider.ts";
+import { createProvider, handoffDirectory, type Models } from "../models.ts";
 import { prSummary, readSessions, sessionCheck, updatePr } from "../session.ts";
 import { needsStrongWorker, QualStore, selectProfile } from "../qualify.ts";
 import { maxTier, riskFloor } from "../risk.ts";
@@ -137,11 +134,6 @@ type ProjectPolicy = {
     allowUncalibrated?: boolean;
   };
 };
-type Models = {
-  execution?: "handoff" | "delegated";
-  profiles: Record<string, Record<string, any>>;
-  roles: { worker: string; workerStrong?: string; architect?: string; reviewer?: string };
-};
 
 // Copies what git considers part of the project (tracked + untracked, minus ignored): no build output, no .env.
 // Without git it falls back to excluding the usual heavy directories.
@@ -179,56 +171,19 @@ const taskDir = (env: Env, id: string) => join(env.home, "tasks", id);
 const stateOf = (env: Env, id: string) => join(taskDir(env, id), "state");
 const projectFile = (env: Env, ...p: string[]) => join(env.project, ".agents", ...p);
 
+export { handoffDirectory } from "../models.ts";
+
+export function handoffPath(env: Env): number {
+  env.out(JSON.stringify({ directory: handoffDirectory(env) }));
+  return 0;
+}
+
 function makeProvider(name: string, models: Models, env?: Env): GenerationProvider {
-  const p = models.profiles[name];
-  if (!p) throw new CliError(`profile not defined: ${name}`);
-  if (p.kind !== "manual" && p.kind !== "replay" && models.execution !== "delegated")
-    throw new CliError(
-      `profile "${name}" (${p.kind}/${p.model}) requires execution: delegated. The chat model is not inherited. Run the runtime upgrade command with --execution handoff or --execution delegated; see docs/migration-guide.md.`,
-    );
-  switch (p.kind) {
-    case "claude-cli":
-      return new ClaudeCliProvider({
-        model: p.model,
-        maxBudgetUsd: p.maxBudgetUsd ?? 0.05,
-        timeoutMs: p.timeoutMs ?? 120_000,
-      });
-    case "ollama":
-      return new OllamaProvider({
-        baseUrl: p.baseUrl,
-        model: p.model,
-        numCtx: p.numCtx ?? 4096,
-        temperature: 0,
-        timeoutMs: p.timeoutMs ?? 120_000,
-      });
-    case "chat-completions":
-      return new ChatCompletionsProvider({
-        baseUrl: p.baseUrl,
-        model: p.model,
-        hosted: p.hosted,
-        apiKeyEnv: p.apiKeyEnv,
-        supportsJsonSchema: p.supportsJsonSchema ?? false,
-        temperature: 0,
-        timeoutMs: p.timeoutMs ?? 120_000,
-      });
-    case "manual":
-      return new ManualProvider(
-        env ? join(resolve(env.home), "exchange", sha256(env.project).slice(0, 16)) : p.dir,
-        p.label,
-        p.timeoutMs,
-        env
-          ? (packet, reply) =>
-              env.out(
-                `handoff ${name}: packet ${packet}\nSave ONLY JSON to ${reply}; leave the controller running. Reviewer packets need a separate review context.`,
-              )
-          : undefined,
-      );
-    case "replay":
-      return Object.assign(new MockProvider(JSON.parse(readFileSync(p.file, "utf8"))), {
-        id: `mock/replay:${basename(p.file)}`,
-      });
+  try {
+    return createProvider(name, models, env);
+  } catch (error) {
+    throw new CliError((error as Error).message);
   }
-  throw new CliError(`unsupported profile kind: ${p.kind}`);
 }
 
 // ---------------- Jev decision fabric (optional) ----------------
@@ -448,6 +403,8 @@ export async function doctor(env: Env): Promise<number> {
   if (existsSync(projectFile(env, "models.json"))) {
     try {
       const models = loadValidated<Models>(projectFile(env, "models.json"), "models");
+      if (Object.values(models.profiles).some((p) => p.kind === "manual"))
+        rows.push(["handoff directory", handoffDirectory(env)]);
       rows.push([
         "execution",
         `${models.execution ?? "legacy (external routes require upgrade)"}; chat model/settings are not inherited`,
@@ -492,6 +449,16 @@ export async function validateFiles(env: Env, contracts: string[]): Promise<numb
   if (existsSync(projectFile(env, "architecture.json"))) check(projectFile(env, "architecture.json"), "architecture");
   for (const c of contracts) check(c, "task-contract");
   return bad ? 1 : 0;
+}
+
+// Deterministic orchestration: no model is needed to create or preflight an agreed contract.
+// Plan approval and final acceptance remain separate operator actions.
+export async function taskStart(env: Env, file: string): Promise<number> {
+  if (!workflowEnabled(env)) throw new CliError("managed execution is off; enable it explicitly first");
+  const c = loadValidated<Contract>(file, "task-contract");
+  await taskCreate(env, file);
+  await taskPreflight(env, c.id);
+  return taskRun(env, c.id);
 }
 
 export async function taskCreate(env: Env, file: string): Promise<number> {

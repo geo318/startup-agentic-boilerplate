@@ -1,34 +1,14 @@
-// Live pilot against a REAL provider. Not part of `npm test`; spends money when PROVIDER=claude.
-//   PROVIDER=claude MODEL=claude-haiku-4-5-20251001 CASE=fix|blocked node scripts/live.ts
-//   PROVIDER=ollama MODEL=<already-pulled tag> ...        (optional; needs a local Ollama)
-// Pulls nothing. Gates run on the host (R1) in a temp dir. Hosted egress is the
-// user's explicit choice via PROVIDER=claude, recorded as policy egress "hosted-allowed".
+// Live pilot with a configured profile; hosted calls require ALLOW_HOSTED=1.
+// MODELS=<models.json> PROFILE=<name> CASE=fix|blocked node scripts/live.ts
+// Pulls nothing. Gates run on the host (R1) in a temp directory.
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ClaudeCliProvider } from "../src/claude.ts";
+import { selectedProfile } from "./profile.ts";
 import { drive } from "../src/drive.ts";
-import { OllamaProvider } from "../src/ollama.ts";
-import type { GenerationProvider } from "../src/provider.ts";
 import { Run } from "../src/run.ts";
 
-const kind = process.env.PROVIDER ?? "";
-const model = process.env.MODEL ?? "";
-if (!model) throw new Error("set MODEL to an exact model id/tag");
-let provider: GenerationProvider;
-if (kind === "claude") provider = new ClaudeCliProvider({ model, maxBudgetUsd: 0.05, timeoutMs: 120_000 });
-else if (kind === "ollama") {
-  const o = new OllamaProvider({
-    baseUrl: process.env.OLLAMA_URL ?? "http://127.0.0.1:11434",
-    model,
-    numCtx: Number(process.env.OLLAMA_CTX ?? 4096),
-    temperature: 0,
-    timeoutMs: 120_000,
-  });
-  const probe = await o.probe();
-  if (!probe.ok) throw new Error(`doctor: ${probe.reason}`);
-  provider = o;
-} else throw new Error("PROVIDER must be claude or ollama");
+const { provider, hosted } = selectedProfile();
 
 const base = mkdtempSync(join(tmpdir(), "live-"));
 const ws = join(base, "ws");
@@ -57,7 +37,7 @@ const run = new Run({
   stateDir: join(base, "state"),
   protectedPaths: ["check.mjs"],
   riskTier: "R1",
-  egress: kind === "claude" ? "hosted-allowed" : "local-only",
+  egress: hosted ? "hosted-allowed" : "local-only",
 
   gates: [{ id: "unit", argv: ["node", "check.mjs"], timeoutMs: 10_000, discover: { regex: "tests (\\d+)", min: 1 } }],
   requiredGates: ["unit"],

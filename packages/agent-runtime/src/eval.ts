@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as cli from "./cli/commands.ts";
 import { QualStore, probeActionProtocol } from "./qualify.ts";
-import { ClaudeCliProvider } from "./claude.ts";
+import { createProvider } from "./models.ts";
 import { budgetProvider, type GenerationProvider, type Spend } from "./provider.ts";
 import type { Lesson } from "./learning/store.ts";
 
@@ -121,7 +121,18 @@ export async function runSuite(o: RunOpts): Promise<CaseResult[]> {
   const results: CaseResult[] = [];
   if (!Number.isFinite(o.budgetUsd) || o.budgetUsd <= 0 || !Number.isInteger(o.trials) || o.trials < 1)
     throw new Error("positive finite budget and positive integer trials required");
-  if (!o.hosted && (o.provider?.hosted ?? true)) throw new Error("hosted evaluation requires explicit egress consent");
+  const probe =
+    o.provider ??
+    createProvider(o.profile.name, {
+      execution: "delegated",
+      profiles: { [o.profile.name]: o.profile.def },
+      roles: { worker: o.profile.name },
+    });
+  if (!o.hosted && probe.hosted) throw new Error("hosted evaluation requires explicit egress consent");
+  if (probe.hosted && !probe.supportsCostLimit)
+    throw new Error(
+      "dollar-capped evaluation requires a provider that supports per-call cost limits; use a native-token benchmark for subscription/manual sessions",
+    );
   const spent: Spend = {
     limitUsd: o.budgetUsd,
     costUsd: 0,
@@ -133,13 +144,6 @@ export async function runSuite(o: RunOpts): Promise<CaseResult[]> {
   const wrap = (p: GenerationProvider) => budgetProvider(o.provider ?? p, spent, () => o.onSpend?.({ ...spent }));
   // Qualify once per suite; an unqualified profile does not get to attempt tasks.
   const store = new QualStore(join(home, "qualifications.json"));
-  if (o.profile.def.kind !== "claude-cli")
-    throw new Error("eval runner currently supports claude-cli profiles; add others as they are needed");
-  const probe = new ClaudeCliProvider({
-    model: String(o.profile.def.model),
-    maxBudgetUsd: Number(o.profile.def.maxBudgetUsd ?? 0.05),
-    timeoutMs: 120_000,
-  });
   const q = await probeActionProtocol(wrap(probe), store);
   const qualificationCost = spent.costUsd;
   if (!q.passed)

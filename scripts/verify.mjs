@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const runtime = fileURLToPath(new URL("../packages/agent-runtime/", import.meta.url));
 const checks = [
+  [root, "python3", ["-m", "unittest", "discover", "-s", "scripts/fp602-benchmark", "-p", "test_*.py"]],
   [root, process.execPath, ["--test", "test/*.test.mjs"]],
   [runtime, "npm", ["test"]],
   [runtime, "npm", ["run", "typecheck"]],

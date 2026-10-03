@@ -215,6 +215,20 @@ test("hosted profile under local-only policy is blocked before anything leaves",
   assert.match(String(c.statusOf(w.env(), "fix-value").why), /hosted but the policy is local-only/);
 });
 
+test("handoff discovery reports the same project-scoped path in CLI and doctor", async () => {
+  const w = world({ extraProfiles: { handoff: { kind: "manual", dir: tmp(), label: "chat" } } });
+  const cli = spawnSync(process.execPath, [resolve("src/cli/main.ts"), "handoff-path", "--project", w.project], {
+    env: { ...process.env, AGENTIC_HOME: w.home },
+    encoding: "utf8",
+  });
+  assert.equal(cli.status, 0, cli.stderr);
+  const { directory } = JSON.parse(cli.stdout);
+  assert.equal(directory, c.handoffDirectory(w.env()));
+  assert.notEqual(directory, c.handoffDirectory(w.env({ project: tmp() })));
+  await c.doctor(w.env());
+  assert(w.out.some((line) => line.includes("handoff directory") && line.includes(directory)));
+});
+
 test("unresolved questions stop the run; cancel is final; unknown task is an error", async () => {
   const w = world();
   w.qualifyAll();
@@ -1001,4 +1015,47 @@ test("standard budget supports a gate repair followed by a blocking-review repai
   const status = c.statusOf(env, "fix-value");
   assert.equal(status.state, "AWAITING_ACCEPTANCE");
   assert.equal(status.ledger.repairs, 2);
+});
+
+test("task start runs an agreed contract directly and preserves approval/acceptance boundaries", async () => {
+  for (const riskTier of ["R1", "R2"]) {
+    const w = world();
+    w.qualifyAll();
+    const roles: string[] = [];
+    const env = w.env({
+      wrapProvider: (p) => {
+        return {
+          id: p.id,
+          hosted: p.hosted,
+          generate: async (req) => {
+            roles.push(p.id);
+            return p.generate(req);
+          },
+        };
+      },
+    });
+    const file = w.contract({ riskTier, budget: "standard", plan: "Change bad to good and run the unit gate." });
+    assert.equal(await c.taskStart(env, file), riskTier === "R1" ? 0 : 2);
+    if (riskTier === "R2") {
+      assert.equal(c.statusOf(env, "fix-value").state, "AWAITING_PLAN_APPROVAL");
+      assert.equal(roles.length, 0);
+      await c.taskApprove(env, "fix-value");
+      assert.equal(await c.taskRun(env, "fix-value"), 0);
+      assert.ok(roles.some((id) => id.includes("reviewer")));
+    }
+    assert.equal(c.statusOf(env, "fix-value").state, "AWAITING_ACCEPTANCE");
+    assert.ok(!roles.some((id) => id.includes("architect")));
+    assert.equal(readFileSync(join(w.project, "value.txt"), "utf8"), "bad");
+    await assert.rejects(c.taskStart(env, file), /already exists/);
+  }
+});
+
+test("task start refuses disabled execution and preflight failure before candidate/model work", async () => {
+  const off = world({ policy: { enabled: false } });
+  await assert.rejects(c.taskStart(off.env(), off.contract()), /off/);
+  assert.equal(existsSync(join(off.home, "tasks/fix-value")), false);
+  const w = world();
+  await assert.rejects(c.taskStart(w.env(), w.contract()), /unsupported capability/);
+  assert.equal(existsSync(join(w.home, "tasks/fix-value/candidate")), false);
+  assert.equal(c.statusOf(w.env(), "fix-value").state, "NOT_STARTED");
 });

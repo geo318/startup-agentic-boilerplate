@@ -40,6 +40,11 @@ providers. This does **not** change Sonnet into your chat model. To change a del
 check provider support, and qualify the new identity. Switching back from handoff does not restore old role mappings;
 recover those from the backup if wanted. No command detects your chat's model or reasoning setting.
 
+The live/evaluation scripts now select profiles through `MODELS=/path/to/.agents/models.json` and `PROFILE=<name>`.
+Replace old `MODEL`/`PROVIDER` invocations with that configuration; models, endpoints and per-call settings live in the
+selected profile. Hosted script runs additionally require `ALLOW_HOSTED=1`. The normal runtime keeps its existing
+per-project egress policy. See [model selection and adapter capabilities](provider-contract.md#selecting-models).
+
 Then, from the consumer project:
 
 ```bash

@@ -23,7 +23,7 @@ correct and unnecessary abstentions · tokens · hosted cost · wall time ·
 
 ## Running
 
-`scripts/run-eval.ts` (in `packages/agent-runtime`) needs `MODEL`, `PROFILE`, and `BUDGET_USD`, the approved cap; qualification and tasks share one per-call spending account. Each Claude call receives at most the remaining requested cap; missing billing stops further hosted calls. Token limits are estimates and provider-side dollar limits can overshoot on an in-flight request. The runner incrementally
+`scripts/run-eval.ts` (in `packages/agent-runtime`) reads `MODELS=/path/to/.agents/models.json`, `PROFILE=<name>` (defaults to the configured worker), and `BUDGET_USD`, the approved cap. Hosted use requires `ALLOW_HOSTED=1`; local providers work without it. The same profile factory serves the runtime, evaluation, learning evaluation and live pilot scripts. Qualification and tasks share one per-call spending account. Hosted adapters must support a per-call dollar limit; missing billing stops further hosted calls. Generic hosted endpoints without that capability are rejected before inference. Token limits are estimates and provider-side dollar limits can overshoot on an in-flight request. The runner incrementally
 saves `evals/baselines/<suite>-<profile>-<utc>.json`. Exhausting the budget before all cases finish records a failure, retains partial results and spend, and exits nonzero. Compare two result files with `compare()` ([eval.ts](../packages/agent-runtime/src/eval.ts)).
 Mock/replay passes prove the engine, not a model. Small samples show feasibility and large effects only; repeat trials before claiming small differences.
 Rotating the worker model changes the qualification (profile id), so each arm is probed first.
@@ -49,6 +49,11 @@ How to read this honestly:
 
 
 ## Paired workflow benchmark
+
+The [FP-602 runner repair](../scripts/fp602-benchmark/README.md) addresses exchange discovery,
+grading preparation/isolation, phase budgets and wall-clock gaps found in the October 2026 run.
+It preserves the historical evidence and provides offline regression tests; it does not establish
+successful completion or a managed-workflow efficiency gain.
 
 1. Freeze a task suite and its independent graders before tuning. Use an untouched copy for every trial.
 2. Run the same model/harness normally for the baseline, recording all calls, retries, qualification, cost, wall time and human interventions.

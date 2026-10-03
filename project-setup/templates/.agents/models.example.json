@@ -2,11 +2,38 @@
   "schemaVersion": 1,
   "execution": "delegated",
   "profiles": {
-    "claude-sonnet": { "kind": "claude-cli", "model": "claude-sonnet-5-5", "maxBudgetUsd": 0.25 },
-    "claude-haiku": { "kind": "claude-cli", "model": "claude-haiku-4-5-20251001", "maxBudgetUsd": 0.05 },
-    "local-ollama": { "kind": "ollama", "model": "REPLACE-WITH-AN-ALREADY-PULLED-TAG", "baseUrl": "http://127.0.0.1:11434", "numCtx": 4096 },
-    "chat-api": { "kind": "chat-completions", "model": "REPLACE-WITH-PROVIDER-MODEL", "baseUrl": "https://api.openai.com/v1", "hosted": true, "apiKeyEnv": "OPENAI_API_KEY" },
-    "hand-off": { "kind": "manual", "dir": "temp/agentic-exchange", "label": "chat" }
+    "remote-worker": {
+      "kind": "chat-completions",
+      "model": "REPLACE-WITH-YOUR-WORKER-MODEL",
+      "baseUrl": "https://your-provider.example/v1",
+      "hosted": true,
+      "apiKeyEnv": "MODEL_API_KEY"
+    },
+    "remote-reviewer": {
+      "kind": "chat-completions",
+      "model": "REPLACE-WITH-YOUR-REVIEWER-MODEL",
+      "baseUrl": "https://your-provider.example/v1",
+      "hosted": true,
+      "apiKeyEnv": "MODEL_API_KEY"
+    },
+    "local-worker": {
+      "kind": "ollama",
+      "model": "REPLACE-WITH-AN-ALREADY-PULLED-TAG",
+      "baseUrl": "http://127.0.0.1:11434",
+      "numCtx": 4096
+    },
+    "native-claude": {
+      "kind": "claude-cli",
+      "model": "REPLACE-WITH-YOUR-CLAUDE-MODEL",
+      "maxBudgetUsd": 0.05
+    },
+    "hand-off": {
+      "kind": "manual",
+      "dir": "temp/agentic-exchange",
+      "label": "REPLACE-WITH-YOUR-MODEL-AND-SETTINGS"
+    }
   },
-  "roles": { "worker": "hand-off" }
+  "roles": {
+    "worker": "hand-off"
+  }
 }

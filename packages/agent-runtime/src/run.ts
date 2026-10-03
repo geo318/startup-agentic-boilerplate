@@ -497,17 +497,23 @@ export class Run {
   async #dispatch(a: Action): Promise<Outcome> {
     const { workspace } = this.#policy;
     switch (a.kind) {
-      case "read": {
-        let content: string;
-        try {
-          content = readFileSync(resolveSafe(workspace, a.path), "utf8");
-        } catch (e) {
-          if ((e as { code?: string }).code === "ENOENT" || (e as { code?: string }).code === "EISDIR") {
-            throw Object.assign(new Error(`not found or not a file: ${a.path}`), { reason: "insufficient context" });
+      case "read":
+      case "read_many": {
+        const paths = a.kind === "read" ? [a.path] : a.paths;
+        const files = paths.map((path) => {
+          let content: string;
+          try {
+            content = readFileSync(resolveSafe(workspace, path), "utf8");
+          } catch (e) {
+            if ((e as { code?: string }).code === "ENOENT" || (e as { code?: string }).code === "EISDIR") {
+              throw Object.assign(new Error(`not found or not a file: ${path}`), { reason: "insufficient context" });
+            }
+            throw e;
           }
-          throw e;
-        }
-        return { ok: true, data: { content, hash: sha256(content) } };
+          return { path, content, hash: sha256(content) };
+        });
+        if (a.kind === "read") return { ok: true, data: { content: files[0]!.content, hash: files[0]!.hash } };
+        return { ok: true, data: { files } };
       }
       case "edit":
       case "edit_and_finish": {

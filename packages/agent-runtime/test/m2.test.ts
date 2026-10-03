@@ -214,6 +214,7 @@ test("ollama worker through the driver: fake server replies drive a real run to 
   assert.equal(f.seen[0].format.additionalProperties, false); // constrained output was requested, and it is closed
   assert.deepEqual(f.seen[0].format.properties.kind.enum, [
     "read",
+    "read_many",
     "edit",
     "edit_and_finish",
     "run_gate",

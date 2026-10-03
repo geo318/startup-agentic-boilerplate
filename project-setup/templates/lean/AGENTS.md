@@ -32,11 +32,13 @@ Direct development is the default. Managed execution is off (`"enabled": false` 
 Use it only when the user requests it for the task; never enable it automatically or require it for ordinary edits.
 `node scripts/agentic.mjs enable` opts in; `disable` returns to direct development. Keep normal project checks and CI.
 
-For a chosen managed task, run `task preflight <id>` before execution. Routing comes from `.agents/models.json`,
+For a chosen managed task with an agreed contract, use `task start <contract.json>` to create, preflight and run
+in one command. For existing tasks, use `task preflight <id>` then `task run <id>`. Routing comes from `.agents/models.json`,
 not the chat model selector: `handoff` exchanges JSON packets; `delegated` invokes the configured provider.
 Include an existing agreed plan in the contract's `plan` field to avoid another architect call.
 R2/R3 still require `task approve <id>` and an independent reviewer context. Accept verified results explicitly.
-Use `edit_and_finish` for final edits to avoid a separate finish exchange.
+Batch missing context with `read_many` (up to 20 paths); use `edit_and_finish` for final edits.
+Do not add a model coordinator to repeat CLI discovery or poll task state. Reuse existing profile qualifications.
 
 If scope, context or budget is insufficient, use `task revise <id> <contract.json>` with explicit authorization.
 It retains the prepared candidate, baseline, history and usage; R2/R3 require fresh plan approval.

@@ -1,18 +1,20 @@
-// Live evaluation of a candidate lesson (spends money; hosted Claude). The approved cap must be given explicitly:
-//   MODEL=<id> PROFILE=<name> BUDGET_USD=<cap> LESSON_TEXT="..." LESSON_TOPIC=<slug> node scripts/learn-eval.ts
+// Live evaluation of a candidate lesson using a configured runtime profile. The approved cap must be given explicitly:
+//   MODELS=<models.json> PROFILE=<name> ALLOW_HOSTED=1 BUDGET_USD=<cap> LESSON_TEXT="..." LESSON_TOPIC=<slug> node scripts/learn-eval.ts
 // Uses a temporary learning home: nothing here touches ~/.agentic or any active lesson set.
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { selectedProfile } from "./profile.ts";
 import type { CaseResult } from "../src/eval.ts";
 import { runSuite } from "../src/eval.ts";
 import * as L from "../src/learning/store.ts";
 
-const { MODEL, PROFILE, LESSON_TEXT, LESSON_TOPIC } = process.env;
+const { LESSON_TEXT, LESSON_TOPIC } = process.env;
+const { profile, hosted } = selectedProfile();
 const cap = Number(process.env.BUDGET_USD);
-if (!MODEL || !PROFILE || !LESSON_TEXT || !LESSON_TOPIC || !(cap > 0))
-  throw new Error("set MODEL, PROFILE, LESSON_TEXT, LESSON_TOPIC, BUDGET_USD");
+if (!LESSON_TEXT || !LESSON_TOPIC || !(cap > 0))
+  throw new Error("set LESSON_TEXT, LESSON_TOPIC, BUDGET_USD; select the model with MODELS and PROFILE");
 const evalsRoot = join(fileURLToPath(import.meta.url), "..", "..", "..", "..", "evals");
 const home = mkdtempSync(join(tmpdir(), "learneval-"));
 
@@ -72,13 +74,10 @@ const runner: L.Runner = async (lessons) => {
       evalsRoot,
       suite,
       trials: 1,
-      budgetUsd: Math.max(cap - spent, 0.001),
-      hosted: true,
+      budgetUsd: cap - spent,
+      hosted,
       lessons,
-      profile: {
-        name: PROFILE!,
-        def: { kind: "claude-cli", model: MODEL!, maxBudgetUsd: 0.05 },
-      },
+      profile,
     });
     spent += part.reduce((a, r) => a + r.costUsd, 0);
     out.push(...part.map((r) => ({ ...r, caseId: `${suite}/${r.caseId}` })));
@@ -97,7 +96,7 @@ const runner: L.Runner = async (lessons) => {
   );
   return out;
 };
-const ev = await L.evaluate(home, proposal.id, runner, PROFILE!);
+const ev = await L.evaluate(home, proposal.id, runner, profile.name);
 console.log(
   `\nverdict: ${ev.verdict.toUpperCase()}  n=${ev.n}  regressions: ${ev.regressions.join(", ") || "none"}  improved: ${ev.improved.join(", ") || "none"}`,
 );
@@ -120,8 +119,9 @@ writeFileSync(
   JSON.stringify(
     {
       lesson: { topic: LESSON_TOPIC, text: LESSON_TEXT },
-      profile: PROFILE,
-      model: MODEL,
+      profile: profile.name,
+      model: profile.def.model ?? profile.def.label,
+      adapter: profile.def.kind,
       evaluation: ev,
       runsPerEvaluation: 3,
       perCase: allRuns,

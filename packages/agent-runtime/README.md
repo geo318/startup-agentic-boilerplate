@@ -7,7 +7,7 @@ Node ≥ 22.18. The controller uses Node built-ins and type stripping; `arch che
 agentic doctor
 agentic validate [contract.json…]
 agentic qualify <profile> [--owner-declare architecture|review|action-protocol]
-agentic task create <contract.json> | revise <id> <contract.json> | preflight <id> | run <id> | status <id> | approve <id> | accept <id> | cancel <id> | export <id>
+agentic task start <contract.json> | create <contract.json> | revise <id> <contract.json> | preflight <id> | run <id> | status <id> | approve <id> | accept <id> | cancel <id> | export <id>
 agentic report <id>
 ```
 
@@ -21,6 +21,8 @@ packets answered by your chosen chat/operator. Delegated execution uses the conf
 your Codex model and reasoning setting do not change those profiles. Legacy external routes now refuse before making a
 call until delegation is explicit. Deterministic replay and existing manual-only profiles remain usable.
 
+Models are selected through profiles and role mappings, with no preferred model family. The live/evaluation scripts also read these profiles via `MODELS` and `PROFILE`; see [model selection](../../docs/provider-contract.md#selecting-models).
+
 `doctor` shows routes and qualification sources. `task preflight <id>` checks required routes, qualifications, egress and
 unresolved questions without model calls; it displays the initial worker and budget. Each task call also prints its role,
 configured provider identity and qualification source, recorded as `model_call` in `state/events.jsonl`. These are configured
@@ -32,7 +34,7 @@ It preserves project policy and history and updates the runtime pin; a consumer-
 ### Using your current chat
 
 1. Explicitly `enable` managed execution, then run `qualify <worker-profile>` or `task run <id>` in a background/interactive terminal that stays running.
-2. Read the printed absolute `packet-<uuid>.json` path. CLI exchanges live under `$AGENTIC_HOME/exchange/`, outside the
+2. Read the printed absolute `packet-<uuid>.json` path. Adapters can discover the exact directory with `agentic handoff-path --project <dir>` (JSON `{ "directory": "..." }`); `doctor` also displays it. CLI execution ignores the legacy profile `dir` and keeps exchanges under `$AGENTIC_HOME/exchange/`, outside the
    candidate tree; the legacy profile `dir` is used only when constructing ManualProvider directly.
 3. Have your chosen chat answer the packet's system, prompt and schema. Save only the JSON response to the printed
    `response-<uuid>.txt` path (write a temporary file and rename it atomically). The controller consumes it and may print
@@ -148,6 +150,17 @@ exact paths, or directory prefixes ending in `/`. If omitted, writes are limited
 The controller validates edits and the final diff. Conventional existing tests are frozen by default (`protectExistingTests`);
 custom acceptance scripts also belong in policy `protectedPaths`. New development tests may be added within scope.
 Changing trusted tests or disabling their protection is a reviewed maintenance operation.
+
+For an agreed contract, prefer `task start <contract.json>`: deterministic create → preflight → run in one command.
+Supply the agreed `plan` to skip redundant architect generation. This command never approves plans or accepts results;
+R2/R3 pause for `task approve <id>`, then continue with `task run <id>`. A failed preflight retains the contract for
+inspection/revision but performs no candidate preparation or model calls. Reuse existing profile qualifications;
+ordinary tasks do not need fresh qualification probes or a model coordinator to discover/poll CLI commands.
+
+Workers can request `read_many` with 1–20 distinct `paths` in one call. Every path uses the same safety checks as `read`;
+a failed batch returns no partial contents. Successful files enter subsequent context with their hashes, including on
+resume. Mandatory context is never truncated: an oversized batch stops before the next model call. Repeated-read and
+missing-input guards still apply. Prefer declaring known necessary inputs in `files`, avoiding discovery calls entirely.
 
 Workers may use `edit_and_finish` with the same bounded edits array to request verification in one call. Gate failures and
 review findings survive routing/resume. Full task gate output is stored under the task's `state/logs/`; prompts receive compact diagnostics.

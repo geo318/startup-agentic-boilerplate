@@ -16,6 +16,7 @@ export type Task = {
 
 const SYSTEM = `You are a coding worker. Reply with ONE JSON object and nothing else. Allowed:
 {"id":"<unique>","kind":"read","path":"..."}
+{"id":"<unique>","kind":"read_many","paths":["...","..."]} (1-20 distinct paths; batch known missing context into one call)
 {"id":"<unique>","kind":"edit","edits":[{"kind":"replace","path":"...","expectHash":"<hash shown>","find":"<exact unique text>","replace":"..."} | {"kind":"create","path":"...","content":"..."} | {"kind":"replace_file","path":"...","expectHash":"<hash shown>","content":"<whole new file>"}]}
 "create" is only for files that do not exist yet; to rewrite an existing file use "replace_file".
 {"id":"<unique>","kind":"run_gate","gateId":"..."}
@@ -128,7 +129,8 @@ export async function drive(
     if (yieldOnRepair && run.ledger.repairs > startingRepairs && run.state === "BOUNDED_REPAIR") return turns;
     if (!out.ok && (out.reason ?? "").startsWith("insufficient context")) {
       // same unavailable request again = no new information: stop and ask a human instead of burning budget
-      const key = JSON.stringify([(action as { kind?: string })?.kind, (action as { path?: string })?.path]);
+      const request = action as { kind?: string; path?: string; paths?: string[] };
+      const key = JSON.stringify([request.kind, request.path, request.paths?.slice().sort()]);
       failed.set(key, (failed.get(key) ?? 0) + 1);
       if ((failed.get(key) ?? 0) >= 2) {
         run.stop("NEEDS_INPUT", `insufficient context: repeated request for unavailable material (${out.reason})`);
@@ -141,29 +143,27 @@ export async function drive(
       repeats.clear();
       packet = undefined;
     }
-    if (out.ok && kind === "read") {
-      run.contextReads.add((action as { path: string }).path);
-      run.record("context_read", { path: (action as { path: string }).path });
+    if (out.ok && (kind === "read" || kind === "read_many")) {
+      const paths = kind === "read" ? [(action as { path: string }).path] : (action as { paths: string[] }).paths;
+      for (const path of paths) {
+        run.contextReads.add(path);
+        run.record("context_read", { path });
+        repeats.set(path, (repeats.get(path) ?? 0) + 1);
+      }
       packet = undefined;
-    }
-    if (out.ok && kind === "read") {
-      const key = (action as { path?: string }).path ?? "";
-      repeats.set(key, (repeats.get(key) ?? 0) + 1);
-      if ((repeats.get(key) ?? 0) >= 3) {
-        run.stop("ESCALATED", `no progress: ${key} re-read without any change`);
+      const looping = paths.find((path) => (repeats.get(path) ?? 0) >= 3);
+      if (looping) {
+        run.stop("ESCALATED", `no progress: ${looping} re-read without any change`);
         break;
       }
-      if ((repeats.get(key) ?? 0) >= 2) {
-        last = `${key} is already in the context above and unchanged; reading again gives no new information. Send finish if the acceptance criteria are met, or blocked with the reason.`;
-        continue;
+      const repeated = paths.filter((path) => (repeats.get(path) ?? 0) >= 2);
+      if (repeated.length) {
+        last = `${repeated.join(", ")} already in context and unchanged; reading again gives no new information. Send finish if the acceptance criteria are met, or blocked with the reason.`;
+      } else if (paths.every((path) => inContext.has(path))) {
+        last = "Requested files are already in the context above (current). Make your edit, or send finish / blocked.";
+      } else {
+        last = "Requested files are now included above; use their current hashes.";
       }
-    }
-    if (out.ok && kind === "read" && inContext.has((action as { path?: string }).path ?? "")) {
-      last = `${(action as { path?: string }).path} is already in the context above (current). No need to read it: make your edit, or send finish / blocked.`;
-      continue;
-    }
-    if (out.ok && kind === "read") {
-      last = "Requested file is now included above; use its current hash.";
       continue;
     }
     last = out.ok

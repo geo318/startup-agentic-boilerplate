@@ -11,8 +11,9 @@ const USAGE = `agentic <command>
   pin   (writes .agents/runtime.json pointing at this runtime checkout)
   upgrade --execution handoff|delegated (preserve profiles/history, back up config, re-pin)
   doctor | validate [contract.json...]
+  handoff-path   (JSON: controller-owned packet exchange directory for adapters)
   qualify <profile> [--owner-declare architecture|review|action-protocol]
-  task create <contract.json> | preflight <id> | run <id> | status <id> | approve <id> | accept <id> | cancel <id> | verify <id> | export <id>
+  task start <contract.json> | create <contract.json> | preflight <id> | run <id> | status <id> | approve <id> | accept <id> | cancel <id> | verify <id> | export <id>
   task revise <id> <contract.json> (operator: retain candidate/usage; new plan approval for R2/R3)
   learn capture <task> | propose <file> | list | promote <proposal> | rollback [release] | retire <lesson> | purge <lesson>
   enable | disable   (managed execution is off by default)
@@ -67,6 +68,8 @@ async function main(): Promise<number> {
       );
     case "doctor":
       return c.doctor(env);
+    case "handoff-path":
+      return c.handoffPath(env);
     case "validate":
       return c.validateFiles(
         env,
@@ -117,6 +120,7 @@ async function main(): Promise<number> {
       break;
     case "task":
       if (sub === "create") return c.taskCreate(env, resolve(arg ?? ""));
+      if (sub === "start") return c.taskStart(env, resolve(arg ?? ""));
       if (sub === "revise") {
         if (!argv[3] || argv[3]!.startsWith("--")) throw new c.CliError("usage: task revise <id> <contract.json>");
         return c.taskRevise(env, arg ?? "", resolve(argv[3]!));

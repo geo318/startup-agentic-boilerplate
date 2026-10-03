@@ -1,11 +1,11 @@
-// Live R2 pilot (spends money; hosted Claude). Two phases so a human approves the exact plan:
-//   DIR=<dir> MODEL=<id> node scripts/live-r2.ts plan                      → architect writes <dir>/plan.json, prints it
-//   DIR=<dir> MODEL=<id> APPROVED_PLAN_HASH=<hash> node scripts/live-r2.ts run
+// Live R2 pilot (configured profile; hosted calls require ALLOW_HOSTED=1). Two phases so a human approves the exact plan:
+//   DIR=<dir> MODELS=<models.json> PROFILE=<name> node scripts/live-r2.ts plan                      → architect writes <dir>/plan.json, prints it
+//   DIR=<dir> MODELS=<models.json> PROFILE=<name> APPROVED_PLAN_HASH=<hash> node scripts/live-r2.ts run
 // The reviewer qualification below is OWNER-DECLARED for this pilot, not measured.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Ledger } from "../src/budget.ts";
-import { ClaudeCliProvider } from "../src/claude.ts";
+import { selectedProfile } from "./profile.ts";
 import { drive } from "../src/drive.ts";
 import { sha256 } from "../src/hash.ts";
 import { architect, review } from "../src/roles.ts";
@@ -13,15 +13,11 @@ import { Run } from "../src/run.ts";
 
 const phase = process.argv[2];
 const dir = process.env.DIR ?? "";
-const model = process.env.MODEL ?? "";
-if (!dir || !model || !["plan", "run"].includes(phase ?? ""))
-  throw new Error("usage: DIR= MODEL= [APPROVED_PLAN_HASH=] node scripts/live-r2.ts plan|run");
+const { provider, hosted } = selectedProfile();
+const egress = hosted ? "hosted-allowed" : "local-only";
+if (!dir || !["plan", "run"].includes(phase ?? ""))
+  throw new Error("usage: DIR= MODELS= PROFILE= [APPROVED_PLAN_HASH=] node scripts/live-r2.ts plan|run");
 const ws = join(dir, "ws");
-const provider = new ClaudeCliProvider({
-  model,
-  maxBudgetUsd: 0.05,
-  timeoutMs: 120_000,
-});
 const task = {
   goal: "greeting() must return the string hello (it has a typo)",
   acceptance: ["check.mjs exits 0"],
@@ -41,7 +37,7 @@ if (phase === "plan") {
     `import {greeting} from "./greeting.mjs"; console.log("tests 1"); process.exit(greeting()==="hello"?0:1)\n`,
   );
   const plan = await architect(
-    { provider, ledger, egress: "hosted-allowed" },
+    { provider, ledger, egress },
     {
       goal: task.goal,
       acceptance: task.acceptance,
@@ -62,7 +58,7 @@ if (phase === "plan") {
       stateDir: join(dir, "state"),
       protectedPaths: ["check.mjs"],
       riskTier: "R2",
-      egress: "hosted-allowed",
+      egress,
 
       gates: [
         {
@@ -84,7 +80,7 @@ if (phase === "plan") {
   let findings: unknown = null;
   if (run.state === "REVIEWING") {
     const f = await review(
-      { provider, ledger, egress: "hosted-allowed" },
+      { provider, ledger, egress },
       {
         goal: task.goal,
         acceptance: task.acceptance,
