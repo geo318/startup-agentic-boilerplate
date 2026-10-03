@@ -1136,3 +1136,31 @@ test("authorized revision removes a numeric cap without resetting usage or allow
   assert.equal(await c.taskRun(highUsage, "fix-value"), 0);
   assert.ok(c.statusOf(env, "fix-value").ledger.tokens > before + 2_000_000);
 });
+
+test("R2 supplied plans consult Jev once without skipping approval or review", async () => {
+  const w = world({ policy: jevPolicy("enabled", { allowUncalibrated: true }) });
+  w.qualifyAll();
+  const calls = { n: 0 };
+  const env = w.env({ jevTransport: jevFake(() => "standard-worker", 0.99, calls) });
+  await c.taskCreate(env, w.contract({ riskTier: "R2", plan: "Change value.txt to good." }));
+  assert.equal(await c.taskRun(env, "fix-value"), 2);
+  assert.equal(calls.n, 1);
+  assert.equal(c.statusOf(env, "fix-value").state, "AWAITING_PLAN_APPROVAL");
+  assert.equal(c.statusOf(env, "fix-value").ledger.tokens, 0);
+  await c.taskApprove(env, "fix-value");
+  assert.equal(await c.taskRun(env, "fix-value"), 0);
+  assert.equal(calls.n, 1);
+  assert.equal(c.statusOf(env, "fix-value").state, "AWAITING_ACCEPTANCE");
+});
+
+test("R2 Jev clarification blocks before supplied plan approval or native calls", async () => {
+  const w = world({ policy: jevPolicy("enabled", { allowUncalibrated: true }) });
+  w.qualifyAll();
+  const calls = { n: 0 };
+  const env = w.env({ jevTransport: jevFake(() => "ask-clarification", 0.99, calls) });
+  await c.taskCreate(env, w.contract({ riskTier: "R2", plan: "Change value.txt to good." }));
+  assert.equal(await c.taskRun(env, "fix-value"), 2);
+  assert.equal(calls.n, 1);
+  assert.equal(c.statusOf(env, "fix-value").state, "NEEDS_INPUT");
+  assert.equal(c.statusOf(env, "fix-value").ledger.tokens, 0);
+});

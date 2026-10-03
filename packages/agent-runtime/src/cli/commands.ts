@@ -779,7 +779,11 @@ export async function taskRun(env: Env, id: string): Promise<number> {
           ids: pinned.map((l) => l.id),
         });
       const fabric = makeFabric(env, t.pp);
-      if (fabric && run.state === "IMPLEMENTING" && (await jevDecisions(env, t, id, fabric)) === "ask") {
+      if (
+        fabric &&
+        (run.state === "IMPLEMENTING" || run.state === "AWAITING_PLAN_APPROVAL") &&
+        (await jevDecisions(env, t, id, fabric)) === "ask"
+      ) {
         run.stop("NEEDS_INPUT", "jev (enabled): the request needs clarification before any model call");
       }
     } else run.resume();
