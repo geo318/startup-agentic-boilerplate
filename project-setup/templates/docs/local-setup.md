@@ -5,7 +5,7 @@ variable.
 
 ## Prerequisites
 
-<!-- FILL: runtime + version (e.g. Bun 1.x / Node 22+), database (local Docker or hosted dev branch), and any CLIs (vercel, stripe, eas…). -->
+<!-- FILL: runtime + version (e.g. Bun 1.x / Node 22+), database (local or hosted dev branch), and any CLIs (vercel, stripe, eas…). -->
 
 ## First run
 

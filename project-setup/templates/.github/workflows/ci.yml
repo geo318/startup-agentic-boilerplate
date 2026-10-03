@@ -70,8 +70,10 @@ jobs:
       - name: Lint
         run: "{{CMD_LINT}}"
 {{#if TYPESCRIPT}}
+{{#unless LEAN}}
       - name: Architecture, dead code, duplication, complexity
         run: "{{CMD_FALLOW}}"
+{{/unless}}
       - name: Typecheck
         run: "{{CMD_TYPECHECK}}"
 {{/if}}

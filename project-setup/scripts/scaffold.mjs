@@ -65,9 +65,7 @@ function parseArgs(argv) {
     }
   }
   if (!args.answers) {
-    throw new Error(
-      "usage: scaffold.mjs --answers <file> [--target <dir>] [--force] [--dry-run] [--sync]",
-    );
+    throw new Error("usage: scaffold.mjs --answers <file> [--target <dir>] [--force] [--dry-run] [--sync]");
   }
   if (args.sync && args.force) {
     throw new Error("--sync and --force are exclusive: --sync never overwrites local edits");
@@ -101,13 +99,9 @@ function loadAnswers(path) {
   for (const app of apps) {
     const dir = app.APP_DIR;
     const segments = typeof dir === "string" ? dir.split("/") : [];
-    const unsafe = segments.some(
-      (segment) => segment === "" || segment === "." || segment === "..",
-    );
+    const unsafe = segments.some((segment) => segment === "" || segment === "." || segment === "..");
     if (typeof dir !== "string" || dir.startsWith("/") || unsafe) {
-      throw new Error(
-        `apps[].APP_DIR must be a relative sub-directory like "apps/web" (got ${JSON.stringify(dir)})`,
-      );
+      throw new Error(`apps[].APP_DIR must be a relative sub-directory like "apps/web" (got ${JSON.stringify(dir)})`);
     }
   }
   return { vars, flags, apps };
@@ -123,8 +117,7 @@ const LEFTOVER_BLOCK_TAG = /\{\{(?:[#/](?:if|unless|each)\b[^}]*|else)\}\}/;
 const OWN_LINE_TAG =
   /^[ \t]*(\{\{(?:#if [!A-Z0-9_]+|#unless [A-Z0-9_]+|#each [A-Z0-9_]+|\/if|\/unless|\/each|else)\}\})[ \t]*\r?\n/gm;
 const EACH_BLOCK = /\{\{#each ([A-Z0-9_]+)\}\}([\s\S]*?)\{\{\/each\}\}/g;
-const INNERMOST_CONDITIONAL =
-  /\{\{#(if|unless) ([A-Z0-9_]+)\}\}((?:(?!\{\{#(?:if|unless) )[\s\S])*?)\{\{\/\1\}\}/;
+const INNERMOST_CONDITIONAL = /\{\{#(if|unless) ([A-Z0-9_]+)\}\}((?:(?!\{\{#(?:if|unless) )[\s\S])*?)\{\{\/\1\}\}/;
 const VARIABLE = /\{\{([A-Z][A-Z0-9_]*)\}\}/g;
 
 function render(text, context, missing) {
@@ -136,9 +129,7 @@ function render(text, context, missing) {
       return "";
     }
     return context.apps
-      .map((app) =>
-        render(body, { ...context, vars: { ...context.vars, ...appVars(app) } }, missing),
-      )
+      .map((app) => render(body, { ...context, vars: { ...context.vars, ...appVars(app) } }, missing))
       .join("");
   });
 
@@ -172,14 +163,25 @@ function flagHolds(expression, flags) {
 }
 
 function included(relPath, flags) {
+  if (relPath.startsWith("lean/")) return flags.LEAN === true;
+  if (flags.LEAN === true && relPath === ".fallowrc.json") return false;
+  if (
+    flags.LEAN === true &&
+    relPath.endsWith(".md") &&
+    ![
+      "CLAUDE.md",
+      ".github/pull_request_template.md",
+      "docs/archive/product-brief.md",
+    ].includes(relPath)
+  )
+    return false;
   return manifest.when.every(
-    (rule) =>
-      !(relPath === rule.path || relPath.startsWith(`${rule.path}/`)) ||
-      flagHolds(rule.flag, flags),
+    (rule) => !(relPath === rule.path || relPath.startsWith(`${rule.path}/`)) || flagHolds(rule.flag, flags),
   );
 }
 
 function outputPath(relPath) {
+  relPath = relPath.replace(/^lean\//, "");
   const name = basename(relPath);
   const renamed = manifest.rename[name];
   return renamed ? join(dirname(relPath), renamed) : relPath;
@@ -256,9 +258,22 @@ function sha256(text) {
   return createHash("sha256").update(text).digest("hex");
 }
 
+// Lock = { "$meta": { generator, templatesHash }, "<path>": sha256(rendered), … }. $meta records which
+// template set wrote the files (no timestamps, so renders stay reproducible).
 function readLock(target) {
   const path = join(target, LOCK_PATH);
-  return existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {};
+  const { $meta, ...files } = existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {};
+  lockMeta = $meta;
+  return files;
+}
+let lockMeta;
+
+function templatesHash() {
+  const parts = walk(templatesDir)
+    .map((file) => relative(templatesDir, file).split(sep).join("/"))
+    .sort()
+    .map((rel) => `${rel}\0${sha256(readFileSync(join(templatesDir, rel), "utf8"))}`);
+  return sha256(parts.join("\n"));
 }
 
 // Which of the sync outcomes in the header applies to an existing file.
@@ -362,7 +377,10 @@ function main() {
         lock[item.lockKey] = sha256(item.content);
       }
     }
-    const sorted = Object.fromEntries(Object.entries(lock).sort(([a], [b]) => a.localeCompare(b)));
+    const sorted = {
+      $meta: { generator: "project-setup", templatesHash: templatesHash() },
+      ...Object.fromEntries(Object.entries(lock).sort(([a], [b]) => a.localeCompare(b))),
+    };
     mkdirSync(dirname(join(target, LOCK_PATH)), { recursive: true });
     writeFileSync(join(target, LOCK_PATH), `${JSON.stringify(sorted, null, 2)}\n`);
   }
@@ -398,14 +416,20 @@ function main() {
     console.log(`linked ${report.linked.length} skills into .claude/skills`);
   }
   if (report.skipped.length > 0) {
-    console.log(
-      `\nskipped ${report.skipped.length} existing files (merge by hand or rerun with --force):`,
-    );
+    console.log(`\nskipped ${report.skipped.length} existing files (merge by hand or rerun with --force):`);
     for (const path of report.skipped) {
       console.log(`  = ${path}`);
     }
   }
   console.log(`excluded ${report.excluded} templates by flags`);
+  if (args.sync) {
+    const now = templatesHash();
+    console.log(
+      lockMeta?.templatesHash === now
+        ? "templates: unchanged since the last render"
+        : `templates: changed since the last render (${lockMeta?.templatesHash?.slice(0, 12) ?? "no record — rendered by an older version"} → ${now.slice(0, 12)})`,
+    );
+  }
   console.log(
     args.sync
       ? "\nNext: merge the listed files, delete .project-setup/, then run scripts/checks/docs-check.mjs."

@@ -1,5 +1,16 @@
 # Adopting an existing project
 
+## Contents
+
+- [Linting (OWN_LINTER)](#linting-own_linter)
+- [New-code-only lint](#new-code-only-lint)
+- [.fallowrc.json](#fallowrcjson)
+- [Git hooks (OWN_HOOKS)](#git-hooks-own_hooks)
+- [CI (OWN_CI)](#ci-own_ci)
+- [Agent files](#agent-files)
+- [Verify](#verify)
+- [Token audit](#token-audit)
+
 Recipes for step 7 when `detect.mjs` reports `mode: adopt` or `upgrade`. The rule: the system fits
 the project, not the reverse. Keep its tools, add our checks to them, gate only new code, and
 write any move toward the defaults into `context/plans/adoption.md` instead of doing it.

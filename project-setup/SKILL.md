@@ -1,6 +1,6 @@
 ---
 name: project-setup
-description: Turn a product plan into a ready-to-build project — agent rules (AGENTS.md/CLAUDE.md), a context/ documentation system (overview, code map, architecture, code standards, invariants, glossary, build plan, progress tracker, decisions), workflow skills (architect, review, recover, remember, imprint, add-library-skill), deterministic checks (Biome, oxlint, fallow boundaries/dead code, docs-check, a Claude Code Stop hook), git conventions with hooks, CI with a merge gate, and optionally the stack's code skeleton. Use when starting a new project from a brief/plan/PRD, bootstrapping or scaffolding a repo for agentic development, or retrofitting this documentation system onto an existing codebase.
+description: "Set up or adopt a software project for coding agents from a plan: scoped instructions, project context, executable checks, hooks and CI. Supports lean and full documentation presets."
 ---
 
 # Project setup
@@ -11,6 +11,24 @@ what is next, and how to verify its work.
 
 Paths below are relative to this skill's directory unless they start with the target repo.
 
+## Harness compatibility
+
+Use this skill with Claude Code, Codex, or any harness that can read Markdown and run shell commands.
+`.agents/skills/` is canonical; Claude reads symlinks in `.claude/skills/`. Invoke through the
+harness's skill picker (`$project-setup` in Codex, `/project-setup` in Claude), or read this file
+and follow it directly. Slash commands below mean the named skill, not a required command syntax.
+Use the active harness's available tools; do not assume Claude tools, plugins, or scheduling exist.
+Confirm agents used during intake. Set `CLAUDE_CODE` and `CLAUDE_SKILL_LINKS` only when Claude
+compatibility is wanted; other harnesses use `AGENTS.md`, shared skills, git hooks, and CI.
+Claude's Stop hook is optional convenience: every harness must run step 8 before handoff.
+
+## Prerequisites
+
+The renderer, detector, and token audit use Node built-ins only: Node 22+ (or Bun), no package
+install required. Check `node --version` (or `bun --version`) and `git --version` first. If a required tool is missing, report the prerequisite
+and its official install instructions. Library/tooling installs belong to the confirmed setup;
+do not assume harness plugins or global tools are present.
+
 ## Ground rules
 
 - **Never invent product facts.** Everything written comes from the brief, the user's answers, or
@@ -20,6 +38,10 @@ Paths below are relative to this skill's directory unless they start with the ta
 - **One confirmation gate** before writing anything (step 3). Ask only questions whose answers change
   the output.
 - Read [references/doc-system.md](references/doc-system.md) before writing any FILL content.
+- **If this skill itself misbehaves** (a crash, a wrong file, a check that is wrong on a clean project, docs that contradict the
+  scripts), do not work around it silently and do not let it block the user: follow
+  [references/upstream-reporting.md](references/upstream-reporting.md). Important bug → a PR with a fix and a test; moderate → an issue;
+  minor → mention it in your summary. Only as the user allowed at intake, with their data redacted, never merging or pushing to the default branch.
 
 ## Workflow
 
@@ -29,7 +51,7 @@ Paths below are relative to this skill's directory unless they start with the ta
 - Run `node <skill-dir>/scripts/detect.mjs --target <target>` and read its JSON before anything
   else. It gives the `mode`, a draft answers file, existing tooling, layer folders, conflicts, and
   unknowns:
-  - **new** (empty, or only `.git`/`.claude`): the full workflow below.
+  - **new** (empty, or only git/harness configuration directories): the full workflow below.
   - **adopt** (code, no `AGENTS.md`) or **upgrade** (has `AGENTS.md`/`context/`): the system fits
     the project — follow [references/adopt.md](references/adopt.md) alongside the steps below.
     Read the README and any agent docs too; the code is the source of truth.
@@ -49,11 +71,25 @@ detected apps and commands in one batch, then ask only its `unknowns` and `confl
 `OWN_LINTER`/`OWN_HOOKS`/`OWN_CI` flags keep the project's tools; `ADOPT` renders the adoption
 plan and leaves `.fallowrc.json` to be written from the real layout.
 
+Also ask once, in the same batch as the other questions: *"If I find a bug in this setup tool itself, may I report it upstream: a PR for serious bugs, an
+issue for moderate ones? (auto / ask each time / never)"* Save the answer as `vars.UPSTREAM_REPORTING` (`auto`, `ask`, or `off`; `ask` if the user skips it).
+
 ### 3. Confirm
 
 Show the one-screen summary from intake.md. Do not write files until the user confirms.
 Add one line per missing `tokenTools` entry with its install command from
 [references/token-tools.md](references/token-tools.md); the user may accept or skip each.
+
+### Lean preset
+
+For small projects, recommend `flags.LEAN: true` in the existing confirmation summary. It renders concise commands, invariants, a code map, build plan, progress and library docs, plus applicable hooks/CI. It omits generic architecture prose, workflow skills and fallow configuration. Existing projects keep their tooling. For lean setup:
+
+- Fill only the emitted files; do not create the omitted documents or domain skeleton.
+- Use framework generators only if requested, and keep their native structure.
+- Reuse the existing linter; for a new TS project, Biome is sufficient initially. Do not add fallow, oxlint or anti-slop merely to satisfy the full-preset defaults below.
+- Use official library docs unless a skill adds useful repeatable guidance.
+- Keep root instructions below approximately 1,500 tokens; run docs-check with `--strict`.
+- Full setup remains available for an explicitly chosen domain architecture.
 
 ### 4. Scaffold code (only if the user chose it)
 
@@ -84,7 +120,7 @@ the content. Order: `docs/archive/product-brief.md` (paste the brief verbatim) �
 `context/project-overview.md` → `glossary.md` → `AGENTS.md` invariants → `architecture.md` and its
 topics (including `architecture/domain-modules.md`, whose modules come from the product areas) →
 `code-map.md` (one row per module) → `code-standards.md` and `standards/code-organisation.md` →
-app `AGENTS.md` files → `build-plan.md` → decisions → the rest. Keep `AGENTS.md` under 200 lines.
+app `AGENTS.md` files → `build-plan.md` → decisions → the rest. Keep `AGENTS.md` under 200 lines and approximately 1,500 tokens. Move topic detail into linked references.
 
 ### 7. Wire tooling
 
@@ -100,6 +136,8 @@ app `AGENTS.md` files → `build-plan.md` → decisions → the rest. Keep `AGEN
   "git:check-current-branch": "<runtime> scripts/git/conventions.mjs current"
   ```
 
+  For lean setup, omit `fallow` and use the confirmed linter command instead of the full-preset lint default.
+
   `fallow` is strict on a **new** repo (any finding fails). On **adopt/upgrade**, make it
   `"fallow audit --quiet"`: only findings the branch introduces fail, so existing debt does not
   block work and no baseline file is needed. `CMD_FALLOW` in the answers runs this script.
@@ -113,13 +151,13 @@ app `AGENTS.md` files → `build-plan.md` → decisions → the rest. Keep `AGEN
   `context/library-docs.md`, so CI and the pre-push hook fail when a skill or library is added
   without its docs. Non-JS repos: run `node scripts/git/conventions.mjs install-hooks` once and
   document it in `docs/local-setup.md`.
-- TypeScript repos: install `@biomejs/biome`, `fallow`, and `oxlint` as dev dependencies at their
+- Full-preset TypeScript repos: install `@biomejs/biome`, `fallow`, and `oxlint` as dev dependencies at their
   current versions (`npm view <pkg> version`; never versions from memory). Then install the
   `install-anti-slop` skill (`dmmulroy/anti-slop`) and follow it: it vendors the plugin into
   `tools/oxlint/anti-slop/` (already excluded in `biome.json` and `.fallowrc.json`), adds
   `@oxlint/plugins`, and writes `oxlint.config.ts`. Run `lint` and `fallow` once on the skeleton
   and fix what they report — a fresh skeleton must be clean.
-- Install library skills for the confirmed stack per
+- Install only useful library skills for the confirmed stack per
   [references/skills-catalog.md](references/skills-catalog.md); fill `.agents/README.md` and
   `context/library-docs.md` from what was actually installed, then regenerate the catalog with
   `<runtime> scripts/skills/index.mjs`. A dependency with no catalog entry goes through the
@@ -130,7 +168,7 @@ app `AGENTS.md` files → `build-plan.md` → decisions → the rest. Keep `AGEN
   is how subagents learn of them.
 - `git init -b <default-branch>` if the target is not a repository.
 - GitHub (if chosen): tell the user to create the `do-not-merge` label and make `Merge gate` and
-  `CI` required checks — do not do it for them unless asked.
+  the actual job contexts (`checks`, `do-not-merge`) required checks — do not do it for them unless asked.
 
 ### 8. Verify
 
@@ -149,12 +187,12 @@ workflows (`bunx yaml-lint` or `python3 -c "import yaml,sys;yaml.safe_load(open(
 - Fill the progress tracker's setup entry with what was created and which checks passed.
 - Offer (do not do unasked) a first commit on a branch such as `chore/project-setup`.
 - GitHub projects: offer to schedule `.agents/routines/docs-audit.md` as a weekly cloud agent
-  (`/schedule`). It audits docs against code and opens a PR; do not create it unasked.
+  if the active harness supports scheduling. It audits docs against code and opens a PR; do not create it unasked.
 - Run the post-setup token audit from [references/token-tools.md](references/token-tools.md)
   (`scripts/token-audit.mjs`) and add its suggestions (max five) to the report; change nothing.
 - Report in a short list: what was generated, open questions recorded, and the next step —
   usually `/architect` on the first M1 task in the build plan.
-- If this skill was installed inside the project (`.claude/skills/project-setup`), offer to
+- If this skill was installed inside the project (`.agents/skills/project-setup`, with a possible Claude symlink), offer to
   remove it; it is not needed after setup.
 
 ## Sync
@@ -187,6 +225,7 @@ Never pass `--force` without the user's yes; `--sync` never overwrites an edited
 | `templates/scripts/checks/docs-check.mjs` | Ships into the project: placeholders, FILL markers, links, anchors, line budgets, stale skill catalog, dependencies missing from library-docs. |
 | `templates/scripts/skills/index.mjs` | Ships into the project: generates `.agents/skills-index.md` from each `SKILL.md`; `--check` for CI. |
 | `templates/scripts/checks/agent-stop.mjs` | Ships into the project: Claude Code Stop hook — docs-check + `fallow audit` on changed files, failures returned to the agent. |
+| `references/upstream-reporting.md` | What to do when this skill has a bug or an inconsistency: severity rules, redaction, issue vs PR. |
 | `scripts/detect.mjs` | Read-only inventory of a target: mode, draft answers, tooling, layers, conflicts. |
 | `scripts/token-audit.mjs` | Read-only audit of always-loaded context (instructions, skills, MCP servers, plugins) against usage in recent transcripts. |
 | `snippets/ts/` | Code copied by hand during step 4. |

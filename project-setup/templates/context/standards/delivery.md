@@ -26,6 +26,20 @@ in CI on every PR{{/if}}.
   colon marks a breaking change, explained in the body.
 - Check before pushing: `{{RUNTIME}} scripts/git/conventions.mjs current`.
 
+## Worktrees
+
+For independent tasks or parallel work, use one branch and worktree per task/PR:
+
+```bash
+git fetch origin
+git worktree add ../<repo>-<task> -b feat/<task> origin/{{DEFAULT_BRANCH}}
+```
+
+Install dependencies per worktree; keep secrets out of Git. Use separate ports when running
+multiple dev servers. Do not modify or remove another person's worktree. After merge, check
+for uncommitted and unpushed work before using `git worktree remove <path>` and `git branch -d <branch>`.
+Never force cleanup to bypass those checks.
+
 {{#if GITHUB}}
 ## Pull requests
 

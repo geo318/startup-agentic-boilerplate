@@ -36,6 +36,7 @@ const OWN_SKILLS = new Set([
   "imprint",
   "add-library-skill",
 ]);
+const TOKEN_BUDGETS = { "AGENTS.md": 1500, "context/README.md": 800 }; // estimated characters / 4
 const LINE_BUDGETS = {
   "AGENTS.md": 200,
   "context/README.md": 80,
@@ -204,6 +205,9 @@ function checkFile(root, file, errors) {
       }
     }
   });
+  const tokenBudget = TOKEN_BUDGETS[rel];
+  const estimatedTokens = Math.ceil(lines.join("\n").length / 4);
+  if (tokenBudget && estimatedTokens > tokenBudget) return `${rel} has ~${estimatedTokens} tokens (budget ${tokenBudget}); move topic detail into linked docs`;
   const budget = LINE_BUDGETS[rel];
   return budget !== undefined && lines.length > budget
     ? `${rel} has ${lines.length} lines (budget ${budget}); move closed items to context/history/`
@@ -263,6 +267,9 @@ function main() {
     if (warning) {
       (strict ? errors : warnings).push(warning);
     }
+  }
+  if (files.length === 0) {
+    errors.push(`no Markdown files found under ${root} — wrong --root, or the scan is skipping everything`);
   }
   checkSkillsIndex(root, errors);
   checkLibraryDocs(root, errors);

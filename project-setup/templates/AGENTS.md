@@ -40,8 +40,8 @@ Not sure where a change belongs? Start with the [code map](context/code-map.md).
   [architecture](context/architecture.md#canonical-request-path).
 {{/if}}
 <!-- FILL: 6–12 bullets picked with the user from project-setup's invariants catalog, plus any project-specific ones from the brief. Each bullet: the rule in one sentence, then where it is enforced (test, lint rule, hook) or where the detail lives. Order by blast radius: data/security first, style last. -->
-- Before using a third-party library, load its skill from `.agents/skills/` (index:
-  [library docs](context/library-docs.md)). Project rules here override generic skill examples.
+- For unfamiliar library APIs, read the relevant [library docs](context/library-docs.md) or installed skill.
+  Project rules override generic examples; installing or loading a skill is not required for every dependency.
 - Same problem after one corrective attempt → stop and run `/recover`.
 - Questions: ask in plain text and end the turn — never `AskUserQuestion` or plan-approval dialogs
   (they block the session). Ask only when the answer changes the implementation and neither docs nor
@@ -72,6 +72,7 @@ A passing typecheck is not verification. Run every check relevant to the diff an
 {{/if}}
 
 {{#if GITHUB}}
+
 ## Pull requests
 
 1. **Before opening:** run the checks above and list each one with its result in the PR body,
@@ -118,8 +119,13 @@ Read only the rows your task touches, and only the linked sections you need.
 | Priorities, open gaps, blockers | [build plan](context/build-plan.md) |
 | Resuming earlier or multi-session work | [progress tracker](context/progress-tracker.md), `memory.md` |
 | Committing, pushing, finishing a feature | [delivery](context/standards/delivery.md) |
+| Starting parallel work; branch ↔ worktree mapping; cleaning up worktrees | [delivery → worktrees](context/standards/delivery.md#worktrees) |
 
 ## Workflow skills
+
+Use the harness’s skill picker, or read `.agents/skills/<name>/SKILL.md` directly. The `/name`
+notation below names a skill; Codex uses `$name`. Run the verification commands above even
+when the harness has no completion hook.
 
 - `/architect`: before any non-trivial feature — align on terms and decisions, get a confirmed plan.
 - `/review`: after a feature, before a demo, or when something feels off.

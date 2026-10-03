@@ -37,16 +37,21 @@ accepts or already has a tool:
 After step 8 passes, run:
 
 ```bash
-node <skill-dir>/scripts/token-audit.mjs --target <target>
+node <skill-dir>/scripts/token-audit.mjs --target <target> --harness codex # or claude; all inventories both
 rtk gain   # if rtk is installed: measured savings so far
 ```
+
+This audit estimates instruction/import and skill-description sizes using characters / 4; it does not measure the actual loaded session. It inventories the selected harness, but MCP/plugin usage is Claude-only. Active plugin catalogs, ancestor instructions and deferred schemas may be missing.
+For other harnesses, usage is unknown; do not recommend removal from missing Claude usage.
+Only recommend tool integrations supported by the active harness (the plugin commands above
+are Claude-specific).
 
 Then, in the final report, give at most five suggestions, ordered by tokens saved, each naming
 the exact file or setting. Look for:
 
 | Signal in the JSON | Suggest |
 | --- | --- |
-| `mcpServers.unused` non-empty | Remove or disable the server (`claude mcp remove <name>`); its tool schemas load every session |
+| `mcpServers.unused` non-empty | Remove or disable the server (`claude mcp remove <name>`); its tool schemas may load unless the harness defers discovery |
 | `mcpServers.configured` > 3 | Keep the ones used; move the rest to project-scoped `.mcp.json` so other repos do not pay |
 | `skills.unused` with large `tokens` | Delete or move to a project that uses it; shorten a description over ~60 tokens |
 | `instructionFiles` over ~2,000 tokens each | Move topic prose into `context/` and link it (`AGENTS.md` stays under 200 lines) |
@@ -55,7 +60,7 @@ the exact file or setting. Look for:
 | `sessionsScanned` is 0 | Say usage is unknown; judge from configuration only |
 
 General habits worth one line if relevant: `/clear` between unrelated jobs, `/context` to see
-live usage, a cheaper model for mechanical subagents. Never suggest `/compact` as a saving.
+live usage, models chosen by measured cost per correct task. Never suggest `/compact` as a saving.
 
-Report findings only; change nothing unasked. A server or skill with no calls in 40 sessions may
+Report findings only; change nothing unasked. Unused lists are emitted only with `--harness claude` and at least one scanned session. Mixed (`all`) and Codex inventories never infer non-use from Claude-only telemetry. A server or skill with no calls in 40 sessions may
 still be needed rarely — say "unused in the last N sessions", not "unneeded".
