@@ -11,6 +11,7 @@ from broker import serve
 from native_profile import load_profile, profile_label
 from grade import grade
 import shared_contract
+import packet_context
 from experiment import preflight, settings
 
 PROFILE = 'benchmark-native'
@@ -44,7 +45,7 @@ Report concrete blocking violations. Do not edit files or run tools.''',
 def capability_evals(attempt, project):
     results = []
     for family, prompt in PROBES.items():
-        reply, measured = native_call(attempt, project, 'qualification-' + family, prompt, readonly=True)
+        reply, measured = native_call(attempt, project, 'qualification-' + family, prompt, readonly=True, packet_only=True)
         value = json.loads(reply)
         if family == 'architecture':
             assert all(isinstance(value.get(key), list) and value[key] for key in
@@ -270,6 +271,8 @@ def main(argv):
                           'jev': 'disabled/inactive', 'model_calls': 0}, indent=2))
         return
     profile = load_profile(ROOT)
+    if profile['kind'] == 'codex-cli':
+        packet_context.prepare(ROOT)
     with (ROOT / 'native-profile.frozen.json').open('x') as stream:
         json.dump(profile, stream, indent=2)
     # All execution limits are resolved once; workers cannot change them midway.

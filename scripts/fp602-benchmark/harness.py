@@ -14,6 +14,8 @@ ROOT = pathlib.Path(os.environ.get('BENCHMARK_ROOT', '.')).resolve()
 NODE = shutil.which('node') or 'node'
 RUNTIME = pathlib.Path(__file__).resolve().parents[2] / 'packages/agent-runtime/src/cli/main.ts'
 BASE = 'e406ab40c00566a0f73f2e751bd0df3b2668375a'
+if (ROOT / 'frozen-configuration.json').exists():
+    BASE = json.loads((ROOT / 'frozen-configuration.json').read_text()).get('baseline', BASE)
 
 
 def start_phase(attempt, phase, seconds, token_allowance):
@@ -150,7 +152,7 @@ def stop_remaining_processes(attempt):
         path.unlink(missing_ok=True)
 
 
-def native_call(attempt, project, label, prompt, readonly=False, schema=None):
+def native_call(attempt, project, label, prompt, readonly=False, schema=None, packet_only=False):
     reason = stop_reason(attempt)
     if reason:
         raise RuntimeError(reason)
@@ -164,6 +166,12 @@ def native_call(attempt, project, label, prompt, readonly=False, schema=None):
     args = (codex_args(profile, project, prefix, readonly, schema, attempt.name)
             if profile["kind"] == "codex-cli" else
             command_args(profile, project, prefix, prompt, readonly, schema))
+    if packet_only and profile['kind'] == 'codex-cli':
+        context = json.loads((ROOT / 'packet-context.json').read_text())
+        project = pathlib.Path(context['workspace'])
+        args[args.index('-C') + 1] = str(project)
+        overrides = [part for value in context['overrides'] for part in ('-c', value)]
+        args[-1:-1] = overrides
     started = time.monotonic()
     log(attempt, 'native_call_started', identity=identity, label=label,
         requested_model=profile["model"], requested_effort=profile.get("reasoning_effort"),

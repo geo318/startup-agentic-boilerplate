@@ -139,6 +139,31 @@ class HarnessTests(unittest.TestCase):
         self.assertIn("M value.txt", status)
         self.assertIn("?? new.txt", status)
 
+    def test_packet_call_uses_inspected_workspace_without_changing_model(self):
+        harness.start_phase(self.attempt, "preparation", 60, 1000)
+        workspace = self.root / 'packet-workspace'
+        workspace.mkdir()
+        harness.write_json(self.root / 'packet-context.json', {
+            'workspace': str(workspace), 'overrides': ['project_doc_max_bytes=0']})
+        native = self.root / 'native.jsonl'
+        native.write_text(json.dumps({'payload': {'type': 'token_count', 'info': {
+            'total_token_usage': {'input_tokens': 80, 'output_tokens': 20, 'total_tokens': 100}}}}))
+        class Finished:
+            pid = 99999999
+            def poll(self): return 0
+            def wait(self): return 0
+        def spawn(argv, **kwargs):
+            self.assertEqual(kwargs['cwd'], workspace)
+            self.assertEqual(argv[argv.index('-C') + 1], str(workspace))
+            self.assertEqual(argv[argv.index('-m') + 1], 'test-model')
+            self.assertEqual(argv[argv.index('-s') + 1], 'read-only')
+            self.assertIn('project_doc_max_bytes=0', argv)
+            kwargs['stdout'].write(json.dumps({'type': 'thread.started', 'thread_id': 'fixture'}) + '\n')
+            pathlib.Path(argv[argv.index('-o') + 1]).write_text('{}')
+            return Finished()
+        with patch('harness.subprocess.Popen', side_effect=spawn), patch('harness.native_path', return_value=native):
+            harness.native_call(self.attempt, self.project, 'qualification', 'packet', readonly=True, packet_only=True)
+
     def test_native_profile_selects_model_provider_and_optional_settings(self):
         profile = {"kind": "codex-cli", "model": "another-model", "provider": "local", "reasoning_effort": "low"}
         harness.write_json(self.root / "native-profile.json", profile)

@@ -1,5 +1,39 @@
 # FP-602 benchmark repairs
 
+## One-command pilot from retained inputs
+
+Use the deterministic launcher; no new controller prompt or model-driven preparation is needed:
+
+```sh
+rtk python3 scripts/fp602-benchmark/pilot.py \
+  --from /absolute/path/to/previous-prepared-pilot --execute
+```
+
+Use Node 24 on PATH for Family Tracker. `--preflight` instead of `--execute` prepares a fresh
+directory and inspects packet context without inference. Each invocation creates a new directory;
+an explicit `--output` must not exist. The launcher reuses the frozen task, approved plan, model,
+pair order, baseline and grading rubric, and runs this checkout's runner. It never copies old
+attempts, qualifications, results or runner code. The original experiment remains untouched.
+
+This is a new experiment with the complete quick-pilot allowances below. The 200,000-token/300-second
+qualification allowance belongs to runner subprocesses. **Do not subtract chat tokens from it.**
+Historical plan usage remains separately recorded in the copied contract; additional chat overhead
+is unknown, not zero. The launcher uses no model for setup, monitoring or its final `report.md`.
+It runs exactly one pair with no automatic retry or budget reset. No USD cap is introduced.
+
+Self-contained managed packets and qualification evals run outside the repository with per-process
+overrides disabling ambient project docs, skills, plugins and MCP servers. Provider/auth configuration
+is retained. Ordinary coding and independent grading sessions still receive their project context.
+The installed CLI's `codex debug prompt-input` must verify that the skill catalog and repository
+instructions are absent before live qualification. Global configuration is never edited.
+`packet-context.json` records message bytes; it excludes base instructions/tool schemas and does
+not claim native-token savings. The CLI must support this offline inspection command.
+
+The October 3 retry left qualification only 35,568 tokens after charging 164,432 controller tokens
+against its allowance; two calls then used 44,648. Monitoring/reporting added another 452,209
+controller tokens. The launcher removes that chat-driven loop; a fresh chat alone is not the repair.
+Jev remains inactive. Completion and net savings still require a live, correctly graded pair.
+
 ## Preparation guard
 
 `preparation_guard.py` provides an offline-tested launch guard for a separately authorized
@@ -69,7 +103,7 @@ The suite uses temporary fixtures, synthetic model replies, and the real runtime
 
 ## A future run
 
-Prepare a **new** data directory with the original `seed.git`, `baseline/`, `worker-ticket.md`, `private-grader/grading-protocol.md`, and a newly frozen `frozen-configuration.json`. The seed must contain consumer commit `e406ab40c00566a0f73f2e751bd0df3b2668375a`. Record this fork/current runtime as the new harness, not the old runtime pin. Keep historical `attempts/` and `results.json` out of the new directory. The runner refuses a directory already containing either.
+Prepare a **new** data directory with `seed.git`, `baseline/`, `worker-ticket.md`, `private-grader/grading-protocol.md`, and a newly frozen `frozen-configuration.json`. Set `baseline` to the full consumer commit hash present in the seed; omission retains the historical `e406ab40c00566a0f73f2e751bd0df3b2668375a` default. Both arms and grading use that same commit. The launcher above reconstructs `baseline/` from it. Record this fork/current runtime as the new harness, not the old runtime pin. Keep historical `attempts/` and `results.json` out of the new directory. The runner refuses a directory already containing either.
 
 The runner uses this checkout's runtime, the installed `node`, and an explicit `native-profile.json`; each consumer worktree is pinned to that runtime during setup. Install runtime dependencies first. Only after the new protocol and live-run budget are settled:
 

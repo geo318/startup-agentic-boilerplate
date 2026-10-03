@@ -1,5 +1,6 @@
 """Read-only readiness checks and fixed quick-pilot limits. Never invokes a model."""
 import json
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -36,13 +37,14 @@ def settings(root):
     for key, value in limits.items():
         if type(value) is not int or value <= 0 or value > defaults[key]:
             raise ValueError(f'{key} must be a positive integer at most {defaults[key]}')
-    if config.get('baseline', BASE) != BASE:
-        raise ValueError('this FP-602 grader requires the frozen baseline ' + BASE)
+    baseline = config.get('baseline', BASE)
+    if not isinstance(baseline, str) or not re.fullmatch(r'[0-9a-f]{40}', baseline):
+        raise ValueError('baseline must be an explicit full Git commit hash')
     # This runner has no calibrated Jev wiring. Refuse claims that enabling a JSON flag tests Jev.
     jev = config.get('jev', {})
     if jev and (not isinstance(jev, dict) or jev.get('configured') != 'disabled' or jev.get('actual') != 'inactive'):
         raise ValueError('this runner supports only Jev disabled/inactive; it cannot measure an active-Jev treatment')
-    return {**config, 'mode': mode, 'workflow_protocol': protocol, 'limits': limits}
+    return {**config, 'baseline': baseline, 'mode': mode, 'workflow_protocol': protocol, 'limits': limits}
 
 
 def preflight(root):
@@ -58,7 +60,7 @@ def preflight(root):
         if not (root / name).exists():
             raise ValueError('missing prepared input: ' + name)
     check = subprocess.run(['rtk', 'git', '--git-dir=' + str(root / 'seed.git'),
-                            'cat-file', '-e', BASE + '^{commit}'], capture_output=True, text=True)
+                            'cat-file', '-e', config['baseline'] + '^{commit}'], capture_output=True, text=True)
     if check.returncode:
         raise ValueError('seed does not contain the required baseline')
     if config['workflow_protocol'] == 'shared-contract-v1':

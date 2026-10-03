@@ -87,7 +87,7 @@ class ExperimentTests(unittest.TestCase):
     def test_preparation_failure_prevents_both_arms_in_execute_mode(self):
         config = experiment.settings(self.root)
         with patch.object(runner, 'ROOT', self.root), patch.object(runner, 'preflight', return_value=config), \
-             patch.object(runner, 'load_profile', return_value={}), patch.object(runner.shared_contract, 'freeze'), \
+             patch.object(runner, 'load_profile', return_value={'kind': 'command'}), patch.object(runner.shared_contract, 'freeze'), \
              patch.object(runner, 'prepare_qualifications', side_effect=RuntimeError('ceiling')), \
              patch.object(runner, 'run_one') as run:
             with self.assertRaisesRegex(RuntimeError, 'ceiling'):
@@ -125,7 +125,7 @@ time.sleep(30)
         config = experiment.settings(self.root)
         preparation = {'tokens': 100, 'wall_seconds': 1, 'qualification_file': self.root / 'qualifications.json'}
         with patch.object(runner, 'ROOT', self.root), patch.object(runner, 'preflight', return_value=config), \
-             patch.object(runner, 'load_profile', return_value={}), patch.object(runner.shared_contract, 'freeze'), \
+             patch.object(runner, 'load_profile', return_value={'kind': 'command'}), patch.object(runner.shared_contract, 'freeze'), \
              patch.object(runner, 'prepare_qualifications', return_value=preparation) as prepare, \
              patch.object(runner, 'run_one', return_value={'fixture': True}) as run:
             runner.main(['--execute'])
