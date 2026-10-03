@@ -45,4 +45,8 @@ Use a branch and PR. Keep `do-not-merge` until relevant checks pass on the final
 Branches use `feat/short-name` (or fix/docs/refactor/perf/test/build/ci/chore/revert).
 Commit and PR titles use `type(scope): short summary`, lowercase, at most 72 characters.
 For independent tasks, use a separate branch and `git worktree add`; preserve other worktrees.
+After addressing review comments and pushing fixes, post one PR comment requesting re-review
+from the configured review agent (Codex: `@codex review`). Confirm its supported trigger from
+repository configuration or integration documentation; do not guess a handle or duplicate a
+request for the same head commit. If no trigger is known, report that re-review needs a manual request.
 {{/if}}

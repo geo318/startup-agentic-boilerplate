@@ -46,6 +46,13 @@ Never force cleanup to bypass those checks.
 Follow [AGENTS.md → Pull requests](../../AGENTS.md#pull-requests): checks recorded in the body,
 `do-not-merge` until they are verified green.
 
+After pushing review fixes, confirm the PR head contains the fixes, then request another review
+with the configured agent's supported PR-comment trigger. For Codex, post `@codex review`;
+for another integration, use its documented trigger. Check existing comments and review activity
+to avoid a duplicate request or an already-running review of that head. If no review integration
+or trigger is known, report that a manual review request is needed. A request is not a completed
+review: report whether re-review was requested, is pending, or completed.
+
 {{/if}}
 ## Documentation hygiene
 

@@ -80,7 +80,11 @@ A passing typecheck is not verification. Run every check relevant to the diff an
 2. **Opening:** add the `do-not-merge` label whenever a check was not run, failed, or its output
    was not read. The **Merge gate** workflow fails while it is set.
 3. **After every push:** if the push adds code you have not verified locally, re-add `do-not-merge`.
-4. **Merging:** remove `do-not-merge` only after every relevant check passed on the final head
+4. **Review fixes:** after addressing review comments and pushing the fixes, post one PR comment
+   requesting re-review from the configured review agent (Codex: `@codex review`). Confirm the
+   supported trigger from repository configuration or the integration’s documented instructions;
+   do not guess a handle. Avoid duplicate requests for the same head commit.
+5. **Merging:** remove `do-not-merge` only after every relevant check passed on the final head
    commit. If asked to merge while it is set, say which checks are missing instead.
 
 Branch, commit, and PR-title rules: [delivery](context/standards/delivery.md).

@@ -130,6 +130,10 @@ default `ask`). Important bugs get a fix PR with a regression test; moderate iss
 minor problems are mentioned in the handoff. Reports use synthetic examples and redact project data.
 See [upstream reporting](project-setup/references/upstream-reporting.md).
 
+After review comments are addressed and fixes are pushed, generated PR guidance requests
+re-review with the configured agent's comment trigger (for Codex, `@codex review`), once per
+head commit. This is agent guidance, not a background automation.
+
 ## Maintaining it
 
 - A rule that proved itself in a real project → port it to `templates/` or
