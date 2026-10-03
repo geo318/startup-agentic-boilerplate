@@ -48,5 +48,9 @@ For independent tasks, use a separate branch and `git worktree add`; preserve ot
 After addressing review comments and pushing fixes, post one PR comment requesting re-review
 from the configured review agent (Codex: `@codex review`). Confirm its supported trigger from
 repository configuration or integration documentation; do not guess a handle or duplicate a
-request for the same head commit. If no trigger is known, report that re-review needs a manual request.
+request for the same head commit. Include the last reviewed SHA → new head SHA, a comparison
+link, commit summaries, and validation results; ask to verify the fixes and check for regressions.
+If the baseline is unknown or no longer an ancestor, request the full PR diff. Clarify an active
+review by editing its request; verify its completed SHA before requesting any remaining range.
+If no trigger is known, report that re-review needs a manual request.
 {{/if}}

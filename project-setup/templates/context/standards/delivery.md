@@ -53,6 +53,28 @@ to avoid a duplicate request or an already-running review of that head. If no re
 or trigger is known, report that a manual review request is needed. A request is not a completed
 review: report whether re-review was requested, is pending, or completed.
 
+Make the request concrete: name the last completed review's commit and the new head SHA,
+link their comparison (`<reviewed-sha>..<head-sha>`), list the commits in that range, and briefly
+summarize the fixes and checks. Ask the reviewer to verify the prior findings and inspect the
+new changes for regressions, reading surrounding code as needed. Use commit SHAs rather than
+"last commit" or "last three commits", which become ambiguous after another push. Confirm the
+reviewed commit is an ancestor of the head; if it is unknown or history was rewritten, request
+the full PR diff and state that scope instead of guessing a range.
+
+Example comment (replace the trigger for the configured integration):
+
+```text
+@codex review
+Please review <reviewed-sha>..<head-sha> (<comparison URL>).
+Commits: <SHA — summary for each commit>.
+Focus: verify the previous findings are fixed and check the new changes for regressions.
+Validation: <checks and results; anything not verified>.
+```
+
+If a review is already running, clarify its scope by editing the existing request instead of
+posting a duplicate trigger. An edit does not guarantee the active run picks up a newer head;
+check the reviewed SHA when it finishes and request the remaining range if needed.
+
 {{/if}}
 ## Documentation hygiene
 

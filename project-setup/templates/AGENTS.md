@@ -83,7 +83,9 @@ A passing typecheck is not verification. Run every check relevant to the diff an
 4. **Review fixes:** after addressing review comments and pushing the fixes, post one PR comment
    requesting re-review from the configured review agent (Codex: `@codex review`). Confirm the
    supported trigger from repository configuration or the integration’s documented instructions;
-   do not guess a handle. Avoid duplicate requests for the same head commit.
+   do not guess a handle. Include the last reviewed SHA → new head SHA, a comparison link,
+   commit summaries, and validation results. If the baseline is unknown, request the full PR diff.
+   Avoid duplicate requests for the same head commit; see delivery for scope and active-review handling.
 5. **Merging:** remove `do-not-merge` only after every relevant check passed on the final head
    commit. If asked to merge while it is set, say which checks are missing instead.
 
