@@ -34,6 +34,15 @@ against its allowance; two calls then used 44,648. Monitoring/reporting added an
 controller tokens. The launcher removes that chat-driven loop; a fresh chat alone is not the repair.
 Jev remains inactive. Completion and net savings still require a live, correctly graded pair.
 
+Preflight also invokes the runtime's context compiler against the exact contract before any
+qualification or coding call. Mandatory files must fit the selected narrow/standard/complex
+allowance (4,000/8,000/16,000 estimated tokens). An oversized context blocks locally; keep the
+goal, acceptance criteria and plan intact while selecting the essential initial files. Remaining
+files are available through runtime reads. Changing initial context makes a new experiment;
+never rewrite a frozen run or compare a B-only diagnostic as though it were a paired result.
+This checks the starting packet only: runtime reads also consume context and can still block a
+task. Passing preflight does not demonstrate enough context for the complete implementation.
+
 ## Preparation guard
 
 `preparation_guard.py` provides an offline-tested launch guard for a separately authorized

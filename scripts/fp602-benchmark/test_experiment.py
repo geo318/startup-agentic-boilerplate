@@ -159,6 +159,18 @@ time.sleep(30)
                 'type': 'token_count', 'info': {'total_token_usage': tokens}}}))
             self.assertEqual(harness.usage(path)['tokens'], tokens)
 
+    def test_real_context_compiler_rejects_oversized_mandatory_files_before_inference(self):
+        (self.root / 'large.md').write_text('x' * 32001)
+        contract = {'files': ['large.md'], 'budget': 'standard'}
+        with patch.object(harness, 'native_call') as native:
+            with self.assertRaisesRegex(ValueError, 'before inference'):
+                experiment.check_context(self.root, contract)
+            native.assert_not_called()
+        (self.root / 'small.md').write_text('required context')
+        context = experiment.check_context(self.root, {'files': ['small.md'], 'budget': 'standard'})
+        self.assertLessEqual(context['tokens'], 8000)
+        self.assertEqual(context['budget'], 8000)
+
 
 if __name__ == '__main__':
     unittest.main()

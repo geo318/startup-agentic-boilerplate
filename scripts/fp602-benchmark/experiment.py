@@ -12,6 +12,25 @@ PILOT_LIMITS = {'workflow_seconds': 600, 'workflow_tokens': 250_000,
                 'grading_seconds': 180, 'grading_tokens': 25_000,
                 'preparation_seconds': 300, 'preparation_tokens': 200_000}
 
+# Context allowances of the pinned runtime's narrow/standard/complex presets.
+CONTEXT_LIMITS = {'narrow': 4000, 'standard': 8000, 'complex': 16000}
+
+
+def check_context(project, contract):
+    """Use the runtime compiler before qualification, task creation or dependency installation."""
+    module = RUNTIME.parent.parent / 'context.ts'
+    script = ('import {compile} from ' + json.dumps(str(module)) + ';'
+              'const c=JSON.parse(process.argv[2]);'
+              'const p=compile(process.argv[1],[...new Set([...c.files,...(c.newFiles??[])])],'
+              'Number(process.argv[3]),{allowMissing:c.newFiles});'
+              'console.log(JSON.stringify({tokens:p.tokens,budget:p.budget}));')
+    result = subprocess.run(['rtk', NODE, '--input-type=module', '-e', script, str(project),
+                             json.dumps(contract), str(CONTEXT_LIMITS[contract['budget']])],
+                            capture_output=True, text=True)
+    if result.returncode:
+        raise ValueError('managed context preflight failed before inference: ' + result.stdout + result.stderr)
+    return json.loads(result.stdout)
+
 
 def settings(root):
     config = json.loads((root / 'frozen-configuration.json').read_text())
@@ -74,4 +93,5 @@ def preflight(root):
                                     '--project', str(root / 'baseline')], capture_output=True, text=True)
             if check.returncode:
                 raise ValueError('contract/config validation failed: ' + check.stdout + check.stderr)
+        check_context(root / 'baseline', shared['contract'])
     return config
