@@ -134,6 +134,10 @@ What it will and will not do:
 
 Run `task preflight <id>` before execution; context must fit the selected budget before any dependency installation.
 Planning uses the same context allowance as the worker (4k/8k/16k estimated tokens for narrow/standard/complex).
+Token usage is uncapped by default and still measured. To opt into a total token ceiling, set
+`limits.aggregateTokens` (for example `1000000`) alongside the required action and repair limits.
+Context/output sizes, tool-action and repair limits, and the three-call pre-edit guard remain in force.
+Existing tasks retain their recorded numeric caps; changing the default does not reset their usage or limits.
 Put an existing agreed plan in the contract’s `plan` field to skip architect generation; R2/R3 still require explicit
 plan approval and independent review. Final edits can use `edit_and_finish` to avoid a separate finish exchange.
 

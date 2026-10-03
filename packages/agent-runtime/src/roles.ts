@@ -95,7 +95,7 @@ async function callJson(ctx: RoleCtx, system: string, prompt: string, schema: ob
   const res = await ctx.provider.generate({ system, prompt, maxOutputTokens: maxOut, schema, signal: ctx.signal });
   ctx.ledger.settle(reserved, res.usage ? res.usage.input + res.usage.output : null, res.costUsd, ctx.provider.hosted);
   ctx.endCall?.();
-  if (ctx.ledger.tokens > ctx.ledger.limits.aggregateTokens)
+  if (ctx.ledger.limits.aggregateTokens !== undefined && ctx.ledger.tokens > ctx.ledger.limits.aggregateTokens)
     throw new RoleFailed("budget exhausted", "reported usage exceeds token budget");
   if (res.finishReason !== "stop") throw new RoleFailed("provider failure", `finish reason ${res.finishReason}`);
   try {

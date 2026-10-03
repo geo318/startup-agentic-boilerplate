@@ -71,14 +71,14 @@ export class CliError extends Error {
 
 const SCHEMAS = join(fileURLToPath(import.meta.url), "..", "..", "..", "..", "..", "schemas");
 const BUDGETS: Record<string, { limits: Limits; maxContext: number; maxOut: number }> = {
-  narrow: { limits: { aggregateTokens: 12_000, toolActions: 6, semanticRepairs: 1 }, maxContext: 4000, maxOut: 1500 },
+  narrow: { limits: { toolActions: 6, semanticRepairs: 1 }, maxContext: 4000, maxOut: 1500 },
   standard: {
-    limits: { aggregateTokens: 40_000, toolActions: 12, semanticRepairs: 2 },
+    limits: { toolActions: 12, semanticRepairs: 2 },
     maxContext: 8000,
     maxOut: 3000,
   },
   complex: {
-    limits: { aggregateTokens: 100_000, toolActions: 24, semanticRepairs: 3 },
+    limits: { toolActions: 24, semanticRepairs: 3 },
     maxContext: 16000,
     maxOut: 6000,
   },
@@ -692,7 +692,7 @@ export async function taskPreflight(env: Env, id: string): Promise<number> {
   if (!workflowEnabled(env)) throw new CliError("managed execution is off; enable it explicitly first");
   const t = load(env, id);
   env.out(
-    `task ${id}: ${t.tier}, ${t.budget.limits.aggregateTokens} token cap; before edits: at most 3 calls and 60% estimated budget`,
+    `task ${id}: ${t.tier}, ${t.budget.limits.aggregateTokens === undefined ? "uncapped tokens; before edits: at most 3 calls" : `${t.budget.limits.aggregateTokens} token cap; before edits: at most 3 calls and 60% estimated budget`}`,
   );
   const providers = taskProviders(env, t);
   if (t.pp.egress !== "hosted-allowed" && Object.values(providers).some((p) => p.hosted))

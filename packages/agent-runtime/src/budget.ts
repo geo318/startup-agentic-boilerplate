@@ -1,5 +1,5 @@
 // One ledger per task. Children share the same object, so subdividing never resets limits.
-export type Limits = { aggregateTokens: number; toolActions: number; semanticRepairs: number };
+export type Limits = { aggregateTokens?: number; toolActions: number; semanticRepairs: number };
 
 export class BudgetExceeded extends Error {
   readonly reason = "budget exhausted";
@@ -31,7 +31,8 @@ export class Ledger {
   }
   // Reserve an estimate before a call (provider overhead can exceed it); settle() corrects to actual usage when known.
   reserve(maxTokens: number): number {
-    if (this.tokens + maxTokens > this.limits.aggregateTokens) throw new BudgetExceeded("tokens");
+    if (this.limits.aggregateTokens !== undefined && this.tokens + maxTokens > this.limits.aggregateTokens)
+      throw new BudgetExceeded("tokens");
     this.tokens += maxTokens;
     return maxTokens;
   }

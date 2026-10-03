@@ -1059,3 +1059,80 @@ test("task start refuses disabled execution and preflight failure before candida
   assert.equal(existsSync(join(w.home, "tasks/fix-value/candidate")), false);
   assert.equal(c.statusOf(w.env(), "fix-value").state, "NOT_STARTED");
 });
+
+test("new tasks default to uncapped tokens while explicit caps survive serialization", async () => {
+  for (const budget of ["narrow", "standard", "complex"]) {
+    const w = world();
+    await c.taskCreate(w.env(), w.contract({ budget }));
+    const saved = JSON.parse(readFileSync(join(w.home, "tasks/fix-value/contract.json"), "utf8"));
+    assert.equal(saved.limits.aggregateTokens, undefined);
+    w.qualifyAll();
+    await c.taskPreflight(w.env(), "fix-value");
+    assert.ok(w.out.some((line) => line.includes("uncapped tokens")));
+  }
+  const w = world();
+  await c.taskCreate(
+    w.env(),
+    w.contract({ limits: { aggregateTokens: 1_000_000, toolActions: 24, semanticRepairs: 3 } }),
+  );
+  const saved = JSON.parse(readFileSync(join(w.home, "tasks/fix-value/contract.json"), "utf8"));
+  assert.equal(saved.limits.aggregateTokens, 1_000_000);
+  assert.equal(await c.validateFiles(w.env(), [w.contract({ limits: { toolActions: 24, semanticRepairs: 3 } })]), 0);
+  assert.equal(
+    await c.validateFiles(w.env(), [
+      w.contract({ limits: { aggregateTokens: -1, toolActions: 24, semanticRepairs: 3 } }),
+    ]),
+    1,
+  );
+});
+
+test("uncapped worker and reviewer usage is recorded past one million tokens", async () => {
+  const w = world();
+  w.qualifyAll();
+  const env = w.env({
+    wrapProvider: (provider) => ({
+      id: provider.id,
+      hosted: provider.hosted,
+      generate: async (request) => ({
+        ...(await provider.generate(request)),
+        usage: { input: 2_000_000, output: 100 },
+      }),
+    }),
+  });
+  await c.taskCreate(env, w.contract({ riskTier: "R2", plan: "Change value.txt to good." }));
+  assert.equal(await c.taskRun(env, "fix-value"), 2);
+  await c.taskApprove(env, "fix-value");
+  assert.equal(await c.taskRun(env, "fix-value"), 0);
+  assert.equal(c.statusOf(env, "fix-value").state, "AWAITING_ACCEPTANCE");
+  assert.ok(c.statusOf(env, "fix-value").ledger.tokens > 4_000_000);
+});
+
+test("authorized revision removes a numeric cap without resetting usage or allowing a lower limit", async () => {
+  const w = world();
+  w.qualifyAll();
+  writeFileSync(
+    join(w.project, "worker.replay.json"),
+    J([edit, J({ id: "stop", kind: "blocked", reason: "operator revision" })]),
+  );
+  const env = w.env();
+  const limited = { aggregateTokens: 100_000, toolActions: 6, semanticRepairs: 1 };
+  await c.taskCreate(env, w.contract({ limits: limited }));
+  assert.equal(await c.taskRun(env, "fix-value"), 1);
+  const before = c.statusOf(env, "fix-value").ledger.tokens;
+  await c.taskRevise(env, "fix-value", w.contract({ limits: { toolActions: 6, semanticRepairs: 1 } }));
+  assert.equal(c.statusOf(env, "fix-value").ledger.tokens, before);
+  await assert.rejects(c.taskRevise(env, "fix-value", w.contract({ limits: limited })), /cannot lower aggregateTokens/);
+  writeFileSync(join(w.project, "worker.replay.json"), J([finish]));
+  const highUsage = w.env({
+    wrapProvider: (provider) => ({
+      id: provider.id,
+      hosted: provider.hosted,
+      generate: async (request) => ({
+        ...(await provider.generate(request)),
+        usage: { input: 2_000_000, output: 100 },
+      }),
+    }),
+  });
+  assert.equal(await c.taskRun(highUsage, "fix-value"), 0);
+  assert.ok(c.statusOf(env, "fix-value").ledger.tokens > before + 2_000_000);
+});

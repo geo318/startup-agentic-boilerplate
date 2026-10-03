@@ -274,7 +274,11 @@ export class Run {
       ["AWAITING_PLAN_APPROVAL", "IMPLEMENTING", "BOUNDED_REPAIR"].includes(this.state) &&
       this.changed().length === 0
     ) {
-      if (this.#calls >= 3 || this.ledger.tokens + tokens > this.ledger.limits.aggregateTokens * 0.6)
+      if (
+        this.#calls >= 3 ||
+        (this.ledger.limits.aggregateTokens !== undefined &&
+          this.ledger.tokens + tokens > this.ledger.limits.aggregateTokens * 0.6)
+      )
         throw new BudgetExceeded(
           "pre-edit limit (3 calls / 60% estimated tokens): revise this task's context or budget; candidate and total usage remain intact",
         );
@@ -412,7 +416,8 @@ export class Run {
     };
     if (canonical(allowed) !== canonical(this.#policy)) throw new Error("revision cannot change project policy");
     for (const key of ["aggregateTokens", "toolActions", "semanticRepairs"] as const)
-      if (policy.limits[key] < this.#policy.limits[key]) throw new Error(`revision cannot lower ${key}`);
+      if ((policy.limits[key] ?? Infinity) < (this.#policy.limits[key] ?? Infinity))
+        throw new Error(`revision cannot lower ${key}`);
     const to = policy.riskTier === "R2" || policy.riskTier === "R3" ? "AWAITING_PLAN_APPROVAL" : "IMPLEMENTING";
     this.#log.append("contract_revised", {
       operator,
@@ -424,6 +429,7 @@ export class Run {
       ledger: this.ledger.snapshot(),
     });
     this.#policy = policy;
+    delete this.ledger.limits.aggregateTokens;
     Object.assign(this.ledger.limits, policy.limits);
     this.state = to;
     this.#calls = 0;

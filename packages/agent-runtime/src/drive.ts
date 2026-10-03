@@ -108,7 +108,7 @@ export async function drive(
     run.ledger.settle(reserved, res.usage ? res.usage.input + res.usage.output : null, res.costUsd, provider.hosted);
     run.endCall();
     if (run.signal.aborted) break;
-    if (run.ledger.tokens > run.ledger.limits.aggregateTokens) {
+    if (run.ledger.limits.aggregateTokens !== undefined && run.ledger.tokens > run.ledger.limits.aggregateTokens) {
       run.stop("ESCALATED", "reported usage exceeded token estimate and budget");
       break;
     }

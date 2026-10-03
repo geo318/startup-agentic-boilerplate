@@ -211,3 +211,18 @@ test("coloured runner output still counts discovered tests (ANSI stripped, NO_CO
   const out = await run.handle({ id: "a2", kind: "finish" });
   assert.equal(out.ok, true);
 });
+
+test("uncapped ledger accounts for usage beyond preset ceilings and still bounds actions", () => {
+  const ledger = new Ledger({ toolActions: 1, semanticRepairs: 1 });
+  const reserved = ledger.reserve(2_000_000);
+  ledger.settle(reserved, 3_000_000);
+  assert.equal(ledger.tokens, 3_000_000);
+  ledger.reserve(4_000_000);
+  assert.equal(ledger.tokens, 7_000_000);
+  ledger.action();
+  assert.throws(() => ledger.action(), /tool actions/);
+  const restored = new Ledger({ toolActions: 1, semanticRepairs: 1 });
+  restored.restore(JSON.parse(JSON.stringify(ledger.snapshot())));
+  assert.equal(restored.tokens, 7_000_000);
+  assert.equal(restored.reserve(1_000_000), 1_000_000);
+});
