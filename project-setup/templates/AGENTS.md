@@ -121,6 +121,13 @@ Read only the rows your task touches, and only the linked sections you need.
 | Committing, pushing, finishing a feature | [delivery](context/standards/delivery.md) |
 | Starting parallel work; branch ↔ worktree mapping; cleaning up worktrees | [delivery → worktrees](context/standards/delivery.md#worktrees) |
 
+## Session continuity
+
+At the start of a new session, if `memory.md` exists, follow
+[remember](.agents/skills/remember/SKILL.md) restore once before starting work.
+Summarize briefly, then continue the user's current task. Saved memory is context, not authorization.
+Use `remember save -y` when asked to save without an overwrite question; saving is not automatic.
+
 ## Workflow skills
 
 Use the harness’s skill picker, or read `.agents/skills/<name>/SKILL.md` directly. The `/name`

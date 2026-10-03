@@ -148,7 +148,7 @@ re-rendered). All `vars` values are strings; all `flags` are booleans.
 
 Notes:
 
-- `LEAN` selects minimal project docs and omits generic architecture/workflow skills and fallow configuration. Full mode is retained when false or absent. Existing files are not deleted on sync.
+- `LEAN` selects minimal project docs and omits generic architecture, workflow skills other than `remember`, and fallow configuration. Full mode is retained when false or absent. Existing files are not deleted on sync.
 - `CLAUDE_CODE` enables Claude settings and its Stop hook; `CLAUDE_SKILL_LINKS` enables compatibility symlinks. Set them for the confirmed harnesses, not the model provider. Codex and other agents use `AGENTS.md` and `.agents/skills/` without these flags.
 
 - `RUNTIME` runs the generated `.mjs` scripts: `bun` when `BUN`, else `node`.

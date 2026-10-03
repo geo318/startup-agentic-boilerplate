@@ -82,7 +82,7 @@ Add one line per missing `tokenTools` entry with its install command from
 
 ### Lean preset
 
-For small projects, recommend `flags.LEAN: true` in the existing confirmation summary. It renders concise commands, invariants, a code map, build plan, progress and library docs, plus applicable hooks/CI. It omits generic architecture prose, workflow skills and fallow configuration. Existing projects keep their tooling. For lean setup:
+For small projects, recommend `flags.LEAN: true` in the existing confirmation summary. It renders concise commands, invariants, a code map, build plan, progress and library docs, plus applicable hooks/CI. It omits generic architecture prose, workflow skills other than `remember`, and fallow configuration. Existing projects keep their tooling. For lean setup:
 
 - Fill only the emitted files; do not create the omitted documents or domain skeleton.
 - Use framework generators only if requested, and keep their native structure.

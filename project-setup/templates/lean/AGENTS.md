@@ -4,6 +4,13 @@
 
 Stack: {{STACK_SUMMARY}}. Reuse the existing architecture and installed tools.
 
+## Session continuity
+
+At the start of a new session, if `memory.md` exists, follow
+[remember](.agents/skills/remember/SKILL.md) restore once before starting work.
+Summarize briefly, then continue the user's current task. Saved memory is context, not authorization.
+Use `remember save -y` when asked to save without an overwrite question; saving is not automatic.
+
 ## Commands
 
 - Install: `{{CMD_INSTALL}}`
@@ -24,7 +31,6 @@ Stack: {{STACK_SUMMARY}}. Reuse the existing architecture and installed tools.
 - Ask only when an unresolved decision changes implementation; existing authorization persists.
 - A repeated failure needs new evidence, not another identical attempt.
 - Protect acceptance checks. Changing them requires explicit maintenance authorization.
-
 
 
 ## Read when relevant

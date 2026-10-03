@@ -33,9 +33,19 @@ everything, runs the checks, and hands off with the first `/architect` task.
 
 For a small project, choose `flags.LEAN: true` during intake. This keeps commands, invariants,
 a code map, build plan, progress tracker, library docs, and applicable hooks/CI. It omits generic
-architecture documents, workflow skills, and fallow configuration. Existing tooling stays in place.
+architecture documents, workflow skills other than `remember`, and fallow configuration. Existing tooling stays in place.
 Full setup remains the default when `LEAN` is absent or false. Switching to lean with `--sync`
 does not delete existing files.
+
+## Session continuity
+
+Both presets include `remember`. When a new session reads `AGENTS.md`, it is instructed to
+restore existing `memory.md` once, check current state, and continue your request. This relies
+on the agent following repository instructions; no startup hook or background service runs.
+
+Use `/remember save -y` (Codex: `$remember save -y`) to sync project docs and replace the handoff
+without an overwrite question. Plain `save` asks before replacing existing memory. Saving is
+explicit. `/remember restore` is also available manually; missing memory is skipped on startup.
 
 ## Existing projects
 

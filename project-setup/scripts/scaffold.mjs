@@ -170,6 +170,7 @@ function included(relPath, flags) {
     relPath.endsWith(".md") &&
     ![
       "CLAUDE.md",
+      ".agents/skills/remember/SKILL.md",
       ".github/pull_request_template.md",
       "docs/archive/product-brief.md",
     ].includes(relPath)
