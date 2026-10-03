@@ -31,14 +31,16 @@ function run(label, command, args) {
   return `$ ${label}\n${shown.join("\n")}`;
 }
 
+const BASE_REFS = ["origin/{{DEFAULT_BRANCH}}", "{{DEFAULT_BRANCH}}", "origin/HEAD"];
+
 function hasBase() {
-  return ["origin/HEAD", "origin/main", "origin/master", "main", "master"].some(
+  return BASE_REFS.some(
     (ref) => spawnSync("git", ["rev-parse", "--verify", "--quiet", ref]).status === 0,
   );
 }
 
 function branchChanges() {
-  for (const ref of ["origin/HEAD", "origin/main", "origin/master", "main", "master"]) {
+  for (const ref of BASE_REFS) {
     const result = spawnSync("git", ["diff", "--name-only", `${ref}...HEAD`], { encoding: "utf8" });
     if (result.status === 0) {
       return result.stdout.split("\n").filter(Boolean);

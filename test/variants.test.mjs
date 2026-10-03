@@ -270,7 +270,50 @@ test("mixed-harness inventories never infer skill non-use from Claude-only trans
     );
     assert.equal(result.status, 0, result.stderr);
     const data = JSON.parse(result.stdout);
-    assert.equal(data.sessionsScanned, 1);
+    assert.equal(data.sessionsScanned, harness === "codex" ? 0 : 1);
     assert.deepEqual(data.skills.unused, harness === "claude" ? ["claude-only"] : []);
+  }
+});
+
+
+test("lean CI rejects oversized docs while full CI retains warning mode", () => {
+  for (const lean of [false, true]) {
+    const { t, r } = render({ flags: { LEAN: lean } });
+    assert.equal(r.status, 0, r.stderr);
+    for (const f of files(t).filter((f) => f.endsWith(".md"))) {
+      writeFileSync(join(t, f), readFileSync(join(t, f), "utf8").replace(/<!-- FILL:[\s\S]*?-->/g, "Fixture."));
+    }
+    writeFileSync(join(t, "AGENTS.md"), readFileSync(join(t, "AGENTS.md"), "utf8") + "\n" + "Oversized documentation. ".repeat(400));
+    const workflow = readFileSync(join(t, ".github/workflows/ci.yml"), "utf8");
+    const command = workflow.match(/- name: Docs\s+run: "([^"\n]+)"/)[1];
+    const result = spawnSync(command, { cwd: t, shell: true, encoding: "utf8" });
+    assert.equal(result.status, lean ? 1 : 0, result.stdout + result.stderr);
+    assert.match(result.stdout + result.stderr, /budget/);
+  }
+});
+
+test("token configuration inventory respects the selected harness", () => {
+  const home = tmp(), target = tmp();
+  mkdirSync(join(home, ".claude"));
+  mkdirSync(join(home, ".codex"));
+  mkdirSync(join(target, ".codex"));
+  writeFileSync(join(home, ".claude.json"), JSON.stringify({ mcpServers: { claudeUser: {} } }));
+  writeFileSync(join(target, ".mcp.json"), JSON.stringify({ mcpServers: { claudeProject: {} } }));
+  writeFileSync(join(home, ".claude/settings.json"), JSON.stringify({ enabledPlugins: { "claude-plugin": true } }));
+  writeFileSync(join(home, ".codex/config.toml"), '[mcp_servers.codexUser]\ncommand = "example"\n');
+  writeFileSync(join(target, ".codex/config.toml"), '[mcp_servers."codex.project"] # quoted name\ncommand = "example"\n');
+  for (const harness of ["codex", "claude", "all"]) {
+    const result = spawnSync(process.execPath,
+      [join(root, "project-setup/scripts/token-audit.mjs"), "--target", target, "--harness", harness],
+      { encoding: "utf8", env: { ...process.env, HOME: home } });
+    assert.equal(result.status, 0, result.stderr);
+    const data = JSON.parse(result.stdout);
+    const expected = [
+      ...(harness !== "codex" ? ["claudeUser", "claudeProject"] : []),
+      ...(harness !== "claude" ? ["codexUser", "codex.project"] : []),
+    ];
+    assert.deepEqual(data.mcpServers.configured.sort(), expected.sort());
+    assert.deepEqual(data.enabledPlugins, harness === "codex" ? [] : ["claude-plugin"]);
+    assert.equal(data.codexConfigFiles.length, harness === "claude" ? 0 : 2);
   }
 });

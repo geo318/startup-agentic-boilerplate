@@ -41,7 +41,7 @@ node <skill-dir>/scripts/token-audit.mjs --target <target> --harness codex # or 
 rtk gain   # if rtk is installed: measured savings so far
 ```
 
-This audit estimates instruction/import and skill-description sizes using characters / 4; it does not measure the actual loaded session. It inventories the selected harness, but MCP/plugin usage is Claude-only. Active plugin catalogs, ancestor instructions and deferred schemas may be missing.
+This audit estimates instruction/import and skill-description sizes using characters / 4; it does not measure the actual loaded session. It inventories the selected harness; usage telemetry is Claude-only. Codex MCP names come from standard `[mcp_servers.<name>]` tables in user/project `.codex/config.toml`. This is a configuration inventory, not a full TOML or effective-session resolver: inline tables, profiles, trust and enabled state are not resolved. Plugin names come only from Claude settings; Codex plugin state is unknown. Active plugin catalogs, ancestor instructions and deferred schemas may be missing.
 For other harnesses, usage is unknown; do not recommend removal from missing Claude usage.
 Only recommend tool integrations supported by the active harness (the plugin commands above
 are Claude-specific).
