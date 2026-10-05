@@ -10,7 +10,7 @@ their scope.
   with a schema. Pass typed values inward.
 - Prefer boring, explicit code over clever abstractions. Three similar lines beat a premature
   helper ([design principles](#design-principles)).
-- Load a library's skill from `.agents/skills/` before writing code against that library.
+- For unfamiliar APIs, consult [library docs](library-docs.md); load an installed skill only when relevant.
 <!-- FILL: 0–4 project-specific "do" bullets from the brief or chosen invariants. Delete this marker if none. -->
 
 ## Don't

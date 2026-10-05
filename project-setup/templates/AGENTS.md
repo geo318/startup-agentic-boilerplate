@@ -75,21 +75,8 @@ A passing typecheck is not verification. Run every check relevant to the diff an
 
 ## Pull requests
 
-1. **Before opening:** run the checks above and list each one with its result in the PR body,
-   including anything skipped and why ([PR template](.github/pull_request_template.md)).
-2. **Opening:** add the `do-not-merge` label whenever a check was not run, failed, or its output
-   was not read. The **Merge gate** workflow fails while it is set.
-3. **After every push:** if the push adds code you have not verified locally, re-add `do-not-merge`.
-4. **Review fixes:** after addressing review comments and pushing the fixes, post one PR comment
-   requesting re-review from the configured review agent (Codex: `@codex review`). Confirm the
-   supported trigger from repository configuration or the integration’s documented instructions;
-   do not guess a handle. Include the last reviewed SHA → new head SHA, a comparison link,
-   commit summaries, and validation results. If the baseline is unknown, request the full PR diff.
-   Avoid duplicate requests for the same head commit; see delivery for scope and active-review handling.
-5. **Merging:** remove `do-not-merge` only after every relevant check passed on the final head
-   commit. If asked to merge while it is set, say which checks are missing instead.
-
-Branch, commit, and PR-title rules: [delivery](context/standards/delivery.md).
+Follow [delivery → Pull requests](context/standards/delivery.md#pull-requests) for
+verification, the `do-not-merge` gate, and re-review after fixes.
 
 {{/if}}
 ## What to read, and when

@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-const hook = fileURLToPath(new URL("../project-setup/templates/scripts/checks/agent-stop.mjs", import.meta.url));
+const root = fileURLToPath(new URL("../", import.meta.url));
 
 for (const defaultBranch of ["main", "trunk"]) test(`Stop hook checks committed changes based on ${defaultBranch}`, () => {
   const dir = mkdtempSync(join(tmpdir(), "stop-hook-"));
@@ -18,8 +18,13 @@ for (const defaultBranch of ["main", "trunk"]) test(`Stop hook checks committed 
     return result.stdout;
   };
   git("init", "-q", "-b", defaultBranch);
-  const renderedHook = join(dir, "stop.mjs");
-  writeFileSync(renderedHook, readFileSync(hook, "utf8").replaceAll("{{DEFAULT_BRANCH}}", defaultBranch));
+  const answers = JSON.parse(readFileSync(join(root, "test/fixtures/answers.json"), "utf8"));
+  answers.vars.DEFAULT_BRANCH = defaultBranch;
+  const answersPath = join(dir, "answers.json");
+  writeFileSync(answersPath, JSON.stringify(answers));
+  const render = spawnSync(process.execPath, [join(root, "project-setup/scripts/scaffold.mjs"), "--answers", answersPath, "--target", dir], { encoding: "utf8" });
+  assert.equal(render.status, 0, render.stderr);
+  const renderedHook = join(dir, "scripts/checks/agent-stop.mjs");
   mkdirSync(join(dir, "scripts/checks"), { recursive: true });
   writeFileSync(join(dir, "scripts/checks/docs-check.mjs"), 'console.error("broken documentation"); process.exit(1);\n');
   git("add", ".");

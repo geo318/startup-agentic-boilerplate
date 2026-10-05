@@ -279,7 +279,7 @@ function templatesHash() {
 
 // Which of the sync outcomes in the header applies to an existing file.
 function syncAction(current, rendered, locked) {
-  if (sha256(current) === sha256(rendered)) {
+  if (current === rendered) {
     return "same";
   }
   if (locked === sha256(current)) {
@@ -300,12 +300,30 @@ function lstatSafe(path) {
   }
 }
 
+// Refuse output links before any write, including links in ancestor directories.
+// The explicitly selected target itself may be a symlink; paths below it may not.
+function checkOutputPath(target, path) {
+  for (let probe = path; probe !== target; probe = dirname(probe)) {
+    if (probe === dirname(probe)) throw new Error(`output escapes target: ${path}`);
+    let stat;
+    try {
+      stat = lstatSync(probe);
+    } catch (error) {
+      if (error.code === "ENOENT") continue;
+      throw error;
+    }
+    if (stat.isSymbolicLink()) throw new Error(`refusing symlinked output: ${probe}`);
+    if (stat.isFile() && stat.nlink > 1) throw new Error(`refusing hardlinked output: ${probe}`);
+  }
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const target = resolve(args.target);
   const answers = loadAnswers(resolve(args.answers));
   const context = { vars: answers.vars, flags: answers.flags, apps: answers.apps };
   const report = { created: [], updated: [], merge: [], skipped: [], excluded: 0, linked: [] };
+  checkOutputPath(target, join(target, LOCK_PATH));
   const lock = readLock(target);
   const missing = new Set();
   const pending = [];
@@ -366,6 +384,11 @@ function main() {
     console.error("Nothing was written. Fix the answers file (or template) and rerun.");
     process.exit(1);
   }
+
+  for (const item of pending) checkOutputPath(target, item.destination);
+  checkOutputPath(target, join(target, ".agents", "skills-index.md"));
+  if (answers.flags.CLAUDE_CODE === true && answers.flags.CLAUDE_SKILL_LINKS !== false)
+    checkOutputPath(target, join(target, ".claude", "skills"));
 
   if (!args.dryRun) {
     for (const item of pending) {

@@ -1,8 +1,7 @@
 # Context guide
 
-[AGENTS.md](../AGENTS.md) holds the global invariants and a task → doc routing table; app-specific
-rules live in each app's `AGENTS.md`. This file maps every doc. Load only what the current task
-touches. Linked constraints are mandatory within their scope; moving them does not weaken them.
+[AGENTS.md](../AGENTS.md) holds global rules; each app's `AGENTS.md` holds scoped rules.
+Load only relevant docs below. Linked constraints remain mandatory within their scope.
 
 | Task | Entry point | Details |
 | --- | --- | --- |
@@ -38,8 +37,7 @@ Operational procedures and design records are indexed in [docs/README.md](../doc
 ## Maintenance
 
 - One rule lives in one place. Entry points and routers link; they do not restate topic rules.
-- Name topic files for what they contain. A router heading must point at a file whose name
-  matches the heading's subject; do not park unrelated sections in whichever file is open.
+- Match topic filenames to their contents and router headings.
 - Keep router headings stable so incoming anchors keep working. When a section moves, update
   incoming links in the same change.
 - Status words mean distinct things: **local** (works on a machine), **merged**, **deployed**,

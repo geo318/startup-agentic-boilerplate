@@ -54,17 +54,7 @@ const EXEMPT_SUBJECT_PREFIXES = [
 ];
 
 function isKebabCase(value) {
-  if (value.length === 0 || value.startsWith("-") || value.endsWith("-") || value.includes("--")) {
-    return false;
-  }
-  for (const character of value) {
-    const isLower = character >= "a" && character <= "z";
-    const isDigit = character >= "0" && character <= "9";
-    if (!isLower && !isDigit && character !== "-") {
-      return false;
-    }
-  }
-  return true;
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value);
 }
 
 function isExemptBranch(branch) {
