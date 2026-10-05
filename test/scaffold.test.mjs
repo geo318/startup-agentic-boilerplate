@@ -2,7 +2,7 @@
 // Run: node --test 'test/*.test.mjs'
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -122,4 +122,22 @@ test("docs-check on an empty root reports no Markdown scanned", () => {
     { encoding: "utf8" },
   );
   assert.notEqual(r.status, 0, "an empty applicable scan must not pass");
+});
+
+test("scaffold refuses symlinked output paths before writing any project files", () => {
+  for (const path of ["context", "docs/archive/project-setup.lock.json", "AGENTS.md"]) {
+    const target = tmp(),
+      outside = tmp();
+    const destination = join(target, path);
+    mkdirSync(join(destination, ".."), { recursive: true });
+    const external = path.endsWith(".md") || path.endsWith(".json") ? join(outside, "file") : outside;
+    if (external !== outside) writeFileSync(external, path.endsWith(".json") ? "{}" : "user work");
+    symlinkSync(external, destination);
+    const before = tree(outside);
+    const result = run(["--answers", answersPath, "--target", target, "--force"]);
+    assert.notEqual(result.status, 0, path);
+    assert.match(result.stderr, /symlink/, path);
+    assert.deepEqual(tree(outside), before, path);
+    assert.equal(existsSync(join(target, "README.md")), false, "reject before partial rendering");
+  }
 });

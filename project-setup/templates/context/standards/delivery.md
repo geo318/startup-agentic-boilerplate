@@ -5,8 +5,8 @@ Read before committing, pushing, opening a PR, or marking work complete.
 ## Commits and pushes
 
 - Never push to `{{DEFAULT_BRANCH}}` by default. After local commits, summarize the commits, test
-  status, and target branch, then wait for explicit confirmation before pushing. Substantial work
-  goes through a branch and PR.
+  status, and target branch. Push when authorized in the current conversation; otherwise ask once
+  after the changes are verified. Substantial work goes through a branch and PR.
 - Keep commits atomic: one independently reviewable concern with its tests. Split contracts,
   transport wiring, UI behavior, and background work when they can be reviewed separately.
   Documentation travels with the behavior it documents.
@@ -43,8 +43,14 @@ Never force cleanup to bypass those checks.
 {{#if GITHUB}}
 ## Pull requests
 
-Follow [AGENTS.md → Pull requests](../../AGENTS.md#pull-requests): checks recorded in the body,
-`do-not-merge` until they are verified green.
+1. **Before opening:** run the [verification checks](../../AGENTS.md#verification-before-handoff) and list each result in the PR body,
+   including anything skipped and why ([PR template](../../.github/pull_request_template.md)).
+2. **Opening:** add the `do-not-merge` label whenever a check was not run, failed, or its output
+   was not read. The **Merge gate** workflow fails while it is set.
+3. **After every push:** if the push adds code you have not verified locally, re-add `do-not-merge`.
+4. **Review fixes:** follow the re-review procedure below after pushing fixes.
+5. **Merging:** remove `do-not-merge` only after every relevant check passed on the final head
+   commit. If asked to merge while it is set, say which checks are missing instead.
 
 After pushing review fixes, confirm the PR head contains the fixes, then request another review
 with the configured agent's supported PR-comment trigger. For Codex, post `@codex review`;

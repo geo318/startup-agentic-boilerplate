@@ -58,7 +58,7 @@ const INSTALL = {
 };
 
 function parseArgs(argv) {
-  if (argv[0] === "--target" && argv[1]) {
+  if (argv.length === 2 && argv[0] === "--target" && argv[1]) {
     return resolve(argv[1]);
   }
   if (argv.length > 0) {
@@ -70,8 +70,9 @@ function parseArgs(argv) {
 function readJson(path) {
   try {
     return JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    return null;
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    throw new Error(`cannot read ${path}: ${error.message}`);
   }
 }
 
@@ -166,6 +167,7 @@ function tokenTools() {
 
 function main() {
   const root = parseArgs(process.argv.slice(2));
+  readdirSync(root); // A missing or unreadable target is not an empty project.
   const has = (path) => existsSync(join(root, path));
   const pkg = readJson(join(root, "package.json"));
   const mode = detectMode(root);
@@ -213,8 +215,9 @@ function main() {
   };
   const defaultBranch =
     git(root, ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]).replace(/^origin\//, "") ||
-    git(root, ["branch", "--show-current"]) ||
-    "main";
+    ["main", "master"].find((branch) => git(root, ["show-ref", "--verify", `refs/heads/${branch}`])) ||
+    "";
+  if (!defaultBranch) unknowns.push("vars.DEFAULT_BRANCH");
   const scope = manifests
     .map((manifest) => manifest.pkg.name)
     .find((name) => typeof name === "string" && name.startsWith("@"))
@@ -295,7 +298,8 @@ function main() {
     CMD_FALLOW: `${run} fallow`,
     CMD_TYPECHECK: script("typecheck", "type-check", "check-types", "tsc"),
     CMD_TEST: script("test", "test:unit"),
-    CMD_TEST_CHANGED: allDeps.has("vitest")
+    CMD_TEST_CHANGED: allDeps.has("vitest") && defaultBranch &&
+      git(root, ["rev-parse", "--verify", "--quiet", `refs/remotes/origin/${defaultBranch}^{commit}`])
       ? `${exec} vitest run --changed origin/${defaultBranch}`
       : script("test", "test:unit"),
     CMD_E2E: script("test:e2e", "e2e"),
