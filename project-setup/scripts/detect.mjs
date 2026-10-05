@@ -298,7 +298,8 @@ function main() {
     CMD_FALLOW: `${run} fallow`,
     CMD_TYPECHECK: script("typecheck", "type-check", "check-types", "tsc"),
     CMD_TEST: script("test", "test:unit"),
-    CMD_TEST_CHANGED: allDeps.has("vitest") && defaultBranch
+    CMD_TEST_CHANGED: allDeps.has("vitest") && defaultBranch &&
+      git(root, ["rev-parse", "--verify", "--quiet", `refs/remotes/origin/${defaultBranch}^{commit}`])
       ? `${exec} vitest run --changed origin/${defaultBranch}`
       : script("test", "test:unit"),
     CMD_E2E: script("test:e2e", "e2e"),

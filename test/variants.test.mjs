@@ -124,6 +124,9 @@ test("git convention validation accepts kebab case and rejects malformed segment
 
 test("detector distinguishes default branches from the checked-out feature branch", () => {
   const t = tmp();
+  writeFileSync(join(t, "package.json"), JSON.stringify({
+    devDependencies: { vitest: "1.0.0" }, scripts: { test: "vitest run" },
+  }));
   const git = (...args) => {
     const r = spawnSync("git", args, { cwd: t, encoding: "utf8" });
     assert.equal(r.status, 0, r.stderr);
@@ -137,12 +140,20 @@ test("detector distinguishes default branches from the checked-out feature branc
   git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "commit", "--allow-empty", "-m", "initial");
   git("checkout", "-b", "feat/work");
   assert.equal(detect().draftAnswers.vars.DEFAULT_BRANCH, "main");
+  assert.equal(detect().draftAnswers.vars.CMD_TEST_CHANGED, "npm run test");
+  git("update-ref", "refs/remotes/origin/main", "HEAD");
+  assert.equal(detect().draftAnswers.vars.CMD_TEST_CHANGED, "npx vitest run --changed origin/main");
+  git("update-ref", "-d", "refs/remotes/origin/main");
   git("branch", "-m", "main", "trunk");
   assert.equal(detect().draftAnswers.vars.DEFAULT_BRANCH, "");
   assert.ok(detect().unknowns.includes("vars.DEFAULT_BRANCH"));
+  assert.equal(detect().draftAnswers.vars.CMD_TEST_CHANGED, "npm run test");
   git("update-ref", "refs/remotes/origin/trunk", "HEAD");
   git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk");
   assert.equal(detect().draftAnswers.vars.DEFAULT_BRANCH, "trunk");
+  assert.equal(detect().draftAnswers.vars.CMD_TEST_CHANGED, "npx vitest run --changed origin/trunk");
+  git("update-ref", "-d", "refs/remotes/origin/trunk");
+  assert.equal(detect().draftAnswers.vars.CMD_TEST_CHANGED, "npm run test");
 });
 
 test("detector rejects missing targets and malformed manifests", () => {
