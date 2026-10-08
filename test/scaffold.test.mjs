@@ -123,3 +123,12 @@ test("docs-check on an empty root reports no Markdown scanned", () => {
   );
   assert.notEqual(r.status, 0, "an empty applicable scan must not pass");
 });
+
+test("fully-flagged render stays inside the AGENTS.md and context/README.md token budgets", () => {
+  const t = tmp();
+  const flags = { MONOREPO: true, HAS_UI: true, HAS_DB: true, HAS_AUTH: true, HAS_E2E: true };
+  const vars = { AUTH_PACKAGE_PATTERNS: '"better-auth"', CMD_E2E: "npm run e2e" };
+  assert.equal(run(["--answers", answers({ flags: { TYPESCRIPT: true, ...flags }, vars }), "--target", t]).status, 0);
+  const r = spawnSync(process.execPath, [join(t, "scripts/checks/docs-check.mjs"), "--root", t], { encoding: "utf8" });
+  assert.doesNotMatch(r.stdout + r.stderr, /budget/);
+});

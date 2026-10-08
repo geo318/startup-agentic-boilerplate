@@ -1,3 +1,6 @@
+// Boundary helpers: they take `unknown` and use `typeof` on purpose. Exempt this file from the
+// anti-slop oxlint rules (see SKILL.md, "Wire tooling"); fallow health already ignores it.
+
 type TypeGuard<V> = (value: unknown) => value is V;
 
 type Shape = Record<string, TypeGuard<unknown>>;

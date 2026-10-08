@@ -7,7 +7,15 @@
 // docs-check.mjs runs the check, so adding or removing a skill without regenerating fails
 // `docs:check`, the pre-push hook, and CI. Runs under both Node and Bun; no dependencies.
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 

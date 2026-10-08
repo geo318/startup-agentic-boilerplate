@@ -2,7 +2,7 @@
 
 [AGENTS.md](../AGENTS.md) holds the global invariants and a task → doc routing table; app-specific
 rules live in each app's `AGENTS.md`. This file maps every doc. Load only what the current task
-touches. Linked constraints are mandatory within their scope; moving them does not weaken them.
+touches. Linked constraints stay mandatory within their scope.
 
 | Task | Entry point | Details |
 | --- | --- | --- |
@@ -21,7 +21,7 @@ touches. Linked constraints are mandatory within their scope; moving them does n
 | Why a past choice was made | [Decisions](decisions/README.md) | One record per decision |
 | Commit, push, finish a feature | [Delivery](standards/delivery.md) | Git conventions, doc hygiene |
 
-Operational procedures and design records are indexed in [docs/README.md](../docs/README.md).
+Runbooks and design records: [docs/README.md](../docs/README.md).
 
 ## Doc types
 
@@ -38,15 +38,11 @@ Operational procedures and design records are indexed in [docs/README.md](../doc
 ## Maintenance
 
 - One rule lives in one place. Entry points and routers link; they do not restate topic rules.
-- Name topic files for what they contain. A router heading must point at a file whose name
-  matches the heading's subject; do not park unrelated sections in whichever file is open.
-- Keep router headings stable so incoming anchors keep working. When a section moves, update
-  incoming links in the same change.
+- A router heading points at a file named for its subject. Keep headings stable; when a section
+  moves, update incoming links in the same change.
 - Status words mean distinct things: **local** (works on a machine), **merged**, **deployed**,
   **verified** (observed working where it matters). Never collapse them.
 - Size budgets (enforced as warnings by `scripts/checks/docs-check.mjs`): `AGENTS.md` ≤ 200
   lines, this file ≤ 80, `build-plan.md` ≤ 250, `progress-tracker.md` ≤ 300. Over budget →
   move closed items into `history/<topic>.md` and leave a one-line link.
 - Paths in prose/code spans are repository-relative; Markdown links resolve relative to their file.
-- Keep reusable skill constraints in `SKILL.md`; move long conditional examples into references
-  with explicit reading cues. Never load every reference.

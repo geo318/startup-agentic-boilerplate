@@ -51,7 +51,7 @@ do not assume harness plugins or global tools are present.
 - Run `node <skill-dir>/scripts/detect.mjs --target <target>` and read its JSON before anything
   else. It gives the `mode`, a draft answers file, existing tooling, layer folders, conflicts, and
   unknowns:
-  - **new** (empty, or only git/harness configuration directories): the full workflow below.
+  - **new** (empty, or only git/harness configuration directories and the plan document): the full workflow below.
   - **adopt** (code, no `AGENTS.md`) or **upgrade** (has `AGENTS.md`/`context/`): the system fits
     the project — follow [references/adopt.md](references/adopt.md) alongside the steps below.
     Read the README and any agent docs too; the code is the source of truth.
@@ -155,7 +155,10 @@ app `AGENTS.md` files → `build-plan.md` → decisions → the rest. Keep `AGEN
   current versions (`npm view <pkg> version`; never versions from memory). Then install the
   `install-anti-slop` skill (`dmmulroy/anti-slop`) and follow it: it vendors the plugin into
   `tools/oxlint/anti-slop/` (already excluded in `biome.json` and `.fallowrc.json`), adds
-  `@oxlint/plugins`, and writes `oxlint.config.ts`. Run `lint` and `fallow` once on the skeleton
+  `@oxlint/plugins`, and writes `oxlint.config.ts`. `guards.ts` takes `unknown` on purpose, so add
+  an `oxlint.config.ts` override for `**/guards.ts` turning off `no-unknown-parameters`,
+  `no-runtime-typeof`, `no-shape-in-symbol-names` and `no-unsafe-dictionary-type` (`.fallowrc.json`
+  already skips it for health). Run `lint` and `fallow` once on the skeleton
   and fix what they report — a fresh skeleton must be clean.
 - Install only useful library skills for the confirmed stack per
   [references/skills-catalog.md](references/skills-catalog.md); fill `.agents/README.md` and
