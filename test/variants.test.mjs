@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import {
   existsSync,
+  chmodSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
@@ -65,12 +66,12 @@ const variants = {
     hasNot: ["biome.json", "tsconfig.base.json", ".fallowrc.json"],
   },
   "monorepo (two apps)": {
-    patch: { apps: [app("apps/web"), app("apps/api")] },
+    patch: { flags: { MONOREPO: true }, apps: [app("apps/web"), app("apps/api")] },
     has: ["apps/web/AGENTS.md", "apps/api/AGENTS.md"],
     hasNot: [],
   },
   "docs-only (no apps, no claude)": {
-    patch: { apps: [], flags: { CLAUDE_CODE: false } },
+    patch: { apps: [], flags: { TYPESCRIPT: false, CLAUDE_CODE: false } },
     has: ["context/README.md"],
     hasNot: [".claude"],
   },
@@ -78,6 +79,19 @@ const variants = {
     patch: { flags: { ADOPT: true } },
     has: ["context/plans/adoption.md"],
     hasNot: [".fallowrc.json"],
+  },
+  "existing tooling": {
+    patch: { flags: { ADOPT: true, OWN_LINTER: true, OWN_HOOKS: true, OWN_CI: true } },
+    has: [".github/workflows/merge-gate.yml"],
+    hasNot: ["biome.json", ".githooks", ".github/workflows/ci.yml"],
+  },
+  "full UI, auth, database, AI and Bun": {
+    patch: {
+      flags: { HAS_UI: true, HAS_AUTH: true, HAS_DB: true, MULTI_TENANT: true, HAS_AI: true, HAS_E2E: true, BUN: true, NEXTJS: true, REQUEST_PATH_SET: true },
+      vars: { CMD_E2E: "npm run test:e2e", AUTH_PACKAGE_PATTERNS: '"better-auth"', REQUEST_PATH: "UI → API → database" },
+    },
+    has: ["context/architecture/ai.md", "context/standards/react.md"],
+    hasNot: [],
   },
 };
 for (const [name, v] of Object.entries(variants)) {
@@ -87,8 +101,98 @@ for (const [name, v] of Object.entries(variants)) {
     for (const f of v.has) assert.ok(existsSync(join(t, f)), `expected ${f}`);
     for (const f of v.hasNot) assert.ok(!existsSync(join(t, f)), `unexpected ${f}`);
     noLeftovers(t);
+    for (const f of files(t).filter((f) => f.endsWith(".json"))) {
+      assert.doesNotThrow(() => JSON.parse(readFileSync(join(t, f), "utf8")), f);
+    }
+    for (const f of files(t).filter((f) => f.endsWith(".md"))) {
+      writeFileSync(join(t, f), readFileSync(join(t, f), "utf8").replace(/<!-- FILL:[\s\S]*?-->/g, "Fixture."));
+    }
+    const check = spawnSync(process.execPath, [join(t, "scripts/checks/docs-check.mjs"), "--root", t], { encoding: "utf8" });
+    assert.equal(check.status, 0, check.stdout + check.stderr);
   });
 }
+
+test("git convention validation accepts kebab case and rejects malformed segments", () => {
+  const script = join(root, "project-setup/templates/scripts/git/conventions.mjs");
+  for (const [name, valid] of [["fix-2", true], ["a", true], ["", false], ["-a", false], ["a-", false], ["a--b", false], ["Upper", false], ["a_b", false], ["a/b", false]]) {
+    for (const [command, value] of [["branch", `feat/${name}`], ["title", `fix(${name}): repair bug`]]) {
+      const r = spawnSync(process.execPath, [script, command, value], { encoding: "utf8" });
+      assert.equal(r.status === 0, valid, `${command}: ${value}`);
+    }
+  }
+});
+
+test("detector distinguishes default branches from the checked-out feature branch", () => {
+  const t = tmp();
+  writeFileSync(join(t, "package.json"), JSON.stringify({
+    devDependencies: { vitest: "1.0.0" }, scripts: { test: "vitest run" },
+  }));
+  const git = (...args) => {
+    const r = spawnSync("git", args, { cwd: t, encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+  };
+  const detect = () => {
+    const r = spawnSync(process.execPath, [join(root, "project-setup/scripts/detect.mjs"), "--target", t], { encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+    return JSON.parse(r.stdout);
+  };
+  git("init", "-b", "main");
+  git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "commit", "--allow-empty", "-m", "initial");
+  git("checkout", "-b", "feat/work");
+  assert.equal(detect().draftAnswers.vars.DEFAULT_BRANCH, "main");
+  assert.equal(detect().draftAnswers.vars.CMD_TEST_CHANGED, "npm run test");
+  git("update-ref", "refs/remotes/origin/main", "HEAD");
+  assert.equal(detect().draftAnswers.vars.CMD_TEST_CHANGED, "npx vitest run --changed origin/main");
+  git("update-ref", "-d", "refs/remotes/origin/main");
+  git("branch", "-m", "main", "trunk");
+  assert.equal(detect().draftAnswers.vars.DEFAULT_BRANCH, "");
+  assert.ok(detect().unknowns.includes("vars.DEFAULT_BRANCH"));
+  assert.equal(detect().draftAnswers.vars.CMD_TEST_CHANGED, "npm run test");
+  git("update-ref", "refs/remotes/origin/trunk", "HEAD");
+  git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk");
+  assert.equal(detect().draftAnswers.vars.DEFAULT_BRANCH, "trunk");
+  assert.equal(detect().draftAnswers.vars.CMD_TEST_CHANGED, "npx vitest run --changed origin/trunk");
+  git("update-ref", "-d", "refs/remotes/origin/trunk");
+  assert.equal(detect().draftAnswers.vars.CMD_TEST_CHANGED, "npm run test");
+});
+
+test("detector rejects missing targets and malformed manifests", () => {
+  const t = tmp();
+  writeFileSync(join(t, "package.json"), "{ broken");
+  for (const target of [t, join(t, "missing")]) {
+    const r = spawnSync(process.execPath, [join(root, "project-setup/scripts/detect.mjs"), "--target", target], { encoding: "utf8" });
+    assert.notEqual(r.status, 0);
+    assert.equal(r.stdout, "");
+  }
+});
+
+test("lean hooks enforce docs budgets without invoking fallow or requiring its command", () => {
+  const { t, r } = render({ flags: { LEAN: true }, vars: { CMD_FALLOW: undefined } });
+  assert.equal(r.status, 0, r.stderr);
+  assert.doesNotMatch(readFileSync(join(t, ".claude/settings.json"), "utf8"), /fallow/);
+  mkdirSync(join(t, "node_modules/.bin"), { recursive: true });
+  writeFileSync(join(t, "node_modules/.bin/fallow"), "#!/bin/sh\necho unexpected-fallow >&2\nexit 9\n");
+  chmodSync(join(t, "node_modules/.bin/fallow"), 0o755);
+  writeFileSync(join(t, "scripts/checks/docs-check.mjs"), 'if (!process.argv.includes("--strict")) process.exit(8);\n');
+  const init = spawnSync("git", ["init", "-b", "main"], { cwd: t, encoding: "utf8" });
+  assert.equal(init.status, 0, init.stderr);
+  const hook = spawnSync(process.execPath, [join(t, "scripts/checks/agent-stop.mjs")], {
+    cwd: t, input: "{}", encoding: "utf8", env: { ...process.env, CLAUDE_PROJECT_DIR: t },
+  });
+  assert.equal(hook.status, 0, hook.stderr);
+  assert.match(readFileSync(join(t, ".githooks/pre-push"), "utf8"), /docs-check\.mjs --strict/);
+});
+
+test("non-TypeScript pre-push runs lint and propagates its failure", () => {
+  const { t, r } = render({ flags: { TYPESCRIPT: false }, vars: { CMD_LINT: "node lint.mjs" } });
+  assert.equal(r.status, 0, r.stderr);
+  writeFileSync(join(t, "scripts/git/conventions.mjs"), "");
+  writeFileSync(join(t, "scripts/checks/docs-check.mjs"), "");
+  writeFileSync(join(t, "lint.mjs"), 'console.error("lint failed"); process.exit(7);\n');
+  const hook = spawnSync("sh", [join(t, ".githooks/pre-push")], { cwd: t, encoding: "utf8" });
+  assert.notEqual(hook.status, 0);
+  assert.match(hook.stderr, /lint failed/);
+});
 
 test("lock records the generator and a deterministic templates hash", () => {
   const a = render({}),
@@ -228,6 +332,11 @@ test("lean setup keeps commands and checks, omits generic architecture prose, an
   });
   assert.equal(check.status, 0, check.stdout + check.stderr);
   noLeftovers(t);
+  writeFileSync(join(t, "package.json"), JSON.stringify({ dependencies: { example: "1.0.0" } }));
+  const missing = spawnSync(process.execPath, [join(t, "scripts/checks/docs-check.mjs"), "--root", t], { encoding: "utf8" });
+  assert.equal(missing.status, 1);
+  assert.match(missing.stderr, /example.*official docs/);
+  assert.doesNotMatch(missing.stderr, /add-library-skill/);
 });
 
 test("token inventory counts Codex skills, folded descriptions, and imported instructions once", () => {

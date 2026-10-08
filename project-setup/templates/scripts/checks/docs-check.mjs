@@ -252,7 +252,7 @@ function checkLibraryDocs(root, errors) {
       reported.add(name);
       if (!docs.includes(`\`${name}\``)) {
         errors.push(
-          `${rel} — \`${name}\` is not in context/library-docs.md; run /add-library-skill ${name}`,
+          `${rel} — \`${name}\` is not in context/library-docs.md; add its official docs, relevant skill, or a needs-no-notes entry`,
         );
       }
     }

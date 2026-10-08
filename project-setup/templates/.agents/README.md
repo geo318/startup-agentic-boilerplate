@@ -16,14 +16,8 @@ For skills outside these common workflows, use the [complete skill catalog](skil
 
 ## Workflow
 
-- `architect`: before a non-trivial feature — align terms, resolve decisions, confirmed plan.
-- `review`: after a feature — verify against plan, architecture, and standards; report only.
-- `recover`: after one failed correction — diagnose the failure type before acting.
-- `remember`: `save` / `restore` session state in `memory.md`, keeping plan docs in sync.
-- `add-library-skill`: when docs-check names a package missing from library docs — skill, docs link, or "needs no notes".
-{{#if HAS_UI}}
-- `imprint`: after a new UI component — record its patterns in the UI registry.
-{{/if}}
+See [root workflow guidance](../AGENTS.md#workflow-skills) for when to use project skills.
+The [generated catalog](skills-index.md) lists their descriptions and entrypoints.
 
 ## Libraries and domains
 

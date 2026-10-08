@@ -74,17 +74,8 @@ regression risk ([testing](context/standards/testing.md)).
 
 ## Pull requests
 
-1. **Before opening:** run the checks above; list each result in the PR body, including anything
-   skipped and why ([PR template](.github/pull_request_template.md)).
-2. **Opening:** once the PR is open, add `do-not-merge` (once only, never after later pushes) if a
-   check was not run, failed, or unread. The **Merge gate** workflow fails while it is set.
-3. **Review fixes:** after pushing fixes for review comments, post one PR comment requesting
-   re-review from the configured review agent, with the SHA range and validation results (never
-   guess the trigger handle; see [delivery](context/standards/delivery.md)).
-4. **Merging:** remove `do-not-merge` only after every relevant check passed on the final head
-   commit. If asked to merge while it is set, name the missing checks instead.
-
-Branch, commit, title, stacked-PR (`gh stack`) rules: [delivery](context/standards/delivery.md).
+Follow [delivery → Pull requests](context/standards/delivery.md#pull-requests) for
+verification, the `do-not-merge` gate, and re-review after fixes.
 
 {{/if}}
 ## What to read, and when

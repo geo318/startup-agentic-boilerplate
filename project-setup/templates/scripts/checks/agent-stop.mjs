@@ -70,7 +70,9 @@ function main() {
     return;
   }
 
-  const failures = [run("docs-check", process.execPath, ["scripts/checks/docs-check.mjs"])];
+  const failures = [run("docs-check", process.execPath, ["scripts/checks/docs-check.mjs"{{#if LEAN}}, "--strict"{{/if}}])];
+{{#if TYPESCRIPT}}
+{{#unless LEAN}}
   const fallow = join("node_modules", ".bin", "fallow");
   if (existsSync(fallow) && changed.some((path) => CODE_FILE.test(path))) {
     // audit judges only what this branch introduced, but needs a base; a repo with no remote
@@ -78,6 +80,8 @@ function main() {
     const args = hasBase() ? ["audit", "--quiet"] : ["--quiet"];
     failures.push(run(`fallow ${args.join(" ")}`, fallow, args));
   }
+{{/unless}}
+{{/if}}
 
   const found = failures.filter((failure) => failure !== null);
   if (found.length > 0) {

@@ -14,9 +14,11 @@
       "Bash({{RUNTIME}} scripts/skills/index.mjs)",
       "Bash({{RUNTIME}} scripts/skills/index.mjs *)",
 {{#if TYPESCRIPT}}
+{{#unless LEAN}}
       "Bash({{CMD_FALLOW}})",
       "Bash(npx fallow *)",
       "Bash(bunx fallow *)",
+{{/unless}}
 {{/if}}
       "Bash(npx skills find *)",
       "Bash(npx skills add *)",

@@ -1,6 +1,6 @@
 ---
 name: add-library-skill
-description: Install an agent skill for one specific package that docs-check reported as missing from context/library-docs.md ("run /add-library-skill <package>"), then record it. Use only on that docs-check message or when the user explicitly asks to find a skill for a named library. Not for adding, upgrading, or using dependencies, and not for packages already named in library-docs.md.
+description: Resolve one package that docs-check reported as missing from context/library-docs.md with official docs, a useful skill, or a needs-no-notes entry. Use on that docs-check message or when the user asks to find a skill for a named library. Not for adding, upgrading, or using dependencies, or for packages already documented.
 ---
 
 # Add library skill

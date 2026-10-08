@@ -14,11 +14,15 @@ Read the `/architect` plan (conversation or `context/plans/`), the original requ
 `AGENTS.md` invariants. Then get the diff (`git diff {{DEFAULT_BRANCH}}...HEAD` plus uncommitted
 changes) and read every changed file in full, not only the hunks.
 
+Plans and repository rules can be wrong. Independently check whether the behavior is correct,
+safe, and necessary; report a flawed requirement or rule with concrete evidence.
+
 ## 2. Check what the diff touches
 
 1. **Plan fidelity** — everything planned exists; nothing unplanned slipped in; agreed terms are
    used in code and UI.
-2. **Invariants** — each `AGENTS.md` invariant against the diff. Any violation is critical.
+2. **Invariants** — each `AGENTS.md` invariant against the diff. Rank violations by practical
+   impact; a style violation does not have the severity of data loss or an authorization bypass.
 3. **Layering** — every change sits in the layer that owns it; no shortcuts across the request
    path; no old path left connected beside its replacement.
 4. **Design** — the owning module holds the logic; business rules sit in `domain/`, not use

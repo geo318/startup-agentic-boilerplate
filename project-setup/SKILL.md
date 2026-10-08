@@ -164,8 +164,8 @@ app `AGENTS.md` files → `build-plan.md` → decisions → the rest. Keep `AGEN
   [references/skills-catalog.md](references/skills-catalog.md); fill `.agents/README.md` and
   `context/library-docs.md` from what was actually installed, then regenerate the catalog with
   `<runtime> scripts/skills/index.mjs`. A dependency with no catalog entry goes through the
-  generated `/add-library-skill` workflow (needs a skill? → search skills.sh and the web → vet →
-  install).
+  generated `/add-library-skill` workflow in full setup. In lean setup, add its official docs
+  or a "Needs no notes" entry directly; install a skill only when it adds useful guidance.
 - Token tools the user accepted: give them the install commands (token-tools.md); you cannot run
   `/plugin` commands. Write the "Token tools" section of `AGENTS.md` for the tools present, which
   is how subagents learn of them.

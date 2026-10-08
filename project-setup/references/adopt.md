@@ -58,18 +58,39 @@ record it as a divergence instead.
 
 ## New-code-only lint
 
-The gates run a `lint:changed` script (`CMD_LINT` in the answers); `lint` stays the full run.
-Add it to `package.json` for the project's linter (`<branch>` = the default branch):
+The gates run `lint:changed` (`CMD_LINT` in the answers); `lint` stays the full run.
+Add `"lint:changed": "node scripts/lint-changed.mjs"` to `package.json` and create the
+script below. Set the confirmed base and existing linter; include oxlint only for full setup.
+It checks branch changes, staged/unstaged edits, and untracked files; Git and lint failures
+remain failures, and filenames with spaces stay intact.
 
-```json
-"lint:changed": "biome check --changed --since=origin/<branch> --no-errors-on-unmatched && files=$(git diff --name-only --diff-filter=ACMR origin/<branch>... -- '*.ts' '*.tsx'); [ -z \"$files\" ] || oxlint $files"
+```js
+import { spawnSync } from "node:child_process";
+
+const base = "origin/main"; // Replace with the confirmed default branch.
+const linters = ["biome", "oxlint"]; // Or ["eslint", "oxlint"]; lean: existing linter only.
+function run(command, args) {
+  const result = spawnSync(command, args, { encoding: "utf8" });
+  if (result.status !== 0) {
+    console.error(result.stderr || result.stdout || result.error?.message);
+    process.exit(result.status ?? 1);
+  }
+  return result.stdout;
+}
+const since = run("git", ["merge-base", base, "HEAD"]).trim();
+const files = [...new Set([
+  ...run("git", ["diff", "--name-only", "--diff-filter=ACMR", "-z", since]).split("\0"),
+  ...run("git", ["ls-files", "--others", "--exclude-standard", "-z"]).split("\0"),
+])].filter((file) => /\.[cm]?[jt]sx?$/.test(file)).map((file) => `./${file}`);
+if (files.length) {
+  for (const linter of linters) {
+    run(linter, [...(linter === "biome" ? ["check"] : []), ...files]);
+  }
+}
 ```
 
-Both guard the empty case: `oxlint` or `eslint` with no file arguments lints the whole repo.
-
-```json
-"lint:changed": "files=$(git diff --name-only --diff-filter=ACMR origin/<branch>... -- '*.ts' '*.tsx'); [ -z \"$files\" ] || (eslint $files && oxlint $files)"
-```
+Package scripts put installed linter binaries on `PATH`. For projects with other source formats,
+extend the file filter to those handled by the configured linters.
 
 Fallow needs nothing extra: `"fallow": "fallow audit --quiet"` only fails on findings the branch
 introduces.

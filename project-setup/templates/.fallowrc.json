@@ -34,11 +34,11 @@
 {{/if}}
 {{/if}}
     "rules": [
-      { "from": "routes", "allow": ["module-api", "kernel", "modules"{{#unless MONOREPO}}{{#if HAS_UI}}, "web"{{/if}}{{/unless}}] },
+      { "from": "routes", "allow": ["module-api", "kernel"{{#unless MONOREPO}}{{#if HAS_UI}}, "web"{{/if}}{{/unless}}] },
 {{#if HAS_UI}}
       { "from": "web", "allow": ["module-api", "kernel"] },
 {{/if}}
-      { "from": "db", "allow": ["module-api", "kernel", "modules"] },
+      { "from": "db", "allow": ["module-api", "kernel"] },
       { "from": "kernel", "allow": [] },
       { "from": "modules", "allow": ["module-api", "kernel"] },
       { "from": "module-api", "allow": ["modules", "kernel"] }
