@@ -51,7 +51,7 @@ do not assume harness plugins or global tools are present.
 - Run `node <skill-dir>/scripts/detect.mjs --target <target>` and read its JSON before anything
   else. It gives the `mode`, a draft answers file, existing tooling, layer folders, conflicts, and
   unknowns:
-  - **new** (empty, or only git/harness configuration directories and the plan document): the full workflow below.
+  - **new** (empty, or only git/harness configuration directories and the plan/brief document): the full workflow below.
   - **adopt** (code, no `AGENTS.md`) or **upgrade** (has `AGENTS.md`/`context/`): the system fits
     the project — follow [references/adopt.md](references/adopt.md) alongside the steps below.
     Read the README and any agent docs too; the code is the source of truth.

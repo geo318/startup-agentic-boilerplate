@@ -297,6 +297,11 @@ test("detector recognizes a fresh harness-only project without enabling Claude",
     encoding: "utf8",
   });
   assert.equal(JSON.parse(claude.stdout).draftAnswers.flags.CLAUDE_CODE, true);
+  writeFileSync(join(p, "README.md"), "# existing\n");
+  const docs = spawnSync(process.execPath, [join(root, "project-setup/scripts/detect.mjs"), "--target", p], {
+    encoding: "utf8",
+  });
+  assert.equal(JSON.parse(docs.stdout).mode, "adopt", "an existing README is not a plan file");
 });
 
 test("token audit counts canonical skills once across Claude symlinks", () => {

@@ -41,10 +41,10 @@ Use `remember save -y` when asked to save without an overwrite question; saving 
 - [Library docs](context/library-docs.md): relevant official docs or installed skills.
 
 {{#if GITHUB}}
-Use a branch and PR. Add `do-not-merge` once right after opening if checks are unverified; never re-add it after later pushes.
+Use a branch and PR. Add `do-not-merge` once right after opening if checks are unverified; re-add only if removed and a later push is unverified.
 Branches use `feat/short-name` (or fix/docs/refactor/perf/test/build/ci/chore/revert).
 Commit and PR titles use `type(scope): short summary`, lowercase, at most 72 characters.
-Stacking a PR onto another branch: use `gh stack`. For independent tasks, use a separate branch and `git worktree add`; preserve other worktrees.
+Stacking a PR onto another branch: use `gh stack` (extension: `gh extension install github/gh-stack`; ask first, else target the parent branch). For independent tasks, use a separate branch and `git worktree add`; preserve other worktrees.
 After addressing review comments and pushing fixes, post one PR comment requesting re-review
 from the configured review agent (Codex: `@codex review`). Confirm its supported trigger from
 repository configuration or integration documentation; do not guess a handle or duplicate a
