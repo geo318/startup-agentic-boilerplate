@@ -43,6 +43,9 @@ Never force cleanup to bypass those checks.
 {{#if GITHUB}}
 ## Pull requests
 
+Stacking one PR onto another branch: use `gh stack` (`init`, `add`, `submit`, `sync`; see
+`gh stack --help`), not hand-managed base branches or manual retargeting.
+
 Follow [AGENTS.md → Pull requests](../../AGENTS.md#pull-requests): checks recorded in the body,
 `do-not-merge` added once after the PR is open if checks are unverified; never re-added after later pushes.
 

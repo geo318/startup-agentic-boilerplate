@@ -8,7 +8,7 @@
 
 ## Preview cleanup
 
-<!-- FILL: Vercel previews only (delete this section otherwise): the scheduled sweep that deletes preview deployments and per-branch resources (e.g. database branches) for branches whose PR is merged or closed — where it runs, its schedule, and that it never touches production. -->
+<!-- FILL: Vercel previews only (delete this section otherwise): the scheduled sweep that deletes stale remote branches (PR merged or closed, or no open PR and no recent commits) and their per-branch resources (e.g. database branches) — where it runs, its schedule, the staleness threshold, and that it never deletes the default or protected branches or one with an open PR. -->
 
 ## Environment variables
 

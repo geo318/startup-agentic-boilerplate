@@ -84,7 +84,7 @@ regression risk ([testing](context/standards/testing.md)).
 4. **Merging:** remove `do-not-merge` only after every relevant check passed on the final head
    commit. If asked to merge while it is set, name the missing checks instead.
 
-Branch, commit, and PR-title rules: [delivery](context/standards/delivery.md).
+Branch, commit, title, stacked-PR (`gh stack`) rules: [delivery](context/standards/delivery.md).
 
 {{/if}}
 ## What to read, and when
@@ -96,7 +96,7 @@ Read only the rows your task touches. [context/README.md](context/README.md) map
 | Any implementation | [architecture](context/architecture.md) + [code standards](context/code-standards.md) (routers: follow only matching links) |
 | New module, use case, entity, port, or repository | [domain modules](context/architecture/domain-modules.md) |
 | New file or folder; naming; where code goes | [code organisation](context/standards/code-organisation.md) |
-| Product overview | [project overview](context/project-overview.md), [glossary](context/glossary.md) |
+| Product | [overview](context/project-overview.md), [glossary](context/glossary.md) |
 {{#if HAS_UI}}
 | UI work (components, styling, forms) | [UI rules](context/ui-rules.md), [UI tokens](context/ui-tokens.md) |
 | React state, data fetching, caching, performance | [React](context/standards/react.md) |
