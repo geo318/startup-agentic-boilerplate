@@ -6,6 +6,10 @@
 | --- | --- | --- | --- |
 <!-- FILL: rows for local, preview (if any), production — hosting target per app, trigger (push to main, manual), and which database/branch each uses. Unknowns → build-plan "Open questions". -->
 
+## Preview cleanup
+
+<!-- FILL: Vercel previews only (delete this section otherwise): the scheduled sweep that deletes preview deployments and per-branch resources (e.g. database branches) for branches whose PR is merged or closed — where it runs, its schedule, and that it never touches production. -->
+
 ## Environment variables
 
 - One module reads the process environment and validates it at startup

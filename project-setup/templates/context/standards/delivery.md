@@ -44,7 +44,7 @@ Never force cleanup to bypass those checks.
 ## Pull requests
 
 Follow [AGENTS.md → Pull requests](../../AGENTS.md#pull-requests): checks recorded in the body,
-`do-not-merge` until they are verified green.
+`do-not-merge` added once after the PR is open if checks are unverified; never re-added after later pushes.
 
 After pushing review fixes, confirm the PR head contains the fixes, then request another review
 with the configured agent's supported PR-comment trigger. For Codex, post `@codex review`;

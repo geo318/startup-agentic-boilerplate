@@ -78,5 +78,5 @@ invariant needs to be short and obviously right, or it will erode.
 | P1 | Load a library's skill before writing code against it. | always | — | Model training data lags current framework majors. |
 | P2 | Same problem after one corrective attempt → stop and run `/recover`. | always | — | Patching patches pollutes context and degrades the code. |
 | P3 | Never push to the default branch without confirmation; conventional branch/commit names; never `--no-verify`. | git | hooks + CI | — |
-| P4 | PRs list local checks with results; `do-not-merge` until verified on the final commit. | GitHub | merge-gate workflow | (observed) while CI did not run the full suite, the PR body was the only test gate. |
+| P4 | PRs list local checks with results; `do-not-merge` added once after opening, removed once verified on the final commit. | GitHub | merge-gate workflow | (observed) while CI did not run the full suite, the PR body was the only test gate. |
 | P5 | Docs change in the same change set as the behaviour (progress tracker, build plan, rule docs). | always | review / docs-check | Otherwise plans drift from reality between sessions. |

@@ -27,7 +27,7 @@ Use `remember save -y` when asked to save without an overwrite question; saving 
 <!-- FILL: up to six concrete product/security invariants and the checks that enforce them. -->
 - Read the affected code and its callers. Reuse an existing pattern before adding a layer.
 - Validate external inputs; preserve authorization, error handling, and accessibility.
-- Run relevant checks and report their actual results before handoff.
+- Run relevant checks and report their actual results before handoff. Skip e2e/integration tests before a PR unless asked; add only surgical tests for real regression risk.
 - Ask only when an unresolved decision changes implementation; existing authorization persists.
 - A repeated failure needs new evidence, not another identical attempt.
 - Protect acceptance checks. Changing them requires explicit maintenance authorization.
@@ -41,7 +41,7 @@ Use `remember save -y` when asked to save without an overwrite question; saving 
 - [Library docs](context/library-docs.md): relevant official docs or installed skills.
 
 {{#if GITHUB}}
-Use a branch and PR. Keep `do-not-merge` until relevant checks pass on the final revision.
+Use a branch and PR. Add `do-not-merge` once right after opening if checks are unverified; never re-add it after later pushes.
 Branches use `feat/short-name` (or fix/docs/refactor/perf/test/build/ci/chore/revert).
 Commit and PR titles use `type(scope): short summary`, lowercase, at most 72 characters.
 For independent tasks, use a separate branch and `git worktree add`; preserve other worktrees.

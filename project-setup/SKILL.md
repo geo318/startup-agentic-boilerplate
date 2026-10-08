@@ -170,6 +170,10 @@ app `AGENTS.md` files → `build-plan.md` → decisions → the rest. Keep `AGEN
   `/plugin` commands. Write the "Token tools" section of `AGENTS.md` for the tools present, which
   is how subagents learn of them.
 - `git init -b <default-branch>` if the target is not a repository.
+- Vercel previews (if used): set up a scheduled sweep (a GitHub Actions cron or a routine in
+  `.agents/routines/`) that deletes preview deployments and per-branch resources (such as database
+  branches) once their PR is merged or closed. Dry-run first, never touch production, and document
+  it in `context/architecture/deployment.md`.
 - GitHub (if chosen): tell the user to create the `do-not-merge` label and make `Merge gate` and
   the actual job contexts (`checks`, `do-not-merge`) required checks — do not do it for them unless asked.
 

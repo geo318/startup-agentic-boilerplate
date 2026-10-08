@@ -21,4 +21,4 @@ Skipped checks and why:
 - [ ] `context/progress-tracker.md` / `context/build-plan.md`
 - [ ] Rule docs (`architecture`, `code-standards`, app `AGENTS.md`) if a boundary or rule changed
 
-`do-not-merge` stays on until every relevant check above passed on the final commit.
+Add `do-not-merge` once after opening if any check above is unverified; remove it only after every relevant check passed on the final commit.

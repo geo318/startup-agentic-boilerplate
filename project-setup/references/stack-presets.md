@@ -53,6 +53,8 @@ packages/
      remove the generator's sample apps/packages you will not use.
   2. `bunx create-next-app@latest apps/web --ts --app --tailwind --biome --use-bun --no-src-dir`
      (adjust flags to the current CLI; say no to ESLint).
+     Install the `next-dev-loop` skill (`vercel/next.js`, skills/) and make the web app's
+     `AGENTS.md` dev loop use it.
   3. API app: `bun create elysia apps/api` or a hand-made package with `src/index.ts`.
   4. Mobile (optional): `bunx create-expo-app@latest apps/mobile`.
   5. Create `packages/{core,db,shared,config,permissions,ui}` with `package.json` names
@@ -99,7 +101,8 @@ src/
 - **Request path:** `UI → feature hook → client DAL → route handler / server action → use case → repository`
 - **Flags:** `MONOREPO: false`, `apps: []`, `TYPESCRIPT, HAS_UI, NEXTJS, REQUEST_PATH_SET` on; others per brief.
 - **Commands:** from the package manager chosen (`pnpm`/`bun`); `lint` = `biome check . && oxlint`.
-- **Scaffold:** `create-next-app` at the root (before rendering docs), then the `src/server` and
+- **Scaffold:** `create-next-app` at the root (before rendering docs), install the `next-dev-loop`
+  skill (`vercel/next.js`, skills/) and use it in the dev loop, then the `src/server` and
   `src/shared` skeleton and the snippets. The rendered `.fallowrc.json` keeps `src/app` and
   `src/features` out of `src/server/db` and `src/server/modules/<module>` internals; `biome.json`
   keeps frameworks and the ORM out of `src/server/modules`.
