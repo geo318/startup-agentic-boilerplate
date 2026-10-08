@@ -207,7 +207,9 @@ function checkFile(root, file, errors) {
   });
   const tokenBudget = TOKEN_BUDGETS[rel];
   const estimatedTokens = Math.ceil(lines.join("\n").length / 4);
-  if (tokenBudget && estimatedTokens > tokenBudget) return `${rel} has ~${estimatedTokens} tokens (budget ${tokenBudget}); move topic detail into linked docs`;
+  if (tokenBudget && estimatedTokens > tokenBudget) {
+    return `${rel} has ~${estimatedTokens} tokens (budget ${tokenBudget}); move topic detail into linked docs`;
+  }
   const budget = LINE_BUDGETS[rel];
   return budget !== undefined && lines.length > budget
     ? `${rel} has ${lines.length} lines (budget ${budget}); move closed items to context/history/`
@@ -269,7 +271,9 @@ function main() {
     }
   }
   if (files.length === 0) {
-    errors.push(`no Markdown files found under ${root} — wrong --root, or the scan is skipping everything`);
+    errors.push(
+      `no Markdown files found under ${root} — wrong --root, or the scan is skipping everything`,
+    );
   }
   checkSkillsIndex(root, errors);
   checkLibraryDocs(root, errors);

@@ -57,7 +57,9 @@ function main() {
   }
   process.chdir(process.env.CLAUDE_PROJECT_DIR ?? process.cwd());
 
-  const status = spawnSync("git", ["status", "--porcelain", "--untracked-files=all"], { encoding: "utf8" });
+  const status = spawnSync("git", ["status", "--porcelain", "--untracked-files=all"], {
+    encoding: "utf8",
+  });
   const committed = branchChanges();
   const changed = (status.stdout ?? "")
     .split("\n")

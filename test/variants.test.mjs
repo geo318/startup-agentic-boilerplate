@@ -284,6 +284,7 @@ test("detector recognizes a fresh harness-only project without enabling Claude",
   const p = tmp();
   mkdirSync(join(p, ".agents/skills"), { recursive: true });
   mkdirSync(join(p, ".codex"));
+  writeFileSync(join(p, "plan.md"), "# plan\n");
   const r = spawnSync(process.execPath, [join(root, "project-setup/scripts/detect.mjs"), "--target", p], {
     encoding: "utf8",
   });

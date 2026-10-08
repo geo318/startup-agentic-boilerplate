@@ -151,8 +151,11 @@ function detectMode(root) {
   if (existsSync(join(root, "AGENTS.md")) || existsSync(join(root, "context"))) {
     return "upgrade";
   }
+  // The user's plan/brief (a top-level document) does not make a project existing.
   const meaningful = listDir(root).filter(
-    (entry) => ![".git", ".claude", ".agents", ".codex", ".cursor"].includes(entry.name),
+    (entry) =>
+      ![".git", ".claude", ".agents", ".codex", ".cursor"].includes(entry.name) &&
+      !(entry.isFile() && /\.(?:md|mdx|txt|pdf|docx?)$/i.test(entry.name)),
   );
   return meaningful.length === 0 ? "new" : "adopt";
 }

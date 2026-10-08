@@ -6,6 +6,10 @@ build/
 .turbo/
 .expo/
 coverage/
+{{#if HAS_E2E}}
+test-results/
+playwright-report/
+{{/if}}
 *.tsbuildinfo
 
 # environment — .env.example is the committed contract

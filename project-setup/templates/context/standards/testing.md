@@ -33,7 +33,11 @@
 ## Guardrails: write the test that earns its place
 
 A test is worth keeping only if it would fail on a real regression. Before adding one, name the bug
-it prevents. If you cannot, skip it.
+it prevents. If you cannot, skip it. Add tests surgically: the fewest that cover the change, none
+of low importance (trivial code, filler for coverage). A small diff does not need a new suite.
+
+**Running them:** do not run e2e or integration tests before opening a PR unless explicitly asked;
+run only the affected unit tests locally.
 
 **Write a test when:**
 

@@ -6,6 +6,10 @@
 | --- | --- | --- | --- |
 <!-- FILL: rows for local, preview (if any), production — hosting target per app, trigger (push to main, manual), and which database/branch each uses. Unknowns → build-plan "Open questions". -->
 
+## Preview cleanup
+
+<!-- FILL: Vercel previews only (delete this section otherwise): the scheduled sweep that deletes stale remote branches (PR merged or closed, or no open PR and no recent commits) and their per-branch resources (e.g. database branches) — where it runs, its schedule, the staleness threshold, and that it never deletes the default or protected branches or one with an open PR. -->
+
 ## Environment variables
 
 - One module reads the process environment and validates it at startup

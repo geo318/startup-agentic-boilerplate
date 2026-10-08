@@ -43,13 +43,16 @@ Never force cleanup to bypass those checks.
 {{#if GITHUB}}
 ## Pull requests
 
+Stacking one PR onto another branch: use `gh stack` (`init`, `add`, `submit`, `sync`; see
+`gh stack --help`), not hand-managed base branches or manual retargeting.
+
 1. **Before opening:** run the [verification checks](../../AGENTS.md#verification-before-handoff) and list each result in the PR body,
    including anything skipped and why ([PR template](../../.github/pull_request_template.md)).
-2. **Opening:** add the `do-not-merge` label whenever a check was not run, failed, or its output
-   was not read. The **Merge gate** workflow fails while it is set.
-3. **After every push:** if the push adds code you have not verified locally, re-add `do-not-merge`.
-4. **Review fixes:** follow the re-review procedure below after pushing fixes.
-5. **Merging:** remove `do-not-merge` only after every relevant check passed on the final head
+2. **Opening:** once the PR is open, add `do-not-merge` (once only, never after later pushes) if a
+   check was not run, failed, or its output was not read. The **Merge gate** workflow fails while
+   it is set.
+3. **Review fixes:** follow the re-review procedure below after pushing fixes.
+4. **Merging:** remove `do-not-merge` only after every relevant check passed on the final head
    commit. If asked to merge while it is set, say which checks are missing instead.
 
 After pushing review fixes, confirm the PR head contains the fixes, then request another review

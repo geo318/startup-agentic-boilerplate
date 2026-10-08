@@ -20,7 +20,7 @@ Load only relevant docs below. Linked constraints remain mandatory within their 
 | Why a past choice was made | [Decisions](decisions/README.md) | One record per decision |
 | Commit, push, finish a feature | [Delivery](standards/delivery.md) | Git conventions, doc hygiene |
 
-Operational procedures and design records are indexed in [docs/README.md](../docs/README.md).
+Runbooks and design records: [docs/README.md](../docs/README.md).
 
 ## Doc types
 
@@ -46,5 +46,3 @@ Operational procedures and design records are indexed in [docs/README.md](../doc
   lines, this file ≤ 80, `build-plan.md` ≤ 250, `progress-tracker.md` ≤ 300. Over budget →
   move closed items into `history/<topic>.md` and leave a one-line link.
 - Paths in prose/code spans are repository-relative; Markdown links resolve relative to their file.
-- Keep reusable skill constraints in `SKILL.md`; move long conditional examples into references
-  with explicit reading cues. Never load every reference.
