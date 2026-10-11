@@ -173,7 +173,8 @@ function included(relPath, flags) {
       ".agents/skills/remember/SKILL.md",
       ".github/pull_request_template.md",
       "docs/archive/product-brief.md",
-    ].includes(relPath)
+    ].includes(relPath) &&
+    !relPath.startsWith(".agents/skills/design-taste/")
   )
     return false;
   return manifest.when.every(

@@ -10,6 +10,7 @@
     { "path": "context/ui-registry.md", "flag": "HAS_UI" },
     { "path": "context/standards/react.md", "flag": "HAS_UI" },
     { "path": ".agents/skills/imprint", "flag": "HAS_UI" },
+    { "path": ".agents/skills/design-taste", "flag": "HAS_UI" },
     { "path": "context/standards/database.md", "flag": "HAS_DB" },
     { "path": "context/architecture/tenant-isolation.md", "flag": "MULTI_TENANT" },
     { "path": "context/architecture/authorization.md", "flag": "HAS_AUTH" },

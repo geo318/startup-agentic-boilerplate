@@ -34,6 +34,7 @@ const OWN_SKILLS = new Set([
   "recover",
   "remember",
   "imprint",
+  "design-taste",
   "add-library-skill",
 ]);
 const TOKEN_BUDGETS = { "AGENTS.md": 1500, "context/README.md": 800 }; // estimated characters / 4

@@ -163,7 +163,9 @@ app `AGENTS.md` files → `build-plan.md` → decisions → the rest. Keep `AGEN
 - Install only useful library skills for the confirmed stack per
   [references/skills-catalog.md](references/skills-catalog.md); fill `.agents/README.md` and
   `context/library-docs.md` from what was actually installed, then regenerate the catalog with
-  `<runtime> scripts/skills/index.mjs`. A dependency with no catalog entry goes through the
+  `<runtime> scripts/skills/index.mjs`. UI-enabled projects already include the optional
+  `design-taste` planning skill; its long `DESIGN.md` reference is never needed during setup
+  or routine implementation. A dependency with no catalog entry goes through the
   generated `/add-library-skill` workflow in full setup. In lean setup, add its official docs
   or a "Needs no notes" entry directly; install a skill only when it adds useful guidance.
 - Token tools the user accepted: give them the install commands (token-tools.md); you cannot run

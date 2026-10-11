@@ -90,6 +90,7 @@ Read only the rows your task touches. [context/README.md](context/README.md) map
 | Product | [overview](context/project-overview.md), [glossary](context/glossary.md) |
 {{#if HAS_UI}}
 | UI work (components, styling, forms) | [UI rules](context/ui-rules.md), [UI tokens](context/ui-tokens.md) |
+| Visual design planning, redesign, or Stitch briefs | [design-taste](.agents/skills/design-taste/SKILL.md) (detailed reference only on demand) |
 | React state, data fetching, caching, performance | [React](context/standards/react.md) |
 | Building or matching a UI component | [UI registry](context/ui-registry.md), then `/imprint` after |
 {{/if}}

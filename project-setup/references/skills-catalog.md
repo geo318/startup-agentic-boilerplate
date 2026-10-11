@@ -6,6 +6,10 @@ templates and are not listed here. For a library not listed, the generated `/add
 decides whether the package needs a skill at all, searches skills.sh (`npx skills find`) and the
 web, vets the candidate, and installs it without asking.
 
+UI-enabled projects already ship the optional `design-taste` visual planning skill with a
+local, on-demand Taste Standard reference. It needs no separate install and does not replace
+approved design tokens.
+
 ## How to install
 
 Prefer the upstream source through the skills CLI, which records a pin in `skills-lock.json`:

@@ -39,6 +39,9 @@ Use `remember save -y` when asked to save without an overwrite question; saving 
 - [Build plan](context/build-plan.md): open work and decisions.
 - [Progress](context/progress-tracker.md): prior evidence and handoff.
 - [Library docs](context/library-docs.md): relevant official docs or installed skills.
+{{#if HAS_UI}}
+- [Design taste](.agents/skills/design-taste/SKILL.md): visual design plans only; load its long reference on demand.
+{{/if}}
 
 {{#if GITHUB}}
 Use a branch and PR. Add `do-not-merge` once right after opening if checks are unverified; re-add only if removed and a later push is unverified.
