@@ -14,6 +14,10 @@ operation needs. Never load every skill in a category or every reference a skill
 
 For skills outside these common workflows, use the [complete skill catalog](skills-index.md).
 
+{{#if HAS_UI}}
+For visual design planning, redesigns, and Stitch screen briefs, use
+[design-taste](skills/design-taste/SKILL.md). Its long reference is **not** for routine UI edits.
+{{/if}}
 ## Workflow
 
 See [root workflow guidance](../AGENTS.md#workflow-skills) for when to use project skills.

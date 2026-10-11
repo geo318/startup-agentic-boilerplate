@@ -12,6 +12,7 @@ Load only relevant docs below. Linked constraints remain mandatory within their 
 | Implementation conventions | [Code standards](code-standards.md) | `standards/` |
 {{#if HAS_UI}}
 | Visual values and component rules | [Tokens](ui-tokens.md), [UI rules](ui-rules.md) | Keep these short and shared |
+| New visual direction or redesign plan | [Design taste](../.agents/skills/design-taste/SKILL.md) | Read its Taste Standard reference only when planning |
 | Match or capture a component pattern | [UI registry](ui-registry.md) | `ui/`; follow the component link |
 {{/if}}
 | Choose library guidance | [Library docs](library-docs.md) | [Skill index](../.agents/README.md) |
