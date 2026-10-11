@@ -17,7 +17,6 @@
 Original reference: [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill/blob/main/skills/stitch-skill/DESIGN.md), MIT license in [LICENSE](LICENSE).
 
 ---
----
 
 ## Configuration — Set Your Style
 Adjust these dials before using this design system. They control how creative, dense, and animated the output should be. Pick the level that fits your project.
