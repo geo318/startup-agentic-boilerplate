@@ -1,0 +1,12 @@
+{
+  "name": "@geo318/project-setup",
+  "version": "0.1.0",
+  "description": "Coding-agent skill that sets up a project from a plan, plus a sync command to take in template updates.",
+  "type": "module",
+  "bin": { "project-setup": "bin/cli.mjs" },
+  "files": ["bin", "project-setup"],
+  "engines": { "node": ">=22" },
+  "publishConfig": { "access": "public" },
+  "repository": "github:geo318/startup-agentic-boilerplate",
+  "license": "UNLICENSED"
+}
