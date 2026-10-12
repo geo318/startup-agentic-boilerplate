@@ -3,6 +3,13 @@
 Update a project with `npm update @geo318/agentic-boilerplate`, then
 `npx agentic-boilerplate sync --dry-run` and rerun without `--dry-run`.
 
+## 0.1.2 — 2026-10-12
+
+- `install` in a project that has the package as a devDependency links `.agents/skills/project-setup`
+  to `node_modules` instead of copying, so `npm update` also updates the skill. Rerun
+  `npx agentic-boilerplate install . --force` to replace an earlier copy.
+- README rewritten around why to use the setup; the publish workflow only releases tags on `main`.
+
 ## 0.1.1 — 2026-10-12
 
 - Package renamed from `@geo318/project-setup` (deprecated) to `@geo318/agentic-boilerplate`;

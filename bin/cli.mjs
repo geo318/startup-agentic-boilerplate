@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// agentic-boilerplate install [dir|--global] [--link] [--force]  → copy the skill into .agents/skills
+// agentic-boilerplate install [dir|--global] [--link] [--force]  → link (devDependency) or copy the skill into .agents/skills
 // agentic-boilerplate sync [dir] [--dry-run]                      → take in template updates
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, lstatSync, mkdirSync, rmSync, symlinkSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const skill = resolve(dirname(fileURLToPath(import.meta.url)), "../project-setup");
@@ -24,9 +24,13 @@ if (cmd === "install") {
   }
   mkdirSync(dirname(dest), { recursive: true });
   mkdirSync(dirname(claude), { recursive: true });
-  if (flags.includes("--link")) symlinkSync(skill, dest); else cpSync(skill, dest, { recursive: true });
+  // Installed as a dependency of the target: link into node_modules so `npm update` updates the skill.
+  const dep = join(target, "node_modules/@geo318/agentic-boilerplate/project-setup");
+  if (existsSync(dep)) symlinkSync(relative(dirname(dest), dep), dest);
+  else if (flags.includes("--link")) symlinkSync(skill, dest);
+  else cpSync(skill, dest, { recursive: true });
   symlinkSync("../../.agents/skills/project-setup", claude);
-  console.log(`installed → ${dest}\nClaude Code link → ${claude}`);
+  console.log(`installed → ${dest}${existsSync(dep) ? " (linked to node_modules)" : ""}\nClaude Code link → ${claude}`);
 } else if (cmd === "sync") {
   const target = resolve(dir ?? ".");
   const answers = join(target, "docs/archive/project-setup.answers.json");
