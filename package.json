@@ -1,12 +1,22 @@
 {
   "name": "@geo318/agentic-boilerplate",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Coding-agent skill that sets up a project from a plan, plus a sync command to take in template updates.",
   "type": "module",
-  "bin": { "agentic-boilerplate": "bin/cli.mjs" },
-  "files": ["bin", "project-setup", "CHANGELOG.md"],
-  "engines": { "node": ">=22" },
-  "publishConfig": { "access": "public" },
+  "bin": {
+    "agentic-boilerplate": "bin/cli.mjs"
+  },
+  "files": [
+    "bin",
+    "project-setup",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": "github:geo318/startup-agentic-boilerplate",
   "homepage": "https://github.com/geo318/startup-agentic-boilerplate#readme",
   "license": "UNLICENSED"
