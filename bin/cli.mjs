@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// project-setup install [dir|--global] [--link] [--force]  → copy the skill into .agents/skills
-// project-setup sync [dir] [--dry-run]                      → take in template updates
+// agentic-boilerplate install [dir|--global] [--link] [--force]  → copy the skill into .agents/skills
+// agentic-boilerplate sync [dir] [--dry-run]                      → take in template updates
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, lstatSync, mkdirSync, rmSync, symlinkSync } from "node:fs";
 import { homedir } from "node:os";
@@ -14,7 +14,7 @@ const dir = rest.find((a) => !a.startsWith("-"));
 const fail = (msg) => { console.error(msg); process.exit(1); };
 
 if (cmd === "install") {
-  const target = flags.includes("--global") || flags.includes("-g") ? homedir() : resolve(dir ?? fail("usage: project-setup install <dir>|--global [--link] [--force]"));
+  const target = flags.includes("--global") || flags.includes("-g") ? homedir() : resolve(dir ?? fail("usage: agentic-boilerplate install <dir>|--global [--link] [--force]"));
   const dest = join(target, ".agents/skills/project-setup");
   const claude = join(target, ".claude/skills/project-setup");
   for (const p of [dest, claude]) {
@@ -35,5 +35,5 @@ if (cmd === "install") {
   if (flags.includes("--dry-run")) args.push("--dry-run");
   process.exit(spawnSync(process.execPath, args, { stdio: "inherit" }).status ?? 1);
 } else {
-  fail("usage: project-setup install <dir>|--global [--link] [--force]\n       project-setup sync [dir] [--dry-run]");
+  fail("usage: agentic-boilerplate install <dir>|--global [--link] [--force]\n       agentic-boilerplate sync [dir] [--dry-run]");
 }
