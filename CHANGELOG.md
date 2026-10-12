@@ -3,6 +3,10 @@
 Update a project with `npm update @geo318/agentic-boilerplate`, then
 `npx agentic-boilerplate sync --dry-run` and rerun without `--dry-run`.
 
+## 0.1.3 — 2026-10-12
+
+- `package.json` `repository` uses the object form npm expects; no functional changes.
+
 ## 0.1.2 — 2026-10-12
 
 - `install` in a project that has the package as a devDependency links `.agents/skills/project-setup`

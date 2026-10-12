@@ -17,7 +17,10 @@
   "publishConfig": {
     "access": "public"
   },
-  "repository": "github:geo318/startup-agentic-boilerplate",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/geo318/startup-agentic-boilerplate.git"
+  },
   "homepage": "https://github.com/geo318/startup-agentic-boilerplate#readme",
   "license": "UNLICENSED"
 }
