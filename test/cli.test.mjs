@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdtempSync, readlinkSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, lstatSync, readlinkSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -26,6 +26,13 @@ test("install links to the skill in node_modules when it is a dependency", () =>
   rmSync(join(dir, "node_modules"), { recursive: true });
   const index = new URL("../project-setup/templates/scripts/skills/index.mjs", import.meta.url).pathname;
   assert.equal(spawnSync(process.execPath, [index, "--root", dir], { encoding: "utf8" }).status, 0, "dangling link before npm install");
+});
+
+test("--global copies even when the home directory has the package installed", () => {
+  const home = mkdtempSync(join(tmpdir(), "cli-"));
+  cpSync(new URL("../project-setup", import.meta.url).pathname, join(home, "node_modules/@geo318/agentic-boilerplate/project-setup"), { recursive: true });
+  assert.equal(spawnSync(process.execPath, [cli, "install", "--global"], { encoding: "utf8", env: { ...process.env, HOME: home } }).status, 0);
+  assert.ok(!lstatSync(join(home, ".agents/skills/project-setup")).isSymbolicLink());
 });
 
 test("sync fails outside a project-setup project", () => {
