@@ -23,4 +23,5 @@ playwright-report/
 temp/
 .claude/settings.local.json
 .claude/worktrees/
+.worktrees/
 .project-setup/

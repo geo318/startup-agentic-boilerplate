@@ -26,6 +26,7 @@ const SKIP_DIRS = new Set([
   "coverage",
   "temp",
   "worktrees",
+  ".worktrees",
 ]);
 // Upstream skills are vendored as-is; only the project's own workflow skills are checked.
 const OWN_SKILLS = new Set([

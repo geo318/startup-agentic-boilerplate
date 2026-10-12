@@ -32,13 +32,19 @@ For independent tasks or parallel work, use one branch and worktree per task/PR:
 
 ```bash
 git fetch origin
-git worktree add ../<repo>-<task> -b feat/<task> origin/{{DEFAULT_BRANCH}}
+git worktree add .worktrees/<task> -b feat/<task> origin/{{DEFAULT_BRANCH}}
 ```
+
+Keep worktrees inside the repo under `.worktrees/` (gitignored). Never create them outside the repo dir.
 
 Install dependencies per worktree; keep secrets out of Git. Use separate ports when running
 multiple dev servers. Do not modify or remove another person's worktree. After merge, check
 for uncommitted and unpushed work before using `git worktree remove <path>` and `git branch -d <branch>`.
 Never force cleanup to bypass those checks.
+
+Occasional cleanup: at the start of a task, or when `git worktree list` shows more than a few, run
+`git worktree prune` and remove worktrees whose branch is merged or deleted upstream (same checks as
+above). Leave unmerged or dirty ones alone and mention them.
 
 {{#if GITHUB}}
 ## Pull requests
