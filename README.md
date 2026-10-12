@@ -33,7 +33,7 @@ One skill, `project-setup`, reads your plan and sets up the repo so any agent kn
 | --- | --- |
 | Agents forget | `AGENTS.md` plus a routed `context/` doc set: the product, glossary, code map and architecture, loaded only when needed |
 | Agents guess | Invariants, code standards and a "where do I change X?" map, with scoped rules per app |
-| No proof of done | Git hooks, CI with a merge gate, and a stop hook that sends failing checks back to the agent before it hands off |
+| No proof of done | Git hooks, CI with a merge gate, and a required check run before handoff (in Claude Code, a stop hook sends failures back to the agent automatically) |
 | Docs rot | `docs-check` fails on dead links, leftover placeholders, oversized docs and undocumented dependencies |
 | No plan | A build plan with milestones and a progress tracker that records dated evidence |
 | Lost sessions | A `remember` skill that saves and restores a handoff between sessions |
@@ -70,7 +70,7 @@ The agent reads the plan and asks only what it can't infer (preset, tenancy, cod
 | **UI** | `ui-rules.md`, `ui-tokens.md`, `ui-registry.md`, `design-taste` skill | Visual rules and on-demand design guidance |
 | **Planning** | `build-plan.md`, `progress-tracker.md`, `decisions/` | Milestones, dated progress, ADRs |
 | **Skills** | `architect`, `review`, `recover`, `remember`, `imprint`, `add-library-skill` | Repeatable agent workflows |
-| **Checks** | `scripts/checks/docs-check.mjs`, agent stop hook | Docs stay true; failures go back to the agent |
+| **Checks** | `scripts/checks/docs-check.mjs`, Claude Code stop hook | Docs stay true; in Claude Code, failures go back to the agent |
 | **Git & CI** | `.githooks/`, `ci.yml`, `merge-gate.yml`, PR template, Dependabot | Branch, commit and PR rules, enforced |
 | **Code quality** | `biome.json`, strict `tsconfig`, `.fallowrc.json`, oxlint | Boundaries, dead code, duplication, complexity |
 
@@ -135,9 +135,9 @@ install.sh              install from a clone (--link for live edits)
 ```
 
 - **Test:** `node --test 'test/*.test.mjs'`
-- **Try a template change:** `node project-setup/scripts/scaffold.mjs --answers a.json --target /tmp/x`, then `node /tmp/x/scripts/checks/docs-check.mjs --root /tmp/x`
+- **Try a template change:** render with `node project-setup/scripts/scaffold.mjs --answers a.json --target /tmp/x`, stand in for the agent's prose with `grep -rl --null '<!-- FILL:' /tmp/x | xargs -0 perl -0pi -e 's/<!-- FILL:.*?-->/Fixture./gs'`, then run `node /tmp/x/scripts/checks/docs-check.mjs --root /tmp/x`
 - **Token audit:** `node project-setup/scripts/token-audit.mjs --target <repo> --harness claude|codex|all`
-- **Release:** add a `CHANGELOG.md` entry, then `npm version patch && git push --follow-tags`. CI tests and publishes the tag.
+- **Release:** merge to `main`, then on an up-to-date `main` add a `CHANGELOG.md` entry and run `npm version patch && git push --follow-tags`. CI publishes the tag only if its commit is on `main`.
 - **Install from a clone:** `./install.sh --global --link`, so edits here apply immediately.
 
 The skill can report setup bugs it hits back upstream (`auto`, `ask` or `off`, default `ask`), using synthetic examples with project data redacted. See [upstream reporting](project-setup/references/upstream-reporting.md).
