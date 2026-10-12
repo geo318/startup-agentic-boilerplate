@@ -1,5 +1,9 @@
 # Startup agentic boilerplate
 
+[![npm](https://img.shields.io/npm/v/@geo318/agentic-boilerplate)](https://www.npmjs.com/package/@geo318/agentic-boilerplate)
+
+On npm as [`@geo318/agentic-boilerplate`](https://www.npmjs.com/package/@geo318/agentic-boilerplate) · [release notes](CHANGELOG.md)
+
 A shared coding-agent skill, `project-setup`, that turns a product plan into a ready-to-build repository
 with project documentation and checks: agent rules, a routed
 `context/` doc set, invariants, a build plan and progress tracker, workflow skills, git
@@ -8,10 +12,13 @@ conventions, CI with a merge gate — and optionally the stack's code skeleton.
 ## Install
 
 ```bash
-npx @geo318/project-setup install --global     # every project; rerun with --force to update the skill
-npx @geo318/project-setup install ~/apps/new-thing
-npx @geo318/project-setup@latest sync          # in a set-up project: take in template updates (--dry-run first)
+npm i -D @geo318/agentic-boilerplate        # in a project: pinned as a devDependency
+npx agentic-boilerplate install .           # put the skill in .agents/skills (--force to refresh)
+npx agentic-boilerplate sync --dry-run      # take in template updates, then rerun without --dry-run
+npm update @geo318/agentic-boilerplate      # get newer templates before syncing
 ```
+
+Global skill without a project: `npx @geo318/agentic-boilerplate install --global`.
 
 Or from a clone:
 
@@ -73,7 +80,7 @@ docs, layer folders) and the setup fits the project instead of reshaping it:
   defaults, and optional moves toward them — done only when asked;
 - existing `AGENTS.md`, `CLAUDE.md`, and `.claude/settings.json` are merged, never overwritten.
 
-Later, `/project-setup` again (or `npx @geo318/project-setup@latest sync`) in a set-up project runs **sync**: files the project never edited
+Later, `/project-setup` again (or `npx agentic-boilerplate sync`) in a set-up project runs **sync**: files the project never edited
 are updated to the current templates, edited files are left alone, and files changed on both
 sides are put in `.project-setup/sync/` to merge (tracked by `docs/archive/project-setup.lock.json`).
 
