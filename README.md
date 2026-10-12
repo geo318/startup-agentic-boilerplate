@@ -6,6 +6,7 @@
 
 [![npm](https://img.shields.io/npm/v/@geo318/agentic-boilerplate?color=cb3837&logo=npm)](https://www.npmjs.com/package/@geo318/agentic-boilerplate)
 [![CI](https://github.com/geo318/startup-agentic-boilerplate/actions/workflows/ci.yml/badge.svg)](https://github.com/geo318/startup-agentic-boilerplate/actions/workflows/ci.yml)
+[![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 ![node](https://img.shields.io/badge/node-%E2%89%A522-339933?logo=node.js&logoColor=white)
 ![works with](https://img.shields.io/badge/works%20with-Claude%20Code%20·%20Codex%20·%20any%20agent-6b4fbb)
 
