@@ -1,171 +1,145 @@
-# Startup agentic boilerplate
+<div align="center">
 
-[![npm](https://img.shields.io/npm/v/@geo318/agentic-boilerplate)](https://www.npmjs.com/package/@geo318/agentic-boilerplate)
+# 🤖 Agentic Boilerplate
 
-On npm as [`@geo318/agentic-boilerplate`](https://www.npmjs.com/package/@geo318/agentic-boilerplate) · [release notes](CHANGELOG.md)
+**Turn a product plan into a repo that coding agents can actually build in.**
 
-A shared coding-agent skill, `project-setup`, that turns a product plan into a ready-to-build repository
-with project documentation and checks: agent rules, a routed
-`context/` doc set, invariants, a build plan and progress tracker, workflow skills, git
-conventions, CI with a merge gate — and optionally the stack's code skeleton.
+[![npm](https://img.shields.io/npm/v/@geo318/agentic-boilerplate?color=cb3837&logo=npm)](https://www.npmjs.com/package/@geo318/agentic-boilerplate)
+[![CI](https://github.com/geo318/startup-agentic-boilerplate/actions/workflows/ci.yml/badge.svg)](https://github.com/geo318/startup-agentic-boilerplate/actions/workflows/ci.yml)
+![node](https://img.shields.io/badge/node-%E2%89%A522-339933?logo=node.js&logoColor=white)
+![works with](https://img.shields.io/badge/works%20with-Claude%20Code%20·%20Codex%20·%20any%20agent-6b4fbb)
 
-## Install
+[Quick start](#-quick-start) · [What you get](#-what-you-get) · [Staying up to date](#-staying-up-to-date) · [Release notes](CHANGELOG.md)
+
+</div>
+
+---
+
+## Why
+
+Coding agents are fast, but in a bare repo they work blind:
+
+- 🧠 **They forget everything.** Every session starts from zero, and you re-explain the product, the stack and the rules.
+- 🧭 **They guess.** Where does this code go? Which library do we use? They don't know, so each session invents its own answer.
+- ✅ **They say "done" without proof.** Nothing checks that tests ran, the docs still match the code, or the architecture held.
+- 📉 **Docs rot.** Whatever context you wrote goes stale the moment the code moves, and the agent trusts it anyway.
+- 🔁 **Every project starts from scratch.** You rebuild the same rules, hooks and CI by hand, a little differently each time.
+
+## What it does
+
+One skill, `project-setup`, reads your plan and sets up the repo so any agent knows **what the product is, where things go, what's next, and how to prove its work.**
+
+| Problem | What the setup gives you |
+| --- | --- |
+| Agents forget | `AGENTS.md` plus a routed `context/` doc set: the product, glossary, code map and architecture, loaded only when needed |
+| Agents guess | Invariants, code standards and a "where do I change X?" map, with scoped rules per app |
+| No proof of done | Git hooks, CI with a merge gate, and a required check run before handoff (in Claude Code, a stop hook sends failures back to the agent automatically) |
+| Docs rot | `docs-check` fails on dead links, leftover placeholders, oversized docs and undocumented dependencies |
+| No plan | A build plan with milestones and a progress tracker that records dated evidence |
+| Lost sessions | A `remember` skill that saves and restores a handoff between sessions |
+| Same setup every time | One command, one template source, and **sync** to roll improvements into every project |
+
+Structure is rendered **deterministically** by a script with no dependencies. Only the prose that needs judgement is written by the agent, from your plan, and the checks fail until it's all filled in.
+
+## 🚀 Quick start
 
 ```bash
-npm i -D @geo318/agentic-boilerplate        # in a project: pinned as a devDependency
-npx agentic-boilerplate install .           # put the skill in .agents/skills (--force to refresh)
-npx agentic-boilerplate sync --dry-run      # take in template updates, then rerun without --dry-run
-npm update @geo318/agentic-boilerplate      # get newer templates before syncing
+npm i -D @geo318/agentic-boilerplate   # pin it in your project
+npx agentic-boilerplate install .      # add the skill to .agents/skills (+ .claude/skills link)
 ```
 
-Global skill without a project: `npx @geo318/agentic-boilerplate install --global`.
+Then hand the agent your plan:
 
-Or from a clone:
+```text
+/project-setup ./plan.md        # Claude Code
+$project-setup ./plan.md        # Codex
+```
+
+The agent reads the plan and asks only what it can't infer (preset, tenancy, code skeleton, forge). It shows one summary to confirm, then renders and fills everything, runs the checks, and hands off with your first `/architect` task.
+
+> Want it in every project? `npx @geo318/agentic-boilerplate install --global`
+
+## 📦 What you get
+
+| Area | Files | What it's for |
+| --- | --- | --- |
+| **Agent rules** | `AGENTS.md`, `CLAUDE.md`, `apps/*/AGENTS.md` | Root rules plus a dev loop and scoped rules per app |
+| **Project context** | `context/project-overview.md`, `glossary.md`, `code-map.md` | What it is, the vocabulary, and where code lives |
+| **Architecture** | `context/architecture/*` | Domain modules, deployment, tenant isolation, auth, AI |
+| **Standards** | `context/standards/*` | Design principles, code organisation, React, TypeScript, testing, delivery, database |
+| **UI** | `ui-rules.md`, `ui-tokens.md`, `ui-registry.md`, `design-taste` skill | Visual rules and on-demand design guidance |
+| **Planning** | `build-plan.md`, `progress-tracker.md`, `decisions/` | Milestones, dated progress, ADRs |
+| **Skills** | `architect`, `review`, `recover`, `remember`, `imprint`, `add-library-skill` | Repeatable agent workflows |
+| **Checks** | `scripts/checks/docs-check.mjs`, Claude Code stop hook | Docs stay true; in Claude Code, failures go back to the agent |
+| **Git & CI** | `.githooks/`, `ci.yml`, `merge-gate.yml`, PR template, Dependabot | Branch, commit and PR rules, enforced |
+| **Code quality** | `biome.json`, strict `tsconfig`, `.fallowrc.json`, oxlint | Boundaries, dead code, duplication, complexity |
+
+Files are gated by flags (UI, Next.js, DB, auth, multi-tenant, AI, jobs, GitHub, TypeScript), so a backend-only or non-TypeScript project gets only what applies.
+
+### Lean or full
+
+| | **Full** (default) | **Lean** (`flags.LEAN: true`) |
+| --- | --- | --- |
+| Commands, invariants, code map, plan, tracker, library docs | ✅ | ✅ |
+| Hooks and CI | ✅ | ✅ |
+| Architecture and standards docs | ✅ | — |
+| Workflow skills | all | `remember` only |
+| fallow config | ✅ | — |
+
+## 🏗️ Existing projects
+
+The same command works in a repo that already has code. It inventories the repo first (package manager, apps, frameworks, linter, hooks, CI, agent docs) and **fits around it** instead of reshaping it:
+
+- Your linter, hooks and CI stay; the new checks are added alongside them.
+- Gates judge **only new code**, so existing debt never blocks you.
+- Existing `AGENTS.md`, `CLAUDE.md` and `.claude/settings.json` are merged, never overwritten.
+- `context/plans/adoption.md` records the debt you started with and optional moves toward the defaults.
+
+## 🔄 Staying up to date
+
+Templates improve over time. Pull the improvements into any project:
 
 ```bash
-./install.sh --global --link        # available in every project; edits here apply immediately
-./install.sh ~/apps/new-thing       # or only inside one project
+npm update @geo318/agentic-boilerplate
+npx agentic-boilerplate sync --dry-run   # preview
+npx agentic-boilerplate sync             # apply
 ```
 
-The installer writes to `.agents/skills/project-setup` and adds a Claude compatibility symlink
-in `.claude/skills/`. Existing installs are never overwritten; move them aside before reinstalling.
-Requires Node 22+ (or Bun) and Git; the setup scripts use built-ins and need no package install.
+| File state | What sync does |
+| --- | --- |
+| You never edited it | Updated |
+| Only you changed it | Left alone |
+| You **and** the template changed it | Staged in `.project-setup/sync/` for you or your agent to merge |
+| Missing | Created |
 
-## Use
+Changes are listed in the [release notes](CHANGELOG.md).
 
-In an empty directory or an existing repository, use your harness’s skill picker:
-Codex: `$project-setup ./plan.md`. Claude Code:
+## 🤝 Works with
 
-```
-/project-setup ./plan.md
-```
+**Claude Code**, **Codex**, or any agent that can read Markdown and run shell commands. `.agents/skills/` is the canonical location, and Claude gets symlinks in `.claude/skills/`. Requires **Node 22+** (or Bun) and Git.
 
-or paste the plan. The skill reads the plan, asks only what it cannot infer (preset, tenancy,
-whether to scaffold code, forge), shows one summary for confirmation, then renders and fills
-everything, runs the checks, and hands off with the first `/architect` task.
+---
 
-## Lean or full setup
+<details>
+<summary><b>Maintaining this repo</b></summary>
 
-For a small project, choose `flags.LEAN: true` during intake. This keeps commands, invariants,
-a code map, build plan, progress tracker, library docs, and applicable hooks/CI. It omits generic
-architecture documents, workflow skills other than `remember`, and fallow configuration. Existing tooling stays in place.
-Full setup remains the default when `LEAN` is absent or false. Switching to lean with `--sync`
-does not delete existing files.
-
-UI-enabled projects in either preset include the optional `design-taste` skill: the root
-Markdown entry routes visual design plans to a short `SKILL.md`, while the detailed Taste
-Standard `DESIGN.md` stays local and is only read when needed. Existing design tokens and
-project-specific rules remain authoritative. Non-UI projects exclude it.
-
-## Session continuity
-
-Both presets include `remember`. When a new session reads `AGENTS.md`, it is instructed to
-restore existing `memory.md` once, check current state, and continue your request. This relies
-on the agent following repository instructions; no startup hook or background service runs.
-
-Use `/remember save -y` (Codex: `$remember save -y`) to sync project docs and replace the handoff
-without an overwrite question. Plain `save` asks before replacing existing memory. Saving is
-explicit. `/remember restore` is also available manually; missing memory is skipped on startup.
-
-## Existing projects
-
-The same command works inside a repository that already has code. `scripts/detect.mjs`
-inventories it first (package manager, apps and frameworks, scripts, linter, hooks, CI, agent
-docs, layer folders) and the setup fits the project instead of reshaping it:
-
-- its linter, git hooks, and CI stay; the checks (docs-check, conventions, fallow, oxlint
-  architecture rules) are added to them;
-- gates judge only new code (`fallow audit`, changed-file lint), so existing debt never blocks;
-- `context/plans/adoption.md` records the debt at adoption, where the repo differs from the
-  defaults, and optional moves toward them — done only when asked;
-- existing `AGENTS.md`, `CLAUDE.md`, and `.claude/settings.json` are merged, never overwritten.
-
-Later, `/project-setup` again (or `npx agentic-boilerplate sync`) in a set-up project runs **sync**: files the project never edited
-are updated to the current templates, edited files are left alone, and files changed on both
-sides are put in `.project-setup/sync/` to merge (tracked by `docs/archive/project-setup.lock.json`).
-
-## What a full generated project gets
-
-```
-AGENTS.md · CLAUDE.md (@AGENTS.md) · README.md · .env.example · .gitignore
-apps/<app>/AGENTS.md + CLAUDE.md          per-app dev loop and scoped rules
-context/
-  README.md            doc map, doc types, maintenance + size budgets
-  project-overview.md  users, non-goals, stack, apps, packages, product areas
-  glossary.md          agreed vocabulary
-  code-map.md          "where do I change X?"
-  agents-map.md        which AGENTS.md covers what
-  architecture.md      router → architecture/{domain-modules,deployment,tenant-isolation,authorization,ai}.md
-  code-standards.md    router → standards/{design-principles,code-organisation,react,typescript,
-                       testing,delivery,database}.md
-  ui-rules.md · ui-tokens.md · ui-registry.md
-  library-docs.md      library → official docs or skill → project deviations
-  build-plan.md        milestones (M0 foundation, M1 vertical slice…), open questions, blockers
-  progress-tracker.md  dated evidence; rotates into history/
-  plans/ · history/ · decisions/ (ADR 0001 initial stack)
-docs/  README.md · local-setup.md · archive/product-brief.md (your plan, verbatim)
-.agents/README.md + skills/{architect,review,recover,remember,imprint,add-library-skill}
-                               (+ .claude/skills symlinks)
-.agents/routines/docs-audit.md weekly scheduled-agent prompt: audit docs vs code, open a PR
-.agents/skills/design-taste/  UI-only, opt-in visual planning skill + reference
-.agents/skills-index.md        complete skill catalog, generated by scripts/skills/index.mjs
-.claude/settings.json          allowlist + Stop hook (scripts/checks/agent-stop.mjs): docs-check and
-                               `fallow audit` on changed files, failures sent back to the agent
-.githooks/ + scripts/git/conventions.mjs     branch / commit / PR-title rules
-scripts/checks/docs-check.mjs  placeholders, dead links + anchors, doc size budgets, stale catalog,
-                               dependencies missing from context/library-docs.md
-.github/  ci.yml · merge-gate.yml (do-not-merge) · PR template · dependabot
-biome.json · tsconfig.base.json (strict)     TypeScript presets only; Biome enforces kebab-case
-                                             files, no import cycles, no `export *`, no framework/ORM
-                                             imports or raw `fetch` in domain modules
-.fallowrc.json                               boundary zones (routes ↛ db, modules only via index.ts),
-                                             dead code, duplication, complexity; `lint` also runs
-                                             oxlint with the anti-slop plugin
-```
-
-Files are gated by flags (UI, Next.js, DB, auth, multi-tenant, AI, jobs, GitHub, TypeScript), so a
-backend-only or non-TypeScript project gets only what applies.
-
-## Layout of this repo
-
-```
+```text
 project-setup/
-  SKILL.md                     the workflow the agent follows
-  references/                  intake + answers schema, stack presets, invariants catalog,
-                               doc-system rationale, skills catalog, adopt recipes
-  templates/                   the output tree ({{VAR}}, {{#if FLAG}}, {{#each APPS}}, FILL markers)
-  scripts/scaffold.mjs         deterministic renderer + lock/--sync (Node/Bun, no dependencies)
-  scripts/detect.mjs           read-only inventory of a target repo → mode + draft answers
-  snippets/ts/                 tryCatch, Guard/hasKey
-install.sh
+  SKILL.md              the workflow the agent follows
+  references/           intake schema, stack presets, invariants, skills catalog, adopt recipes
+  templates/            the output tree ({{VAR}}, {{#if FLAG}}, {{#each APPS}}, FILL markers)
+  scripts/scaffold.mjs  deterministic renderer + lock file + --sync
+  scripts/detect.mjs    read-only inventory of an existing repo
+bin/cli.mjs             npm CLI: install, sync
+install.sh              install from a clone (--link for live edits)
 ```
 
-Structure is rendered deterministically by the script; prose that needs judgement is left as
-`<!-- FILL: instruction -->` markers that the agent writes from your plan, and `docs-check.mjs`
-fails until none remain.
+- **Test:** `node --test 'test/*.test.mjs'`
+- **Try a template change:** render with `node project-setup/scripts/scaffold.mjs --answers a.json --target /tmp/x`, stand in for the agent's prose with `grep -rl --null '<!-- FILL:' /tmp/x | xargs -0 perl -0pi -e 's/<!-- FILL:.*?-->/Fixture./gs'`, then run `node /tmp/x/scripts/checks/docs-check.mjs --root /tmp/x`
+- **Token audit:** `node project-setup/scripts/token-audit.mjs --target <repo> --harness claude|codex|all`
+- **Release:** merge to `main`, then on an up-to-date `main` add a `CHANGELOG.md` entry and run `npm version patch && git push --follow-tags`. CI publishes the tag only if its commit is on `main`.
+- **Install from a clone:** `./install.sh --global --link`, so edits here apply immediately.
 
-## Found a problem?
+The skill can report setup bugs it hits back upstream (`auto`, `ask` or `off`, default `ask`), using synthetic examples with project data redacted. See [upstream reporting](project-setup/references/upstream-reporting.md).
 
-The skill asks once whether it may report setup-tool bugs upstream (`auto`, `ask`, or `off`;
-default `ask`). Important bugs get a fix PR with a regression test; moderate issues get an issue;
-minor problems are mentioned in the handoff. Reports use synthetic examples and redact project data.
-See [upstream reporting](project-setup/references/upstream-reporting.md).
-
-After review comments are addressed and fixes are pushed, generated PR guidance requests
-re-review with the configured agent's comment trigger (for Codex, `@codex review`), once per
-head commit. This is agent guidance, not a background automation.
-
-## Maintaining it
-
-- A rule that proved itself in a real project → port it to `templates/` or
-  `references/invariants-catalog.md`.
-- Test a template change: write an answers file (schema in `references/intake.md`), render into
-  a temp dir with `node project-setup/scripts/scaffold.mjs --answers a.json --target /tmp/x`,
-  strip FILL markers, and run `node /tmp/x/scripts/checks/docs-check.mjs --root /tmp/x`.
-
-Run the repository checks with `node --test 'test/*.test.mjs'`. They exercise rendering,
-no-overwrite/sync behavior, installation, setup variants, documentation checks, and token audits.
-These checks validate the tooling; they do not establish model quality or token savings.
-
-For instruction-size estimates, use `node project-setup/scripts/token-audit.mjs --target <repo> --harness codex` (or `claude`/`all`). Usage telemetry is Claude-only, so a Codex or mixed inventory
-never treats missing Claude calls as evidence that a skill is unused.
+</details>
