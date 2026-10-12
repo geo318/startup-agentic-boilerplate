@@ -202,8 +202,9 @@ workflows (`bunx yaml-lint` or `python3 -c "import yaml,sys;yaml.safe_load(open(
   (`scripts/token-audit.mjs`) and add its suggestions (max five) to the report; change nothing.
 - Report in a short list: what was generated, open questions recorded, and the next step —
   usually `/architect` on the first M1 task in the build plan.
-- If this skill was installed inside the project (`.agents/skills/project-setup`, with a possible Claude symlink), offer to
-  remove it; it is not needed after setup.
+- If `.agents/skills/project-setup` is a link into `node_modules` (installed as a devDependency), keep
+  it: `npm update` keeps it current for sync. If it is a copy, offer to remove it and the Claude
+  symlink; it is not needed after setup.
 
 ## Sync
 

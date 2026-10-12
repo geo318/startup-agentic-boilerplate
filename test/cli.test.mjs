@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdtempSync, readlinkSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readlinkSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -23,6 +23,9 @@ test("install links to the skill in node_modules when it is a dependency", () =>
   assert.equal(run("install", dir).status, 0);
   assert.equal(readlinkSync(join(dir, ".agents/skills/project-setup")), "../../node_modules/@geo318/agentic-boilerplate/project-setup");
   assert.ok(existsSync(join(dir, ".claude/skills/project-setup/SKILL.md")));
+  rmSync(join(dir, "node_modules"), { recursive: true });
+  const index = new URL("../project-setup/templates/scripts/skills/index.mjs", import.meta.url).pathname;
+  assert.equal(spawnSync(process.execPath, [index, "--root", dir], { encoding: "utf8" }).status, 0, "dangling link before npm install");
 });
 
 test("sync fails outside a project-setup project", () => {

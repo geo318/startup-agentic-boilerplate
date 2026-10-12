@@ -142,7 +142,8 @@ function listSkills(root) {
     return [];
   }
   return readdirSync(skillsDir)
-    .filter((name) => statSync(join(skillsDir, name)).isDirectory())
+    // A skill linked into node_modules dangles until dependencies are installed.
+    .filter((name) => statSync(join(skillsDir, name), { throwIfNoEntry: false })?.isDirectory())
     .toSorted();
 }
 

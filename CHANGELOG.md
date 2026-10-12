@@ -8,6 +8,8 @@ Update a project with `npm update @geo318/agentic-boilerplate`, then
 - `install` in a project that has the package as a devDependency links `.agents/skills/project-setup`
   to `node_modules` instead of copying, so `npm update` also updates the skill. Rerun
   `npx agentic-boilerplate install . --force` to replace an earlier copy.
+- The skills index no longer crashes on a skill link that dangles before `npm install`, and
+  setup keeps a linked skill instead of offering to remove it.
 - README rewritten around why to use the setup; the publish workflow only releases tags on `main`.
 
 ## 0.1.1 — 2026-10-12
