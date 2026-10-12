@@ -8,5 +8,6 @@
   "engines": { "node": ">=22" },
   "publishConfig": { "access": "public" },
   "repository": "github:geo318/startup-agentic-boilerplate",
+  "homepage": "https://github.com/geo318/startup-agentic-boilerplate#readme",
   "license": "UNLICENSED"
 }

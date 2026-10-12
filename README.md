@@ -1,5 +1,9 @@
 # Startup agentic boilerplate
 
+[![npm](https://img.shields.io/npm/v/@geo318/agentic-boilerplate)](https://www.npmjs.com/package/@geo318/agentic-boilerplate)
+
+On npm as [`@geo318/agentic-boilerplate`](https://www.npmjs.com/package/@geo318/agentic-boilerplate) · [release notes](CHANGELOG.md)
+
 A shared coding-agent skill, `project-setup`, that turns a product plan into a ready-to-build repository
 with project documentation and checks: agent rules, a routed
 `context/` doc set, invariants, a build plan and progress tracker, workflow skills, git
