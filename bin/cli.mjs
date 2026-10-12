@@ -14,7 +14,8 @@ const dir = rest.find((a) => !a.startsWith("-"));
 const fail = (msg) => { console.error(msg); process.exit(1); };
 
 if (cmd === "install") {
-  const target = flags.includes("--global") || flags.includes("-g") ? homedir() : resolve(dir ?? fail("usage: agentic-boilerplate install <dir>|--global [--link] [--force]"));
+  const global = flags.includes("--global") || flags.includes("-g");
+  const target = global ? homedir() : resolve(dir ?? fail("usage: agentic-boilerplate install <dir>|--global [--link] [--force]"));
   const dest = join(target, ".agents/skills/project-setup");
   const claude = join(target, ".claude/skills/project-setup");
   for (const p of [dest, claude]) {
@@ -26,11 +27,12 @@ if (cmd === "install") {
   mkdirSync(dirname(claude), { recursive: true });
   // Installed as a dependency of the target: link into node_modules so `npm update` updates the skill.
   const dep = join(target, "node_modules/@geo318/agentic-boilerplate/project-setup");
-  if (existsSync(dep)) symlinkSync(relative(dirname(dest), dep), dest);
+  const linked = !global && existsSync(dep);
+  if (linked) symlinkSync(relative(dirname(dest), dep), dest);
   else if (flags.includes("--link")) symlinkSync(skill, dest);
   else cpSync(skill, dest, { recursive: true });
   symlinkSync("../../.agents/skills/project-setup", claude);
-  console.log(`installed → ${dest}${existsSync(dep) ? " (linked to node_modules)" : ""}\nClaude Code link → ${claude}`);
+  console.log(`installed → ${dest}${linked ? " (linked to node_modules)" : ""}\nClaude Code link → ${claude}`);
 } else if (cmd === "sync") {
   const target = resolve(dir ?? ".");
   const answers = join(target, "docs/archive/project-setup.answers.json");

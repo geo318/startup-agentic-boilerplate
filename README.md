@@ -57,7 +57,7 @@ $project-setup ./plan.md        # Codex
 
 The agent reads the plan and asks only what it can't infer (preset, tenancy, code skeleton, forge). It shows one summary to confirm, then renders and fills everything, runs the checks, and hands off with your first `/architect` task.
 
-The skill is a symlink into `node_modules`, so `npm update` updates it too, and it works for teammates after `npm install`. Commit the links or add `.agents/skills/project-setup` and `.claude/skills/project-setup` to `.gitignore`.
+The skill is a symlink into `node_modules`, so `npm update` updates it too, and it works for teammates after `npm install` as long as you commit both links (`.agents/skills/project-setup` and `.claude/skills/project-setup`).
 
 > Want it in every project? `npx @geo318/agentic-boilerplate install --global`
 
