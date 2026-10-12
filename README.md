@@ -45,7 +45,7 @@ Structure is rendered **deterministically** by a script with no dependencies. On
 
 ```bash
 npm i -D @geo318/agentic-boilerplate   # pin it in your project
-npx agentic-boilerplate install .      # add the skill to .agents/skills (+ .claude/skills link)
+npx agentic-boilerplate install .      # link the skill from node_modules into .agents/skills
 ```
 
 Then hand the agent your plan:
@@ -56,6 +56,8 @@ $project-setup ./plan.md        # Codex
 ```
 
 The agent reads the plan and asks only what it can't infer (preset, tenancy, code skeleton, forge). It shows one summary to confirm, then renders and fills everything, runs the checks, and hands off with your first `/architect` task.
+
+The skill is a symlink into `node_modules`, so `npm update` updates it too, and it works for teammates after `npm install`. Commit the links or add `.agents/skills/project-setup` and `.claude/skills/project-setup` to `.gitignore`.
 
 > Want it in every project? `npx @geo318/agentic-boilerplate install --global`
 
@@ -91,7 +93,7 @@ Files are gated by flags (UI, Next.js, DB, auth, multi-tenant, AI, jobs, GitHub,
 The same command works in a repo that already has code. It inventories the repo first (package manager, apps, frameworks, linter, hooks, CI, agent docs) and **fits around it** instead of reshaping it:
 
 - Your linter, hooks and CI stay; the new checks are added alongside them.
-- Gates judge **only new code**, so existing debt never blocks you.
+- Lint and `fallow audit` judge **only changed code**, so existing lint and structure debt doesn't block you. Full test, typecheck and docs checks still run, so fix those first.
 - Existing `AGENTS.md`, `CLAUDE.md` and `.claude/settings.json` are merged, never overwritten.
 - `context/plans/adoption.md` records the debt you started with and optional moves toward the defaults.
 
@@ -137,7 +139,7 @@ install.sh              install from a clone (--link for live edits)
 - **Test:** `node --test 'test/*.test.mjs'`
 - **Try a template change:** render with `node project-setup/scripts/scaffold.mjs --answers a.json --target /tmp/x`, stand in for the agent's prose with `grep -rl --null '<!-- FILL:' /tmp/x | xargs -0 perl -0pi -e 's/<!-- FILL:.*?-->/Fixture./gs'`, then run `node /tmp/x/scripts/checks/docs-check.mjs --root /tmp/x`
 - **Token audit:** `node project-setup/scripts/token-audit.mjs --target <repo> --harness claude|codex|all`
-- **Release:** merge to `main`, then on an up-to-date `main` add a `CHANGELOG.md` entry and run `npm version patch && git push --follow-tags`. CI publishes the tag only if its commit is on `main`.
+- **Release:** merge to `main`, then on an up-to-date `main` commit a `CHANGELOG.md` entry, then run `npm version patch && git push --follow-tags`. CI publishes the tag only if its commit is on `main`.
 - **Install from a clone:** `./install.sh --global --link`, so edits here apply immediately.
 
 The skill can report setup bugs it hits back upstream (`auto`, `ask` or `off`, default `ask`), using synthetic examples with project data redacted. See [upstream reporting](project-setup/references/upstream-reporting.md).
