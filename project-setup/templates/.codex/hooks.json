@@ -1,0 +1,12 @@
+{
+  "description": "Thread Git initialization and owned temporary-resource cleanup. Review and trust through the client's native hook settings.",
+  "hooks": {
+    "SessionStart": [{ "hooks": [{ "type": "command", "command": "{{RUNTIME}} \"$(git rev-parse --show-toplevel)/scripts/session/hooks.mjs\" codex" }] }],
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "{{RUNTIME}} \"$(git rev-parse --show-toplevel)/scripts/session/hooks.mjs\" codex" }] }],
+    "PreToolUse": [{ "matcher": "Bash|apply_patch", "hooks": [{ "type": "command", "command": "{{RUNTIME}} \"$(git rev-parse --show-toplevel)/scripts/session/hooks.mjs\" codex" }] }],
+    "PostToolUse": [{ "hooks": [{ "type": "command", "command": "{{RUNTIME}} \"$(git rev-parse --show-toplevel)/scripts/session/hooks.mjs\" codex" }] }],
+    "Stop": [{ "hooks": [{ "type": "command", "command": "{{RUNTIME}} \"$(git rev-parse --show-toplevel)/scripts/session/hooks.mjs\" codex", "timeout": 60 }] }],
+    "Interrupt": [{ "hooks": [{ "type": "command", "command": "{{RUNTIME}} \"$(git rev-parse --show-toplevel)/scripts/session/hooks.mjs\" codex", "timeout": 3 }] }],
+    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "{{RUNTIME}} \"$(git rev-parse --show-toplevel)/scripts/session/hooks.mjs\" codex", "timeout": 3 }] }]
+  }
+}

@@ -25,3 +25,5 @@ temp/
 .claude/worktrees/
 .worktrees/
 .project-setup/
+.agents/sessions.md
+.agents/.runtime/

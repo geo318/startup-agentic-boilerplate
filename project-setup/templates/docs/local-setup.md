@@ -12,12 +12,15 @@ variable.
 ```bash
 {{CMD_INSTALL}}
 cp .env.example .env   # then fill in values
-{{CMD_DEV}}
+# Agent sessions: begin, then pass the dev executable/args through the session launcher.
 ```
 
 <!-- FILL: anything else the first run needs, in order — database creation/migration, seed data, creating a dev login. Mark steps that touch shared or production resources. -->
 
 ## Running
+
+For agent work, use [session lifecycle](session-lifecycle.md) to initialize Git, launch these
+commands through the managed launcher, and release temporary resources at handoff.
 
 | What | Command | Port |
 | --- | --- | --- |
