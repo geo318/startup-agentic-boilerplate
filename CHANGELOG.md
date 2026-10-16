@@ -3,7 +3,7 @@
 Update a project with `npm update @geo318/agentic-boilerplate`, then
 `npx agentic-boilerplate sync --dry-run` and rerun without `--dry-run`.
 
-## Unreleased
+## 0.1.5 — 2026-10-16
 
 - Fresh threads prepare the default branch with fast-forward-only pulls, preserving dirty work,
   continuation context, local commits, and checkouts used by other threads.
