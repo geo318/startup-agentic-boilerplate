@@ -46,6 +46,8 @@ Unsure where a change belongs? See the [code map](context/code-map.md).
   don't settle it; recommended option first. Small choices: say `Assumed: X (alternative: Y)` and
   continue. Irreversible actions (deleting data, force-push, publishing, spending) need an explicit yes.
 
+- All agents: same active window, grouped task tabs; no new instances. Read [browser rules](docs/browser-use.md).
+
 ## Verification before handoff
 
 Run every check relevant to the diff and read its output; a passing typecheck is not verification.
