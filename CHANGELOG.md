@@ -3,6 +3,14 @@
 Update a project with `npm update @geo318/agentic-boilerplate`, then
 `npx agentic-boilerplate sync --dry-run` and rerun without `--dry-run`.
 
+## 0.1.6 — 2026-10-17
+
+- All agents, especially Codex, must reuse the active browser window and keep task tabs in one
+  named group across follow-ups. Separate windows or browser instances require an explicit user
+  request unless no window exists; unrelated user tabs and groups are preserved.
+- Both full and lean presets include the browser rules; automation must attach to the existing
+  browser or report unsupported reuse or grouping instead of silently opening another window.
+
 ## 0.1.5 — 2026-10-16
 
 - Fresh threads prepare the default branch with fast-forward-only pulls, preserving dirty work,
