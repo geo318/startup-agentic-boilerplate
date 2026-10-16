@@ -45,7 +45,9 @@ long builds/tests. Background processes discard output; status reports actual li
 lsof, including framework-selected fallback ports. A service can briefly show no listener while
 starting. Inspect status and verify the actual endpoint before claiming the app works.
 
-Compatible managed services share leases. Command/cwd/source fingerprints prevent reuse across
+Compatible managed services share leases, including while launch is pending; concurrent callers
+wait for the same launch and receive a failure if it cannot start. Foreground commands run
+independently. Command/cwd/source fingerprints prevent reuse across
 different checkouts or settings. Untracked files disable cross-thread reuse. A pre-existing
 compatible server can be recorded with `borrow --session <id> --label web --pid <pid>`; this
 never transfers ownership. Occupied ports do not authorize terminating their listeners.
@@ -86,7 +88,9 @@ visible and return nonzero from the CLI; process-inspection/permission failures 
 guessing a PID's owner. Corrupt or redirected registry paths stop managed operations.
 
 Inspection worktrees are removed only when detached at their original commit, unchanged, and
-unleased. Changed worktrees and feature work survive; follow the project's Git delivery policy.
+unleased. Sweeps retry removal after interrupted-session resources drain, or on the next lifecycle
+entry if no supervisor exists. Changed worktrees and their recovery records survive expiration;
+follow the project's Git delivery policy for feature work.
 User data, volumes, databases, output artifacts, and unrelated processes are never swept.
 
 ## Native hooks and setup

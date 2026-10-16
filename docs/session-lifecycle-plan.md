@@ -448,7 +448,11 @@ The generated runtime uses one atomic, versioned `state.json` registry beneath G
 directory, with short locks and serialized abandoned-lock recovery. Each managed service has
 its own ephemeral supervisor and a registration handshake before application launch. The
 generated `.agents/sessions.md` view is ignored and zero bytes when no active or unresolved
-resources remain. The sweep skill, runbook, root/app instructions, and native adapters share
+resources remain. Compatible background callers acquire leases on a pending launch and await
+its result, so concurrent requests share one supervisor and receive launch failures. Sweeps
+retry disposable inspection-worktree removal after resources drain, including after short end
+callbacks. Unremoved inspection records are retained rather than expiring with idle markers.
+The sweep skill, runbook, root/app instructions, and native adapters share
 the same begin/run/finish/sweep commands.
 
 Pre-Git state remains authoritative while its thread records exist, including across Git
@@ -462,7 +466,7 @@ Behavioral tests use local bare Git remotes and real ephemeral listeners. They c
 and custom default branches, preservation exceptions, missing local default branches, concurrent
 inspection worktrees, shared/borrowed resources, process identity and supervisor recovery,
 retention, foreground liveness, lock recovery, hook payloads, and empty-document cleanup. The
-full suite for the isolated PR contents passed all 65 tests under Node 22.21.1 and Bun 1.4.2
+full suite for the isolated PR contents passed all 74 tests under Node 22.21.1 and Bun 1.4.2
 on macOS. The sweep skill passed
 the Skill Creator validator; generated variants, syntax checks, documentation budgets, and
 `git diff --check` passed. Fixture teardown verifies that managed resource records are empty.

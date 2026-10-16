@@ -13,6 +13,30 @@ function selected(state, options) {
   return session;
 }
 
+async function reuse(ctx, resource, options) {
+  const key = keyOf(options.session);
+  const turn = resource.leases[key].turn;
+  const until = Date.now() + 15000;
+  try {
+    while (true) {
+      const state = load(ctx);
+      const current = state.resources[resource.id];
+      if (!current || !["pending", "running"].includes(current.status)) throw new Error("shared-launch-failed");
+      if (current.leases[key]?.turn !== turn) throw new Error(state.sessions[key]?.active && state.sessions[key].turn === turn ? "shared-launch-failed" : "shared-launch-cancelled");
+      if (current.supervisor && !matches(current.supervisor)) throw new Error("shared-launch-failed: supervisor exited");
+      if (current.status === "running") return { version: 1, code: "reused", resource: current.id, listeners: current.listeners };
+      if (Date.now() >= until) throw new Error("shared-launch-timeout");
+      await delay(50);
+    }
+  } catch (error) {
+    await update(ctx, (state) => {
+      const current = state.resources[resource.id];
+      if (current?.leases[key]?.turn === turn) delete current.leases[key];
+    });
+    throw error;
+  }
+}
+
 export async function run(ctx, options, argv, onOutput = () => {}) {
   if (!argv.length || !options.label || !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$/.test(options.label)) throw new Error("run-requires-label-and-command");
   if (options.retain && !options.reason) throw new Error("retention-reason-required");
@@ -29,14 +53,17 @@ export async function run(ctx, options, argv, onOutput = () => {}) {
     const fingerprint = createHash("sha256").update(JSON.stringify([argv, session.checkout, head.stdout, changes.stdout, process.env])).digest("hex");
     const expires = Date.now() + (options.retain ? options.retain * 1000 : LEASE_MS);
     const lease = { turn: session.turn, expires, retained: Boolean(options.retain), reason: options.reason || "temporary" };
-    const reusable = reusableSource && Object.values(state.resources).find((resource) => !options.foreground && resource.owned && resource.status === "running" && resource.label === options.label && resource.fingerprint === fingerprint && matches(resource.supervisor));
+    const reusable = reusableSource && Object.values(state.resources).find((resource) => !options.foreground && !resource.foreground && resource.owned && resource.label === options.label && resource.fingerprint === fingerprint && (
+      (resource.status === "running" && matches(resource.supervisor)) ||
+      (resource.status === "pending" && Date.now() - resource.created < 15000 && (!resource.supervisor || matches(resource.supervisor)))
+    ));
     if (reusable) { reusable.leases[key] = lease; return { reused: true, resource: reusable }; }
     const id = randomUUID();
     const resource = { id, label: options.label, owned: true, status: "pending", checkout: session.checkout, created: Date.now(), token: randomUUID(), supervisor: null, members: [], listeners: [], fingerprint, leases: { [key]: lease }, foreground: Boolean(options.foreground), foregroundOwner: options.foreground ? identity(process.pid) : null, owner: key };
     state.resources[id] = resource;
     return { reused: false, resource };
   });
-  if (result.reused) return { version: 1, code: "reused", resource: result.resource.id, listeners: result.resource.listeners };
+  if (result.reused) return reuse(ctx, result.resource, options);
   const { resource } = result;
   const child = spawn(process.execPath, [fileURLToPath(new URL("./supervisor.mjs", import.meta.url)), ctx.root, ctx.dir, resource.id], {
     cwd: resource.checkout, detached: true, stdio: ["ignore", "ignore", "ignore", "ipc"],
@@ -159,6 +186,9 @@ export async function sweep(ctx, { wait = true } = {}) {
     const until = Date.now() + 8000;
     while (Date.now() < until && Object.values(load(ctx).resources).some((resource) => resource.status === "stopping" && matches(resource.supervisor))) await delay(100);
   }
+  // End callbacks return quickly. Supervisors retry here after resources drain; without a
+  // supervisor, the next lifecycle entry retries. removeInspection rechecks under the Git lock.
+  for (const session of Object.values(load(ctx).sessions)) if (!session.active && session.inspection) await removeInspection(ctx, session.id);
   const remaining = Object.values(load(ctx).resources);
   return { version: 1, code: remaining.some((item) => item.status === "failed" || item.status === "stopping") ? "cleanup-incomplete" : "reconciled", resources: remaining.length, failures: remaining.filter((item) => item.error).map((item) => ({ resource: item.id, error: item.error })) };
 }
@@ -185,6 +215,5 @@ export async function finish(ctx, options, { wait = true, retained = true } = {}
     return { version: 1, code: "cleanup-requested" };
   }
   const result = await sweep(ctx, { wait });
-  if (wait) await removeInspection(ctx, options.session);
   return { ...result, code: result.code === "cleanup-incomplete" ? result.code : "finished" };
 }

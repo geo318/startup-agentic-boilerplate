@@ -189,7 +189,7 @@ export async function update(ctx, task) {
     const result = await task(state);
     const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
     for (const [key, session] of Object.entries(state.sessions)) {
-      if (!session.active && session.updated < cutoff && !Object.values(state.resources).some((item) => item.leases[key])) delete state.sessions[key];
+      if (!session.active && !session.inspection && session.updated < cutoff && !Object.values(state.resources).some((item) => item.leases[key])) delete state.sessions[key];
     }
     validate(state);
     atomic(ctx.anchor, join(ctx.dir, "state.json"), `${JSON.stringify(state, null, 2)}\n`);

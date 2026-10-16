@@ -64,6 +64,25 @@ async function waitFor(task, timeout = 6000) {
   assert.fail("condition did not become true before timeout");
 }
 
+async function isolatedFixture(t) {
+  const f = await fixture(t);
+  const remote = join(f.dir, "..", `${f.dir.split("/").at(-1)}.git`);
+  t.after(() => rmSync(remote, { recursive: true, force: true }));
+  git(f.dir, "init", "--bare", remote);
+  git(f.dir, "remote", "add", "origin", remote);
+  git(f.dir, "push", "-u", "origin", "main");
+  const isolated = await f.cli("begin", "--session", "inspection", "--isolate");
+  assert.equal(isolated.code, "isolated");
+  return { ...f, isolated };
+}
+
+function gateLaunch(f) {
+  const gate = join(f.ctx.dir, "fixture-launch-ready");
+  const script = join(f.dir, "scripts/session/supervisor.mjs");
+  writeFileSync(script, `import { existsSync as fixtureReady } from "node:fs";\nwhile (!fixtureReady(${JSON.stringify(gate)})) await new Promise(resolve => setTimeout(resolve, 20));\n${readFileSync(script, "utf8")}`);
+  return () => writeFileSync(gate, "ready");
+}
+
 test("managed launch records actual listeners and finish releases child listeners and empties the document", async (t) => {
   const f = await fixture(t);
   await f.cli("begin", "--session", "one", "--intent", "continue", "--reason", "fixture");
@@ -97,6 +116,49 @@ test("shared managed service survives until last lease; borrowed service is neve
   assert.equal(Object.keys(f.state.load(f.ctx).resources).length, 0);
 });
 
+for (const outcome of ["success", "failure", "cancelled"]) test(`concurrent compatible pending launches share one service (${outcome})`, async (t) => {
+  const f = await fixture(t);
+  for (const session of ["one", "two"]) await f.cli("begin", "--session", session, "--intent", "continue", "--reason", "shared fixture");
+  const release = gateLaunch(f);
+  const argv = outcome === "failure" ? [join(f.dir, "missing-executable")] : [process.execPath, "-e", server];
+  const launches = [];
+  try {
+    launches.push(f.runtime.run(f.ctx, { session: "one", label: "shared" }, argv));
+    launches[0].catch(() => {});
+    await waitFor(() => Object.values(f.state.load(f.ctx).resources).some((item) => item.status === "pending"));
+    launches.push(f.runtime.run(f.ctx, { session: "two", label: "shared" }, argv));
+    launches[1].catch(() => {});
+    await waitFor(() => Object.values(f.state.load(f.ctx).resources).some((item) => item.status === "pending" && Object.keys(item.leases).length === 2));
+    assert.equal(Object.keys(f.state.load(f.ctx).resources).length, 1);
+    if (outcome === "cancelled") await f.cli("finish", "--session", "two");
+    release();
+    const results = await Promise.allSettled(launches);
+    if (outcome === "failure") {
+      assert.ok(results.every((result) => result.status === "rejected"));
+      assert.match(results[0].reason.message, /command-launch-failed/);
+      assert.match(results[1].reason.message, /shared-launch-failed/);
+      await waitFor(() => Object.keys(f.state.load(f.ctx).resources).length === 0);
+    } else {
+      assert.equal(results[0].status, "fulfilled");
+      assert.equal(results[0].value.code, "started");
+      if (outcome === "cancelled") {
+        assert.equal(results[1].status, "rejected");
+        assert.match(results[1].reason.message, /shared-launch-cancelled/);
+      } else {
+        assert.equal(results[1].status, "fulfilled");
+        assert.equal(results[1].value.code, "reused");
+        assert.equal(results[0].value.resource, results[1].value.resource);
+      }
+      const resource = await waitFor(() => Object.values(f.state.load(f.ctx).resources).find((item) => item.listeners?.length));
+      assert.equal(await (await fetch(`http://${resource.listeners[0]}`)).text(), "fixture");
+      await f.cli("finish", "--session", "one");
+      assert.equal(Boolean(f.state.load(f.ctx).resources[resource.id]), outcome !== "cancelled");
+      await f.cli("finish", "--session", "two");
+      assert.equal(Object.keys(f.state.load(f.ctx).resources).length, 0);
+    }
+  } finally { release(); await Promise.allSettled(launches); }
+});
+
 test("Stop checks block a handoff, but unchanged and recursion-guard handoffs still clean resources", async (t) => {
   const f = await fixture(t);
   await f.hook("SessionStart", "hook", { source: "startup" });
@@ -128,6 +190,50 @@ test("short end callback persists release and supervisor finishes it without ano
   await f.hook("SessionEnd", "end");
   assert.ok(Date.now() - start < 2900);
   await waitFor(() => Object.keys(f.state.load(f.ctx).resources).length === 0);
+});
+
+for (const event of ["SessionEnd", "Interrupt", "StopFailure"]) test(`sweep reaps a clean inspection checkout after ${event} without a managed service`, async (t) => {
+  const f = await isolatedFixture(t);
+  await f.hook(event, "inspection");
+  await f.cli("sweep");
+  assert.equal(existsSync(f.isolated.checkout), false);
+  assert.ok(existsSync(f.dir));
+  const session = f.state.load(f.ctx).sessions[f.state.keyOf("inspection")];
+  assert.equal(session.inspection, undefined);
+  assert.equal(session.checkout, f.ctx.root);
+});
+
+test("supervisor reaps an inspection checkout after its service drains following interruption", async (t) => {
+  const f = await isolatedFixture(t);
+  await f.cli("run", "--session", "inspection", "--label", "web", "--", process.execPath, "-e", server);
+  await f.hook("Interrupt", "inspection");
+  await waitFor(() => !existsSync(f.isolated.checkout) && !f.state.load(f.ctx).sessions[f.state.keyOf("inspection")].inspection);
+  assert.equal(Object.keys(f.state.load(f.ctx).resources).length, 0);
+  assert.equal(f.state.load(f.ctx).sessions[f.state.keyOf("inspection")].inspection, undefined);
+});
+
+test("retained services keep their inspection checkout until the final lease expires", async (t) => {
+  const f = await isolatedFixture(t);
+  await f.cli("run", "--session", "inspection", "--label", "web", "--retain", "120", "--reason", "requested preview", "--", process.execPath, "-e", server);
+  await f.hook("SessionEnd", "inspection");
+  await f.cli("sweep");
+  assert.ok(existsSync(f.isolated.checkout));
+  await f.state.update(f.ctx, (state) => {
+    for (const resource of Object.values(state.resources)) for (const lease of Object.values(resource.leases)) lease.expires = 0;
+  });
+  await f.cli("sweep");
+  assert.equal(existsSync(f.isolated.checkout), false);
+});
+
+test("sweep preserves changed inspection checkouts and their recovery records", async (t) => {
+  const f = await isolatedFixture(t);
+  const output = join(f.isolated.checkout, "unfinished.txt");
+  writeFileSync(output, "preserve");
+  await f.hook("SessionEnd", "inspection");
+  await f.state.update(f.ctx, (state) => { state.sessions[f.state.keyOf("inspection")].updated = 0; });
+  await f.cli("sweep");
+  assert.equal(readFileSync(output, "utf8"), "preserve");
+  assert.equal(f.state.load(f.ctx).sessions[f.state.keyOf("inspection")].inspection.path, f.isolated.checkout);
 });
 
 test("retained leases survive finish, then expiry sweeps them", async (t) => {

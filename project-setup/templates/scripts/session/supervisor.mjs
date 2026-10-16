@@ -62,11 +62,15 @@ process.on("message", async (message) => {
     if (resource.foreground) for (const stream of [child.stdout, child.stderr]) stream.on("data", (chunk) => send({ type: "output", text: chunk.toString() }));
     await update(ctx, (state) => {
       const current = state.resources[id];
-      current.status = "running";
       current.members = members(current);
     });
     await delay(200);
     if (launchError) throw new Error("command-launch-failed");
+    await update(ctx, (state) => {
+      const current = state.resources[id];
+      if (!current || current.status !== "pending" || !Object.keys(current.leases).length) throw new Error("launch-cancelled");
+      current.status = "running";
+    });
     send({ type: "started", pid: process.pid, listeners: listeners(members(load(ctx).resources[id]).map((item) => item.pid)) });
   } catch (error) { stopping = true; send({ type: "error", code: error.message }); }
   finally { starting = false; }
