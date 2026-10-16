@@ -261,6 +261,7 @@ function main() {
     ".agents",
     ".claude/settings.json",
     ".codex/config.toml",
+    ".codex/hooks.json",
     "skills-lock.json",
     "context",
   ].filter(has);
@@ -335,6 +336,7 @@ function main() {
     GITHUB: has(".github") || git(root, ["remote", "get-url", "origin"]).includes("github.com"),
     CLAUDE_CODE: has(".claude"),
     CLAUDE_SKILL_LINKS: has(".claude"),
+    CODEX_HOOKS: has(".codex/hooks.json"),
     ADOPT: mode === "adopt" || mode === "upgrade",
     OWN_LINTER: ownLinter,
     OWN_HOOKS: ownHooks,

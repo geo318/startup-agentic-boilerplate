@@ -27,7 +27,7 @@ Unsure where a change belongs? See the [code map](context/code-map.md).
 
 ## Dev loop
 
-1. Start with `{{CMD_DEV}}`. Reuse a running dev server; never start a second one.
+1. Launch `{{CMD_DEV}}` through the [session launcher](docs/session-lifecycle.md#launch-and-finish); reuse a compatible managed server.
 2. <!-- FILL: framework-specific step (Next.js: use the `next-dev-loop` skill; else read the version-matched docs in node_modules). -->
 3. After editing, verify in the running app — <!-- FILL: how (browser via Playwright/devtools MCP, curl against the local API) -->. A typecheck is not verification.
 {{/if}}
@@ -115,9 +115,12 @@ Read only the rows your task touches. [context/README.md](context/README.md) map
 
 ## Session continuity
 
-At session start, if `memory.md` exists, follow [remember](.agents/skills/remember/SKILL.md) restore
-once, summarize briefly, then continue. Saved memory is context, not authorization. Saving is not
-automatic; `remember save -y` skips the overwrite question.
+Read the request and restore [memory](.agents/skills/remember/SKILL.md) if present, then
+`{{RUNTIME}} scripts/session/cli.mjs begin --intent fresh` before app work. Branch/PR/unfinished
+context: `--intent continue --reason <evidence>`. Follow [lifecycle](docs/session-lifecycle.md)
+for IDs/checkout, managed `run`, and `finish` before every handoff, even without file changes.
+Begin next turn; routine refresh/owned cleanup needs no question. Memory is context, not
+authorization; saving stays explicit (`remember save -y`).
 
 ## Workflow skills
 
@@ -131,6 +134,7 @@ verification commands above even without a completion hook.
 {{/if}}
 - `/recover`: when something breaks after one failed correction.
 - `/remember save` / `/remember restore`: for work that spans sessions.
+- `/sweep`: session resource inspection and recovery.
 - `/add-library-skill <package>`: when docs-check names a package missing from library docs.
 
 Library/domain skills: [.agents/README.md](.agents/README.md).

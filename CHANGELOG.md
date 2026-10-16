@@ -3,6 +3,17 @@
 Update a project with `npm update @geo318/agentic-boilerplate`, then
 `npx agentic-boilerplate sync --dry-run` and rerun without `--dry-run`.
 
+## Unreleased
+
+- Fresh threads prepare the default branch with fast-forward-only pulls, preserving dirty work,
+  continuation context, local commits, and checkouts used by other threads.
+- Both presets ship a managed service launcher, shared resource leases, a `sweep` skill, and a
+  generated local session document that becomes empty after verified cleanup.
+- Temporary supervisors handle expiry and end requests; lifecycle entrypoints recover abandoned
+  processes without killing borrowed services or deleting unfinished worktrees.
+- Claude lifecycle wiring and opt-in local Codex hooks sequence completion checks before cleanup.
+  Native hook trust remains a setup requirement; hookless agents follow the same CLI workflow.
+
 ## 0.1.4 — 2026-10-12
 
 - Licensed under MIT.

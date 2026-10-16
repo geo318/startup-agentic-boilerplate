@@ -13,6 +13,7 @@
       "Bash({{RUNTIME}} scripts/git/conventions.mjs *)",
       "Bash({{RUNTIME}} scripts/skills/index.mjs)",
       "Bash({{RUNTIME}} scripts/skills/index.mjs *)",
+      "Bash({{RUNTIME}} scripts/session/cli.mjs *)",
 {{#if TYPESCRIPT}}
 {{#unless LEAN}}
       "Bash({{CMD_FALLOW}})",
@@ -29,12 +30,19 @@
     ]
   },
   "hooks": {
+    "SessionStart": [{ "hooks": [{ "type": "command", "command": "{{RUNTIME}} \"$CLAUDE_PROJECT_DIR/scripts/session/hooks.mjs\" claude" }] }],
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "{{RUNTIME}} \"$CLAUDE_PROJECT_DIR/scripts/session/hooks.mjs\" claude" }] }],
+    "PreToolUse": [{ "matcher": "Bash|Edit|Write", "hooks": [{ "type": "command", "command": "{{RUNTIME}} \"$CLAUDE_PROJECT_DIR/scripts/session/hooks.mjs\" claude" }] }],
+    "PostToolUse": [{ "hooks": [{ "type": "command", "command": "{{RUNTIME}} \"$CLAUDE_PROJECT_DIR/scripts/session/hooks.mjs\" claude" }] }],
+    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "{{RUNTIME}} \"$CLAUDE_PROJECT_DIR/scripts/session/hooks.mjs\" claude", "timeout": 3 }] }],
+    "StopFailure": [{ "hooks": [{ "type": "command", "command": "{{RUNTIME}} \"$CLAUDE_PROJECT_DIR/scripts/session/hooks.mjs\" claude", "timeout": 3 }] }],
     "Stop": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "{{RUNTIME}} \"$CLAUDE_PROJECT_DIR/scripts/checks/agent-stop.mjs\""
+            "command": "{{RUNTIME}} \"$CLAUDE_PROJECT_DIR/scripts/session/hooks.mjs\" claude",
+            "timeout": 60
           }
         ]
       }

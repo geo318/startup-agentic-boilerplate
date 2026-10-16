@@ -5,8 +5,9 @@
 
 ## Dev loop
 
-1. Start from the repository root with `{{APP_DEV}}`. Reuse a running dev server; never start a
-   second one.
+1. Start from the repository root; launch `{{APP_DEV}}` through the
+   [session launcher]({{APP_ROOT_REL}}docs/session-lifecycle.md#launch-and-finish).
+   Reuse a compatible managed server and release its lease at handoff.
 2. <!-- FILL: framework-specific step — e.g. for Next.js "use the `next-dev-loop` skill for the dev loop, and read the version-matched guide in node_modules/next/dist/docs/ before editing"; for Expo "Metro is shared; one instance only". -->
 3. After editing, verify in the running app — <!-- FILL: how (browser via Playwright/devtools MCP, curl against the local API, simulator) -->. A typecheck is not verification.
 

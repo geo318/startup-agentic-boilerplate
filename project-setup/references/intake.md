@@ -128,6 +128,7 @@ re-rendered). All `vars` values are strings; all `flags` are booleans.
     "GITHUB": true,
     "CLAUDE_CODE": true,
     "CLAUDE_SKILL_LINKS": true,
+    "CODEX_HOOKS": false,
     "ADOPT": false,
     "OWN_LINTER": false,
     "OWN_HOOKS": false,
@@ -148,8 +149,8 @@ re-rendered). All `vars` values are strings; all `flags` are booleans.
 
 Notes:
 
-- `LEAN` selects minimal project docs and omits generic architecture, workflow skills other than `remember`, and fallow configuration. Full mode is retained when false or absent. Existing files are not deleted on sync.
-- `CLAUDE_CODE` enables Claude settings and its Stop hook; `CLAUDE_SKILL_LINKS` enables compatibility symlinks. Set them for the confirmed harnesses, not the model provider. Codex and other agents use `AGENTS.md` and `.agents/skills/` without these flags.
+- `LEAN` selects minimal project docs, keeps `remember`, `sweep`, and the lifecycle runbook/runtime, and omits generic architecture, other workflow skills, and fallow configuration. Existing files are not deleted on sync.
+- `CLAUDE_CODE` enables Claude settings/lifecycle hooks; `CLAUDE_SKILL_LINKS` enables compatibility symlinks. `CODEX_HOOKS` enables project `.codex/hooks.json` only after confirming a supported local client and its native hook trust. Set flags for confirmed harnesses, not the model provider. Other clients use root instructions plus the same begin/run/finish scripts.
 
 - `RUNTIME` runs the generated `.mjs` scripts: `bun` when `BUN`, else `node`.
 - `AUTH_PACKAGE_PATTERNS` is required when `HAS_AUTH`: the auth library's packages as YAML list

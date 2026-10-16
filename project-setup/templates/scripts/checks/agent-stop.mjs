@@ -2,7 +2,7 @@
 // Claude Code Stop hook: before the agent hands back, run the fast checks on what it changed and
 // return failures to it (exit 2), so code and docs are fixed in the same turn, not at push time.
 //
-//   Wired in .claude/settings.json → hooks.Stop. Reads the hook payload on stdin.
+//   Called by scripts/session/hooks.mjs before cleanup. Reads the hook payload on stdin.
 //
 // Runs under both Node and Bun; no dependencies.
 
