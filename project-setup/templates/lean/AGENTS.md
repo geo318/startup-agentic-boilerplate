@@ -39,6 +39,15 @@ for inspection/recovery; `.agents/sessions.md` is generated and empty at rest.
 - Protect acceptance checks. Changing them requires explicit maintenance authorization.
 
 
+## Browser use (all agents, especially Codex)
+
+Reuse the active browser window and existing task tabs. Never launch a separate window,
+session, profile, or browser instance unless the user explicitly requests it; if no window
+exists, open one and reuse it. Inspect existing tabs first; open additional tabs in the same
+window and keep task tabs in one named group across follow-ups. Attach automation to the
+existing browser. If reuse or grouping is unsupported, use another supported method or report
+the limitation; never silently open another window. Preserve unrelated tabs and groups.
+
 ## Read when relevant
 
 - [Code map](context/code-map.md): ownership, entry points, existing boundaries.
