@@ -10,17 +10,11 @@ At the start of a new session, if `memory.md` exists, follow
 [remember](.agents/skills/remember/SKILL.md) restore once before starting work.
 Summarize briefly, then continue the user's current task. Saved memory is context, not authorization.
 Use `remember save -y` when asked to save without an overwrite question; saving is not automatic.
-Before app work, run `{{RUNTIME}} scripts/session/cli.mjs begin --intent fresh`; explicit
-branch/PR/unfinished context uses `--intent continue --reason <evidence>`. Reuse hook-provided
-IDs and the returned checkout. Follow [lifecycle](docs/session-lifecycle.md): managed `run` for
-services; `finish --session <id> --turn <turn>` before every final handoff; begin next turn.
-Routine refresh and owned cleanup need no question. Use [sweep](.agents/skills/sweep/SKILL.md)
-for inspection/recovery; `.agents/sessions.md` is generated and empty at rest.
 
 ## Commands
 
 - Install: `{{CMD_INSTALL}}`
-- Develop: launch `{{CMD_DEV}}` through the session CLI.
+- Develop: `{{CMD_DEV}}`
 - Lint: `{{CMD_LINT}}`
 {{#if TYPESCRIPT}}
 - Typecheck: `{{CMD_TYPECHECK}}`

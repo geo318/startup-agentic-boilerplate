@@ -27,9 +27,6 @@ breaking the design. Read this before writing FILL content or adding docs the te
    skill → project-specific deviation. Upstream skills are pinned in `skills-lock.json`.
 8. **Session memory is separate.** `memory.md` holds only the latest session's handoff and is
    overwritten by `/remember save`, which must first sync the build plan and progress tracker.
-9. **Runtime state is local.** The session CLI owns `.agents/sessions.md` (generated, ignored,
-   empty at rest) and structured resource leases under Git's common directory. The lifecycle
-   runbook is authored policy; memory and tracked project docs never serve as a PID registry.
 
 ## Writing FILL content
 

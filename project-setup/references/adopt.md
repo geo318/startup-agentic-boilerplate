@@ -136,14 +136,8 @@ add it as a required check.
 - `AGENTS.md` / `CLAUDE.md`: keep every project rule. Add the system's missing sections
   (verification table, "what to read" routing, workflow skills) and move long topic prose into
   `context/`, leaving a link. `CLAUDE.md` gains `@AGENTS.md` if it lacks it.
-- `.claude/settings.json`: merge lifecycle hook events and narrow lifecycle-entrypoint permissions
-  from the template; preserve unrelated hooks/settings. Replace this tool's old standalone
-  `agent-stop.mjs` Stop entry with its ordered lifecycle adapter so checks run once, before cleanup.
-- `.codex/hooks.json` (when `CODEX_HOOKS` is confirmed): merge event handlers, preserving unrelated
-  definitions and inline hooks. Avoid duplicate handlers across config representations; use
-  native trust review for changed definitions. Never mark unsupported/cloud hosts as native-ready.
-- Keep `.agents/sessions.md` and `.agents/.runtime/` ignored. Runtime files are local generated
-  state; do not merge them into tracked docs or clear them to hide failed cleanup.
+- `.claude/settings.json`: merge `permissions.allow` entries and `hooks.Stop` from the template;
+  keep everything already there.
 - Existing `.agents/skills`: keep; regenerate the catalog with `scripts/skills/index.mjs`.
 - No plan document: `docs/archive/product-brief.md` records the README's description and the
   user's answers. Every FILL is written from the code and the user, never invented.

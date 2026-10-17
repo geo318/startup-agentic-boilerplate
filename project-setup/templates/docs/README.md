@@ -7,7 +7,6 @@ historical verification label is not proof of its current production state.
 | When | Document |
 | --- | --- |
 | First local setup | [Local setup](local-setup.md) |
-| Thread startup, local services, handoff or leaked listeners | [Session lifecycle](session-lifecycle.md) |
 | Research the original product intent | [Product brief (archive)](archive/product-brief.md) |
 
 Add a row when introducing a runbook (deploys, migrations with a rollout, incident recovery,

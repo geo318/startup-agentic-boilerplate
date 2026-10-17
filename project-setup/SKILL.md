@@ -19,9 +19,8 @@ harness's skill picker (`$project-setup` in Codex, `/project-setup` in Claude), 
 and follow it directly. Slash commands below mean the named skill, not a required command syntax.
 Use the active harness's available tools; do not assume Claude tools, plugins, or scheduling exist.
 Confirm agents used during intake. Set `CLAUDE_CODE` and `CLAUDE_SKILL_LINKS` only when Claude
-compatibility is wanted. `CODEX_HOOKS` enables project hooks only for a confirmed supported local
-Codex client with native trust configured. Every harness uses the shared session begin/run/finish
-runtime; hookless hosts follow root instructions. Every harness must still run step 8 before handoff.
+compatibility is wanted; other harnesses use `AGENTS.md`, shared skills, git hooks, and CI.
+Claude's Stop hook is optional convenience: every harness must run step 8 before handoff.
 
 ## Prerequisites
 
@@ -83,7 +82,7 @@ Add one line per missing `tokenTools` entry with its install command from
 
 ### Lean preset
 
-For small projects, recommend `flags.LEAN: true` in the existing confirmation summary. It renders concise commands, invariants, a code map, build plan, progress and library docs, plus applicable hooks/CI. It keeps `remember`, `sweep`, and session lifecycle, and omits generic architecture prose, other workflow skills, and fallow configuration. Existing projects keep their tooling. For lean setup:
+For small projects, recommend `flags.LEAN: true` in the existing confirmation summary. It renders concise commands, invariants, a code map, build plan, progress and library docs, plus applicable hooks/CI. It omits generic architecture prose, workflow skills other than `remember`, and fallow configuration. Existing projects keep their tooling. For lean setup:
 
 - Fill only the emitted files; do not create the omitted documents or domain skeleton.
 - Use framework generators only if requested, and keep their native structure.
@@ -178,11 +177,6 @@ app `AGENTS.md` files → `build-plan.md` → decisions → the rest. Keep `AGEN
   no recent commits), which removes their preview deployments, plus per-branch resources such as
   database branches. Dry-run first; never delete the default or a protected branch or one with an
   open PR; document it in `context/architecture/deployment.md`.
-- Every preset: keep session lifecycle scripts, the sweep skill, and its runbook together.
-  Root/app dev commands use the managed launcher; the ignored runtime document is never filled
-  or tracked. Verify `ps`/`lsof` on macOS/Linux. Configure only the confirmed native hook flags;
-  preserve existing hooks and report required native trust without bypassing it. Hookless agents
-  still follow begin/run/finish. See `templates/docs/session-lifecycle.md` for the contract.
 - GitHub (if chosen): tell the user to create the `do-not-merge` label and make `Merge gate` and
   the actual job contexts (`checks`, `do-not-merge`) required checks — do not do it for them unless asked.
 
@@ -241,8 +235,7 @@ Never pass `--force` without the user's yes; `--sync` never overwrites an edited
 | `scripts/scaffold.mjs` | Renderer: `{{VAR}}`, `{{#if}}/{{else}}/{{/if}}`, `{{#unless}}`, `{{#each APPS}}`, `__APP_DIR__` paths; lock file and `--sync`. |
 | `templates/scripts/checks/docs-check.mjs` | Ships into the project: placeholders, FILL markers, links, anchors, line budgets, stale skill catalog, dependencies missing from library-docs. |
 | `templates/scripts/skills/index.mjs` | Ships into the project: generates `.agents/skills-index.md` from each `SKILL.md`; `--check` for CI. |
-| `templates/scripts/checks/agent-stop.mjs` | Completion checks called by the lifecycle adapter: docs-check + applicable `fallow audit`; failures return to the agent. |
-| `templates/scripts/session/` | Dependency-free Git initialization, resource registry, managed launch/sweep, supervisor, and native hook adapters. |
+| `templates/scripts/checks/agent-stop.mjs` | Ships into the project: Claude Code Stop hook — docs-check + `fallow audit` on changed files, failures returned to the agent. |
 | `references/upstream-reporting.md` | What to do when this skill has a bug or an inconsistency: severity rules, redaction, issue vs PR. |
 | `scripts/detect.mjs` | Read-only inventory of a target: mode, draft answers, tooling, layers, conflicts. |
 | `scripts/token-audit.mjs` | Read-only audit of always-loaded context (instructions, skills, MCP servers, plugins) against usage in recent transcripts. |
