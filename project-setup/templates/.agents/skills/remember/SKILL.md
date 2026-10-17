@@ -11,8 +11,7 @@ which one. Invoke through the harness skill picker (`/remember` in Claude, `$rem
 or read this file and follow it directly.
 
 At the start of a new session, root instructions request restore once if `memory.md` exists.
-Restore itself is non-mutating. After reading the current task and continuity evidence, follow
-[session lifecycle](../../../docs/session-lifecycle.md) for begin/run/finish. Saving remains explicit.
+This is agent guidance, not a startup hook or background process. Saving remains explicit.
 
 ## Never store secrets
 

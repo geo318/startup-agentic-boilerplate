@@ -38,7 +38,6 @@ One skill, `project-setup`, reads your plan and sets up the repo so any agent kn
 | Docs rot | `docs-check` fails on dead links, leftover placeholders, oversized docs and undocumented dependencies |
 | No plan | A build plan with milestones and a progress tracker that records dated evidence |
 | Lost sessions | A `remember` skill that saves and restores a handoff between sessions |
-| Stale branches and leftover servers | Once-per-thread Git refresh, an ownership registry, and automatic managed-resource cleanup at handoff |
 | Same setup every time | One command, one template source, and **sync** to roll improvements into every project |
 
 Structure is rendered **deterministically** by a script with no dependencies. Only the prose that needs judgement is written by the agent, from your plan, and the checks fail until it's all filled in.
@@ -74,8 +73,7 @@ The skill is a symlink into `node_modules`, so `npm update` updates it too, and 
 | **UI** | `ui-rules.md`, `ui-tokens.md`, `ui-registry.md`, `design-taste` skill | Visual rules and on-demand design guidance |
 | **Planning** | `build-plan.md`, `progress-tracker.md`, `decisions/` | Milestones, dated progress, ADRs |
 | **Skills** | `architect`, `review`, `recover`, `remember`, `sweep`, `imprint`, `add-library-skill` | Repeatable agent workflows |
-| **Session lifecycle** | `scripts/session/`, `docs/session-lifecycle.md`, local `.agents/sessions.md` | Safe default-branch refresh; owned process leases; cleanup and recovery |
-| **Checks** | `scripts/checks/docs-check.mjs`, supported lifecycle hooks | Docs stay true; native Stop runs checks before resource cleanup |
+| **Checks** | `scripts/checks/docs-check.mjs`, Claude Code stop hook | Docs stay true; in Claude Code, failures go back to the agent |
 | **Git & CI** | `.githooks/`, `ci.yml`, `merge-gate.yml`, PR template, Dependabot | Branch, commit and PR rules, enforced |
 | **Code quality** | `biome.json`, strict `tsconfig`, `.fallowrc.json`, oxlint | Boundaries, dead code, duplication, complexity |
 
@@ -122,14 +120,6 @@ Changes are listed in the [release notes](CHANGELOG.md).
 ## 🤝 Works with
 
 **Claude Code**, **Codex**, or any agent that can read Markdown and run shell commands. `.agents/skills/` is the canonical location, and Claude gets symlinks in `.claude/skills/`. Requires **Node 22+** (or Bun) and Git.
-
-Session resource control supports macOS/Linux with `ps` and `lsof`. Agents initialize Git once,
-launch services through the managed CLI, and release temporary leases before every handoff.
-Dirty files, unfinished branches, requested context, other threads, and user-owned servers are
-preserved. The generated session document is empty when no active resources/failures remain.
-Claude lifecycle hooks follow `CLAUDE_CODE`; project Codex hooks require `CODEX_HOOKS`, a supported
-local host, and native trust. Hookless hosts use the same commands through root instructions.
-See the [lifecycle runbook template](project-setup/templates/docs/session-lifecycle.md).
 
 ---
 

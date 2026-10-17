@@ -27,7 +27,6 @@ const SKIP_DIRS = new Set([
   "temp",
   "worktrees",
   ".worktrees",
-  ".runtime",
 ]);
 // Upstream skills are vendored as-is; only the project's own workflow skills are checked.
 const OWN_SKILLS = new Set([
@@ -104,7 +103,7 @@ function filesNamed(root, matches) {
         if (!shouldSkip(relDir, entry.name)) {
           walk(full);
         }
-      } else if (entry.isFile() && !(relDir === ".agents" && entry.name === "sessions.md") && matches(entry.name)) {
+      } else if (entry.isFile() && matches(entry.name)) {
         found.push(full);
       }
     }

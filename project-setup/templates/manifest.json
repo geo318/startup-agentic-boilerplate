@@ -3,7 +3,7 @@
     "gitignore": ".gitignore",
     "env.example": ".env.example"
   },
-  "executable": [".githooks/", "scripts/git/", "scripts/checks/", "scripts/skills/", "scripts/session/"],
+  "executable": [".githooks/", "scripts/git/", "scripts/checks/", "scripts/skills/"],
   "when": [
     { "path": "context/ui-rules.md", "flag": "HAS_UI" },
     { "path": "context/ui-tokens.md", "flag": "HAS_UI" },
@@ -23,7 +23,7 @@
     { "path": ".githooks", "flag": "!OWN_HOOKS" },
     { "path": ".github/workflows/ci.yml", "flag": "!OWN_CI" },
     { "path": "context/plans/adoption.md", "flag": "ADOPT" },
-    { "path": ".codex", "flag": "CODEX_HOOKS" },
+    { "path": "scripts/checks/agent-stop.mjs", "flag": "CLAUDE_CODE" },
     { "path": ".agents/routines", "flag": "GITHUB" },
     { "path": "tsconfig.base.json", "flag": "TYPESCRIPT" },
     { "path": ".github", "flag": "GITHUB" },

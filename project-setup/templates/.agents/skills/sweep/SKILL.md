@@ -1,32 +1,65 @@
 ---
 name: sweep
-description: Inspect and release this project's session-owned dev servers, watchers, tunnels, and temporary process trees at handoff, or recover resources after an interrupted session. Use when starting app work, finishing a turn, or diagnosing leftover listeners.
+description: Clean up leftover project processes, stale local caches, and unused Git worktrees. Use when asked to sweep or reclaim local disk space, or when diagnosing abandoned development resources.
 ---
 
 # Sweep
 
-Use the project's lifecycle CLI; its registry proves ownership and coordinates other threads.
-Read [the lifecycle runbook](../../../docs/session-lifecycle.md) for setup, retention, or recovery
-failures. Commands run from the project root with `{{RUNTIME}} scripts/session/cli.mjs`.
+Inspect the current project, identify disposable resources, then clean up verified candidates.
+A sweep request authorizes the safe cleanup below; report uncertain candidates without deleting
+or stopping them. This skill uses existing OS, Git, and project tools directly.
 
-- At a new thread, read the user's request and relevant memory, then `begin --intent fresh`.
-  Use `--intent continue --reason <evidence>` for requested branches, PRs, or unfinished work.
-  Reuse a native hook's session/turn IDs; without hooks, keep the IDs returned by begin.
-- Use the returned checkout for every following command. Start background services with
-  `run --session <id> --turn <turn> --label <service> -- <executable> <args>`.
-  The launcher records processes and actual ports. Never substitute a handwritten PID table.
-- Before final handoff, run relevant checks, then `finish --session <id> --turn <turn>`.
-  Do this even when no files changed or the task is only inspection. Supported native Stop
-  hooks provide a second cleanup path. Reacquire with begin on a subsequent turn.
-- To inspect/recover: `status --json`, then `sweep`. An empty `.agents/sessions.md` means no
-  recorded active resources or unresolved cleanup. Report any remaining failure accurately.
-- A pre-existing service belongs to its original owner. Use `borrow --session <id> --label
-  <service> --pid <verified-pid>` when useful; finish removes the lease without stopping it.
-- Only an explicit request to leave a service running warrants `run ... --retain <seconds>
-  --reason <request> -- <command>`. Retention is finite (at most one day); two hours is a
-  reasonable preview default. Its row remains visible until expiry or release.
+## Inspect first
 
-Routine refresh and exact owned-process cleanup are authorized by the project policy. Do not
-ask for repeated confirmation. Never clear the generated document by hand, kill by port/name,
-adopt another thread's process, or discard Git work to obtain a clean status. An unverifiable
-resource remains recorded; diagnose it without broadening termination authority.
+- Establish the repository root, current checkout, and `git worktree list --porcelain`.
+- Inspect project scripts and cache configuration, candidate sizes and modification times, and
+  running processes with their command, working directory, and owner (`ps` and `lsof` where available).
+- Age alone does not prove abandonment. Preserve resources used by another task, user, build,
+  dev server, or watcher. If activity or ownership cannot be verified, skip the candidate.
+
+## Leftover processes
+
+Stop only processes attributable to this task that are no longer needed, or specific abandoned
+project processes the user has authorized stopping. Recheck PID identity and working directory
+immediately before sending SIGTERM; verify exit. Never kill by port or process name, use broad
+`pkill`, or assume every process in this repository belongs to this task. Report survivors;
+force-killing requires specific authorization.
+
+## Stale caches
+
+Identify reproducible, project-local tool caches from configuration and the tool's documented
+behavior (for example `.next/cache`, `.turbo`, `.vite`, or `node_modules/.cache`). Clean caches
+that are unused and obsolete, implicated in stale behavior, or included in the requested disk
+cleanup. Prefer a tool's scoped cache-clean command after checking what it deletes.
+
+Before deletion, verify the exact path stays inside the intended checkout, is not a symlink or
+reached through one, contains no tracked files, and has no active users. Use explicit paths;
+never broad globs, `git clean -fdx`, or whole output-directory deletion as a cache shortcut.
+Gitignored does not mean disposable. Preserve dependencies, secrets, databases, uploads,
+volumes, logs needed for diagnosis, and user output. Shared/global package caches and Docker
+pruning require a separate explicit request. Report that cleared caches rebuild on next use.
+
+## Stale worktrees
+
+1. Inspect `git worktree list --porcelain`; use `git worktree prune --dry-run --verbose` to
+   identify obsolete administrative records. Run ordinary `git worktree prune --verbose` only
+   for verified abandoned records; preserve locked worktrees and temporarily unavailable mounts.
+   Do not override Git's expiration defaults.
+2. For an existing worktree, establish that it belongs to this task or is confirmed abandoned.
+   Never remove the primary checkout, current checkout, locked worktrees, another task's worktree,
+   or a worktree with running processes or an ongoing Git operation.
+3. Check staged, unstaged, and untracked files, submodules, and ignored files. Preserve any local
+   work or non-reproducible ignored data. Fetch the configured remote before evaluating branch
+   status; if freshness cannot be established, skip removal.
+4. Verify HEAD is included in the current remote default branch with `git merge-base --is-ancestor`.
+   An old directory, missing upstream branch, or closed PR alone is insufficient. Preserve
+   unmerged/unpushed commits. Squash merges need separate verification; skip ambiguous cases.
+   Apply the same reachability check to detached worktrees.
+5. Recheck status and activity, then use `git worktree remove <exact-path>` without `--force`.
+   Leave local branches intact unless branch deletion was also requested. Report failed removals;
+   never bypass Git's refusal with recursive deletion.
+
+## Report
+
+List what was removed/stopped, space reclaimed when measured, and what remains with reasons.
+Do not claim a complete cleanup when checks were unavailable or candidates were skipped.
