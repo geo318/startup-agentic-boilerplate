@@ -3,11 +3,12 @@
 Update a project with `npm update @geo318/agentic-boilerplate`, then
 `npx agentic-boilerplate sync --dry-run` and rerun without `--dry-run`.
 
-## Unreleased
+## 0.1.7 — 2026-10-17
 
 - Add a standalone `sweep` skill for leftover processes, stale local caches, and unused worktrees in both presets.
 
 - Revert managed session lifecycle, automatic checkout initialization, and session resource cleanup.
+- Keep legacy session state ignored after sync so local session data is not accidentally committed.
 
 ## 0.1.6 — 2026-10-17
 
