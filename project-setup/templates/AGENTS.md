@@ -131,6 +131,7 @@ verification commands above even without a completion hook.
 {{#if HAS_UI}}
 - `/imprint`: after building any new UI component.
 {{/if}}
+- `/sweep`: clean up leftover processes, stale caches, and unused worktrees.
 - `/recover`: when something breaks after one failed correction.
 - `/remember save` / `/remember restore`: for work that spans sessions.
 - `/add-library-skill <package>`: when docs-check names a package missing from library docs.

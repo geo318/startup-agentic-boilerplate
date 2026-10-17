@@ -72,7 +72,7 @@ The skill is a symlink into `node_modules`, so `npm update` updates it too, and 
 | **Standards** | `context/standards/*` | Design principles, code organisation, React, TypeScript, testing, delivery, database |
 | **UI** | `ui-rules.md`, `ui-tokens.md`, `ui-registry.md`, `design-taste` skill | Visual rules and on-demand design guidance |
 | **Planning** | `build-plan.md`, `progress-tracker.md`, `decisions/` | Milestones, dated progress, ADRs |
-| **Skills** | `architect`, `review`, `recover`, `remember`, `imprint`, `add-library-skill` | Repeatable agent workflows |
+| **Skills** | `architect`, `review`, `recover`, `remember`, `sweep`, `imprint`, `add-library-skill` | Repeatable agent workflows |
 | **Checks** | `scripts/checks/docs-check.mjs`, Claude Code stop hook | Docs stay true; in Claude Code, failures go back to the agent |
 | **Git & CI** | `.githooks/`, `ci.yml`, `merge-gate.yml`, PR template, Dependabot | Branch, commit and PR rules, enforced |
 | **Code quality** | `biome.json`, strict `tsconfig`, `.fallowrc.json`, oxlint | Boundaries, dead code, duplication, complexity |
@@ -86,7 +86,7 @@ Files are gated by flags (UI, Next.js, DB, auth, multi-tenant, AI, jobs, GitHub,
 | Commands, invariants, code map, plan, tracker, library docs | ✅ | ✅ |
 | Hooks and CI | ✅ | ✅ |
 | Architecture and standards docs | ✅ | — |
-| Workflow skills | all | `remember` only |
+| Workflow skills | all | `remember`, `sweep` |
 | fallow config | ✅ | — |
 
 ## 🏗️ Existing projects

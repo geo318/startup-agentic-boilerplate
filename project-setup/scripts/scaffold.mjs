@@ -171,6 +171,7 @@ function included(relPath, flags) {
     ![
       "CLAUDE.md",
       ".agents/skills/remember/SKILL.md",
+      ".agents/skills/sweep/SKILL.md",
       ".github/pull_request_template.md",
       "docs/archive/product-brief.md",
     ].includes(relPath) &&

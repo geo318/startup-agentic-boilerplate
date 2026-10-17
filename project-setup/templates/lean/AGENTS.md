@@ -44,6 +44,8 @@ the limitation; never silently open another window. Preserve unrelated tabs and 
 
 ## Read when relevant
 
+- [Sweep](.agents/skills/sweep/SKILL.md): leftover processes, stale caches, and unused worktrees.
+
 - [Code map](context/code-map.md): ownership, entry points, existing boundaries.
 - [Build plan](context/build-plan.md): open work and decisions.
 - [Progress](context/progress-tracker.md): prior evidence and handoff.

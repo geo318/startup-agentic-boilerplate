@@ -34,6 +34,7 @@ const OWN_SKILLS = new Set([
   "review",
   "recover",
   "remember",
+  "sweep",
   "imprint",
   "design-taste",
   "add-library-skill",

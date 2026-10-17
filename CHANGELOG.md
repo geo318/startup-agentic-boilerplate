@@ -5,6 +5,8 @@ Update a project with `npm update @geo318/agentic-boilerplate`, then
 
 ## Unreleased
 
+- Add a standalone `sweep` skill for leftover processes, stale local caches, and unused worktrees in both presets.
+
 - Revert managed session lifecycle, automatic checkout initialization, and session resource cleanup.
 
 ## 0.1.6 — 2026-10-17

@@ -321,6 +321,17 @@ test("token audit counts canonical skills once across Claude symlinks", () => {
   assert.equal(audit.usageSource, "claude-code-only");
 });
 
+test("both presets ship standalone sweep without managed lifecycle", () => {
+  for (const lean of [false, true]) {
+    const { t, r } = render({ flags: { LEAN: lean } });
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(existsSync(join(t, ".agents/skills/sweep/SKILL.md")));
+    assert.match(readFileSync(join(t, ".agents/skills-index.md"), "utf8"), /sweep/);
+    assert.ok(!existsSync(join(t, "scripts/session")));
+    assert.ok(!existsSync(join(t, ".codex/hooks.json")));
+  }
+});
+
 test("lean setup keeps commands and checks, omits generic architecture prose, and has valid links", () => {
   const { t, r } = render({ flags: { LEAN: true } });
   assert.equal(r.status, 0, r.stderr);
