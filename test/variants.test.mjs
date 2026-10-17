@@ -224,6 +224,32 @@ test("upgrade (--sync): untouched file with a changed template is updated; edite
   assert.match(r.stdout, /merge 1 files/);
 });
 
+test("sync keeps legacy session state ignored in both presets", () => {
+  for (const lean of [false, true]) {
+    const patch = { flags: { LEAN: lean } };
+    const { t, r } = render(patch);
+    assert.equal(r.status, 0, r.stderr);
+    const legacy = "node_modules/\n.agents/sessions.md\n.agents/.runtime/\n";
+    writeFileSync(join(t, ".gitignore"), legacy);
+    const lockPath = join(t, "docs/archive/project-setup.lock.json");
+    const lock = JSON.parse(readFileSync(lockPath, "utf8"));
+    lock[".gitignore"] = sha(legacy);
+    writeFileSync(lockPath, JSON.stringify(lock));
+    mkdirSync(join(t, ".agents/.runtime"), { recursive: true });
+    const paths = [".agents/sessions.md", ".agents/.runtime/state.json"];
+    for (const path of paths) writeFileSync(join(t, path), "private legacy state\n");
+    const sync = spawnSync(process.execPath, [scaffold, "--answers", answers(patch), "--target", t, "--sync"], { encoding: "utf8" });
+    assert.equal(sync.status, 0, sync.stderr);
+    assert.notEqual(readFileSync(join(t, ".gitignore"), "utf8"), legacy);
+    const init = spawnSync("git", ["init", "-q", t], { encoding: "utf8" });
+    assert.equal(init.status, 0, init.stderr);
+    const ignored = spawnSync("git", ["check-ignore", "--", ...paths], { cwd: t, encoding: "utf8" });
+    assert.equal(ignored.status, 0, ignored.stderr);
+    assert.deepEqual(ignored.stdout.trim().split("\n"), paths);
+    for (const path of paths) assert.equal(readFileSync(join(t, path), "utf8"), "private legacy state\n");
+  }
+});
+
 test("dry-run on an adopted project reports conflicts and writes nothing", () => {
   const { t } = render({});
   writeFileSync(join(t, "AGENTS.md"), "mine\n");

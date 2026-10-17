@@ -25,3 +25,7 @@ temp/
 .claude/worktrees/
 .worktrees/
 .project-setup/
+
+# legacy session state survives template sync
+.agents/sessions.md
+.agents/.runtime/
