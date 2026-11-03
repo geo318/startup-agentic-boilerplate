@@ -3,7 +3,7 @@
 Update a project with `npm update @geo318/agentic-boilerplate`, then
 `npx agentic-boilerplate sync --dry-run` and rerun without `--dry-run`.
 
-## Unreleased
+## 0.1.8 — 2026-11-03
 
 - Add a `REVIEW.md` template (GitHub + Claude Code) for Claude Code Review: what Important means,
   a five-nit cap, paths and CI-enforced checks to skip, flag-gated always-check rules, and a
