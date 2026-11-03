@@ -23,6 +23,10 @@ For visual design planning, redesigns, and Stitch screen briefs, use
 See [root workflow guidance](../AGENTS.md#workflow-skills) for when to use project skills.
 The [generated catalog](skills-index.md) lists their descriptions and entrypoints.
 
+[Architecture](skills/architecture/SKILL.md) guides application code from the first implementation:
+layer boundaries, SOLID, repositories, and source ownership. It also supports audits and refactors;
+`architect` remains the planning workflow.
+
 [Sweep](skills/sweep/SKILL.md) cleans up leftover processes, stale caches, and unused worktrees on request.
 
 ## Libraries and domains
