@@ -34,6 +34,8 @@ Unsure where a change belongs? See the [code map](context/code-map.md).
 
 ## Invariants (never violate)
 
+- Keep presentation thin, domain rules pure, repositories behind ports, and wiring at composition.
+  Group source by feature and component ownership.
 {{#if REQUEST_PATH_SET}}
 - Request path: `{{REQUEST_PATH}}`. Each layer talks only to its neighbour; details in
   [architecture](context/architecture.md#canonical-request-path).
@@ -86,7 +88,7 @@ Read only the rows your task touches. [context/README.md](context/README.md) map
 
 | Task | Read |
 | --- | --- |
-| Any implementation | [architecture](context/architecture.md) + [code standards](context/code-standards.md) (routers: follow only matching links) |
+| Before writing app code | [architecture skill](.agents/skills/architecture/SKILL.md), [boundaries](context/architecture.md), [standards](context/code-standards.md) |
 | New module, use case, entity, port, or repository | [domain modules](context/architecture/domain-modules.md) |
 | New file or folder; naming; where code goes | [code organisation](context/standards/code-organisation.md) |
 | Product | [overview](context/project-overview.md), [glossary](context/glossary.md) |
@@ -127,6 +129,7 @@ Use the skill picker or `.agents/skills/<name>/SKILL.md`; `/name` is `$name` in 
 verification commands above even without a completion hook.
 
 - `/architect`: before any non-trivial feature — get a confirmed plan.
+- `/architecture`: boundaries, SOLID, source ownership.
 - `/review`: after a feature, before a demo, or when something feels off.
 {{#if HAS_UI}}
 - `/imprint`: after building any new UI component.

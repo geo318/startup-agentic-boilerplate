@@ -358,12 +358,36 @@ test("both presets ship standalone sweep without managed lifecycle", () => {
   }
 });
 
+test("full setups install architecture guidance and check its local references", () => {
+  for (const typescript of [false, true]) {
+    const { t, r } = render({ flags: { TYPESCRIPT: typescript, HAS_UI: typescript } });
+    assert.equal(r.status, 0, r.stderr);
+    const skill = ".agents/skills/architecture";
+    assert.equal(
+      readFileSync(join(t, skill, "SKILL.md"), "utf8"),
+      readFileSync(join(root, "project-setup/templates", skill, "SKILL.md"), "utf8"),
+    );
+    assert.ok(existsSync(join(t, skill, "references/layouts.md")));
+    assert.equal(realpathSync(join(t, ".claude/skills/architecture")), realpathSync(join(t, skill)));
+    assert.match(readFileSync(join(t, ".agents/skills-index.md"), "utf8"), /architecture\/SKILL\.md/);
+    assert.match(readFileSync(join(t, "AGENTS.md"), "utf8"), /architecture\/SKILL\.md/);
+    for (const f of files(t).filter((f) => f.endsWith(".md"))) {
+      writeFileSync(join(t, f), readFileSync(join(t, f), "utf8").replace(/<!-- FILL:[\s\S]*?-->/g, "Fixture."));
+    }
+    writeFileSync(join(t, skill, "references/layouts.md"), "[Broken example](missing.md)\n");
+    const check = spawnSync(process.execPath, [join(t, "scripts/checks/docs-check.mjs"), "--root", t], { encoding: "utf8" });
+    assert.equal(check.status, 1, check.stdout + check.stderr);
+    assert.match(check.stdout + check.stderr, /architecture\/references\/layouts\.md.*missing\.md/);
+  }
+});
+
 test("lean setup keeps commands and checks, omits generic architecture prose, and has valid links", () => {
   const { t, r } = render({ flags: { LEAN: true } });
   assert.equal(r.status, 0, r.stderr);
   assert.ok(!existsSync(join(t, "context/architecture/domain-modules.md")));
   assert.ok(!existsSync(join(t, ".fallowrc.json")));
   assert.ok(!existsSync(join(t, ".agents/skills/architect")));
+  assert.ok(!existsSync(join(t, ".agents/skills/architecture")));
   assert.ok(readFileSync(join(t, "AGENTS.md"), "utf8").length / 4 < 1500);
   for (const f of files(t).filter((f) => f.endsWith(".md"))) {
     const body = readFileSync(join(t, f), "utf8").replace(/<!-- FILL:[\s\S]*?-->/g, "Setup fixture.");

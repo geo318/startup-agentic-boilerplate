@@ -31,6 +31,7 @@ const SKIP_DIRS = new Set([
 // Upstream skills are vendored as-is; only the project's own workflow skills are checked.
 const OWN_SKILLS = new Set([
   "architect",
+  "architecture",
   "review",
   "recover",
   "remember",

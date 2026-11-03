@@ -20,6 +20,10 @@ Read, in this order, only what the feature touches:
 
 Never ask something the docs or code already answer.
 
+For application work, apply [architecture](../architecture/SKILL.md) while planning the first
+implementation: assign layer and folder ownership before creating files. Carry those boundaries
+into the implementation plan and its checks.
+
 ### Map the whole path
 
 {{#if REQUEST_PATH_SET}}
