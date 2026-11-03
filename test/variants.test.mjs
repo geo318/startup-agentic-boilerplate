@@ -58,8 +58,8 @@ const noLeftovers = (t) => {
 
 const app = (dir) => ({ ...base.apps[0], APP_DIR: dir });
 const variants = {
-  "typescript + github (base)": { patch: {}, has: [".github/workflows/ci.yml", "biome.json"], hasNot: [] },
-  "no github": { patch: { flags: { GITHUB: false } }, has: ["AGENTS.md"], hasNot: [".github", ".agents/routines"] },
+  "typescript + github (base)": { patch: {}, has: [".github/workflows/ci.yml", "biome.json", "REVIEW.md"], hasNot: [] },
+  "no github": { patch: { flags: { GITHUB: false } }, has: ["AGENTS.md"], hasNot: [".github", ".agents/routines", "REVIEW.md"] },
   "non-typescript": {
     patch: { flags: { TYPESCRIPT: false } },
     has: ["AGENTS.md"],
@@ -73,7 +73,7 @@ const variants = {
   "docs-only (no apps, no claude)": {
     patch: { apps: [], flags: { TYPESCRIPT: false, CLAUDE_CODE: false } },
     has: ["context/README.md"],
-    hasNot: [".claude"],
+    hasNot: [".claude", "REVIEW.md"],
   },
   "adopt existing project": {
     patch: { flags: { ADOPT: true } },
@@ -388,6 +388,7 @@ test("lean setup keeps commands and checks, omits generic architecture prose, an
   assert.ok(!existsSync(join(t, ".fallowrc.json")));
   assert.ok(!existsSync(join(t, ".agents/skills/architect")));
   assert.ok(!existsSync(join(t, ".agents/skills/architecture")));
+  assert.ok(existsSync(join(t, "REVIEW.md")));
   assert.ok(readFileSync(join(t, "AGENTS.md"), "utf8").length / 4 < 1500);
   for (const f of files(t).filter((f) => f.endsWith(".md"))) {
     const body = readFileSync(join(t, f), "utf8").replace(/<!-- FILL:[\s\S]*?-->/g, "Setup fixture.");
@@ -492,4 +493,24 @@ test("token configuration inventory respects the selected harness", () => {
     assert.deepEqual(data.enabledPlugins, harness === "codex" ? [] : ["claude-plugin"]);
     assert.equal(data.codexConfigFiles.length, harness === "claude" ? 0 : 2);
   }
+});
+
+// Code Review skips the whole REVIEW.md past 64 Markdown links; flag gates decide the extra checks.
+test("REVIEW.md has no Markdown links and gains checks only for enabled flags", () => {
+  const read = (patch) => {
+    const { t, r } = render(patch);
+    assert.equal(r.status, 0, r.stderr);
+    return readFileSync(join(t, "REVIEW.md"), "utf8");
+  };
+  const plain = read({});
+  const full = read({
+    flags: { HAS_AUTH: true, MULTI_TENANT: true, HAS_DB: true, HAS_AI: true },
+    vars: { AUTH_PACKAGE_PATTERNS: '"better-auth"' },
+  });
+  for (const body of [plain, full]) assert.doesNotMatch(body, /\]\(/);
+  for (const rule of [/authorization/, /tenant/, /migration/, /schema/]) {
+    assert.doesNotMatch(plain, rule);
+    assert.match(full, rule);
+  }
+  assert.match(plain, /at most five Nits/);
 });

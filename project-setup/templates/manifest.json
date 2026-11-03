@@ -27,6 +27,8 @@
     { "path": ".agents/routines", "flag": "GITHUB" },
     { "path": "tsconfig.base.json", "flag": "TYPESCRIPT" },
     { "path": ".github", "flag": "GITHUB" },
+    { "path": "REVIEW.md", "flag": "GITHUB" },
+    { "path": "REVIEW.md", "flag": "CLAUDE_CODE" },
     { "path": ".claude", "flag": "CLAUDE_CODE" }
   ]
 }

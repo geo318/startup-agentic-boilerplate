@@ -3,6 +3,12 @@
 Update a project with `npm update @geo318/agentic-boilerplate`, then
 `npx agentic-boilerplate sync --dry-run` and rerun without `--dry-run`.
 
+## Unreleased
+
+- Add a `REVIEW.md` template (GitHub + Claude Code) for Claude Code Review: what Important means,
+  a five-nit cap, paths and CI-enforced checks to skip, flag-gated always-check rules, and a
+  file:line evidence rule. The `review` skill reads it too, and re-review docs name `@claude review`.
+
 ## 0.1.7 — 2026-10-17
 
 - Add a standalone `sweep` skill for leftover processes, stale local caches, and unused worktrees in both presets.

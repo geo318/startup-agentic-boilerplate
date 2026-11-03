@@ -62,7 +62,7 @@ Branches use `feat/short-name` (or fix/docs/refactor/perf/test/build/ci/chore/re
 Commit and PR titles use `type(scope): short summary`, lowercase, at most 72 characters.
 Stacking a PR onto another branch: use `gh stack` (extension: `gh extension install github/gh-stack`; ask first, else target the parent branch). For independent tasks, use a separate branch and `git worktree add .worktrees/<task>` (inside the repo, gitignored); preserve other worktrees, and occasionally `git worktree prune` and remove merged ones (clean and pushed only).
 After addressing review comments and pushing fixes, post one PR comment requesting re-review
-from the configured review agent (Codex: `@codex review`). Confirm its supported trigger from
+from the configured review agent (Codex: `@codex review`; Claude Code Review: `@claude review`). Confirm its supported trigger from
 repository configuration or integration documentation; do not guess a handle or duplicate a
 request for the same head commit. Include the last reviewed SHA → new head SHA, a comparison
 link, commit summaries, and validation results; ask to verify the fixes and check for regressions.

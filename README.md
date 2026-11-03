@@ -74,7 +74,7 @@ The skill is a symlink into `node_modules`, so `npm update` updates it too, and 
 | **Planning** | `build-plan.md`, `progress-tracker.md`, `decisions/` | Milestones, dated progress, ADRs |
 | **Skills** | `architect`, `architecture`, `review`, `recover`, `remember`, `sweep`, `imprint`, `add-library-skill` | Planning, architecture from the first implementation, and repeatable workflows |
 | **Checks** | `scripts/checks/docs-check.mjs`, Claude Code stop hook | Docs stay true; in Claude Code, failures go back to the agent |
-| **Git & CI** | `.githooks/`, `ci.yml`, `merge-gate.yml`, PR template, Dependabot | Branch, commit and PR rules, enforced |
+| **Git & CI** | `.githooks/`, `ci.yml`, `merge-gate.yml`, PR template, `REVIEW.md`, Dependabot | Branch, commit and PR rules, enforced |
 | **Code quality** | `biome.json`, strict `tsconfig`, `.fallowrc.json`, oxlint | Boundaries, dead code, duplication, complexity |
 
 Files are gated by flags (UI, Next.js, DB, auth, multi-tenant, AI, jobs, GitHub, TypeScript), so a backend-only or non-TypeScript project gets only what applies.

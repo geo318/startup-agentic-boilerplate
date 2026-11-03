@@ -10,8 +10,9 @@ decides what to fix.
 
 ## 1. Establish the benchmark
 
-Read the `/architect` plan (conversation or `context/plans/`), the original request, and the
-`AGENTS.md` invariants. Then get the diff (`git diff {{DEFAULT_BRANCH}}...HEAD` plus uncommitted
+Read the `/architect` plan (conversation or `context/plans/`), the original request, the
+`AGENTS.md` invariants, and `REVIEW.md` if present (its severity and always-check rules apply here
+too). Then get the diff (`git diff {{DEFAULT_BRANCH}}...HEAD` plus uncommitted
 changes) and read every changed file in full, not only the hunks.
 
 Plans and repository rules can be wrong. Independently check whether the behavior is correct,

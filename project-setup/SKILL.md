@@ -196,6 +196,8 @@ workflows (`bunx yaml-lint` or `python3 -c "import yaml,sys;yaml.safe_load(open(
 
 - Fill the progress tracker's setup entry with what was created and which checks passed.
 - Offer (do not do unasked) a first commit on a branch such as `chore/project-setup`.
+- GitHub + Claude Code projects: say that Claude Code Review reads `REVIEW.md` from the default
+  branch and honors its severity, skip, and nit rules only while that branch is protected.
 - GitHub projects: offer to schedule `.agents/routines/docs-audit.md` as a weekly cloud agent
   if the active harness supports scheduling. It audits docs against code and opens a PR; do not create it unasked.
 - Run the post-setup token audit from [references/token-tools.md](references/token-tools.md)
