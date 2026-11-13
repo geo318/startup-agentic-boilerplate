@@ -18,6 +18,10 @@ For skills outside these common workflows, use the [complete skill catalog](skil
 For visual design planning, redesigns, and Stitch screen briefs, use
 [design-taste](skills/design-taste/SKILL.md). Its long reference is **not** for routine UI edits.
 {{/if}}
+{{#if NEXTJS}}
+For slow pages, Web Vitals regressions, or adding analytics, chat, ads, or heavy visuals to a public
+page, use [page-load](skills/page-load/SKILL.md).
+{{/if}}
 ## Workflow
 
 See [root workflow guidance](../AGENTS.md#workflow-skills) for when to use project skills.

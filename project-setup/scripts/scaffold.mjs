@@ -176,7 +176,8 @@ function included(relPath, flags) {
       ".github/pull_request_template.md",
       "docs/archive/product-brief.md",
     ].includes(relPath) &&
-    !relPath.startsWith(".agents/skills/design-taste/")
+    !relPath.startsWith(".agents/skills/design-taste/") &&
+    !relPath.startsWith(".agents/skills/page-load/")
   )
     return false;
   return manifest.when.every(

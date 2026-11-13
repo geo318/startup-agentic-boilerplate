@@ -55,6 +55,9 @@ the limitation; never silently open another window. Preserve unrelated tabs and 
 {{#if HAS_UI}}
 - [Design taste](.agents/skills/design-taste/SKILL.md): visual design plans only; load its long reference on demand.
 {{/if}}
+{{#if NEXTJS}}
+- [Page load](.agents/skills/page-load/SKILL.md): slow pages, Web Vitals, adding third-party scripts or heavy widgets.
+{{/if}}
 
 {{#if GITHUB}}
 Use a branch and PR. Add `do-not-merge` once right after opening if checks are unverified; re-add only if removed and a later push is unverified.
