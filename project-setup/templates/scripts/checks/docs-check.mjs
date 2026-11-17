@@ -36,6 +36,7 @@ const OWN_SKILLS = new Set([
   "recover",
   "remember",
   "sweep",
+  "security-audit",
   "imprint",
   "design-taste",
   "page-load",

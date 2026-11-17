@@ -36,7 +36,8 @@ safe, and necessary; report a flawed requirement or rule with concrete evidence.
 5. **Correctness** — input validation at boundaries, error paths, empty/loading/partial states,
    concurrency and double-submit, idempotency of retries, timezone and money handling.
 6. **Security** — authorization on every new route *and* row; no secrets in code or logs; no
-   untrusted value used as an id, URL, query fragment, or HTML.
+   untrusted value used as an id, URL, query fragment, or HTML. A diff that adds an input,
+   upload, outbound fetch or public route also gets `/security-audit`.
 7. **Tests** — new behaviour has tests that would fail without it; bug fixes carry a regression
    test; nothing asserts implementation details.
 8. **Standards** — `context/code-standards.md` rules, design principles{{#if HAS_UI}}, UI rules and the UI registry{{/if}}, naming, dead code.
