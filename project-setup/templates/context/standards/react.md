@@ -90,6 +90,8 @@ Pick the first that fits; never keep the same state in two places.
 {{#if NEXTJS}}
 - Images use `next/image` with `sizes`; fonts use `next/font`; third-party scripts use `next/script`
   with an explicit strategy.
+- Public pages follow the [page-load skill](../../.agents/skills/page-load/SKILL.md): static shell,
+  one preloaded LCP image, analytics/ads after load, chat and heavy visuals after interaction.
 {{/if}}
 - Lists longer than about 100 rows are paginated or virtualized.
 - List keys are stable ids, never array indexes for lists that reorder or filter.

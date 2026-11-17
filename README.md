@@ -71,6 +71,7 @@ The skill is a symlink into `node_modules`, so `npm update` updates it too, and 
 | **Architecture** | `context/architecture/*` | Domain modules, deployment, tenant isolation, auth, AI |
 | **Standards** | `context/standards/*` | Design principles, code organisation, React, TypeScript, testing, delivery, database |
 | **UI** | `ui-rules.md`, `ui-tokens.md`, `ui-registry.md`, `design-taste` skill | Visual rules and on-demand design guidance |
+| **Next.js** | `page-load` skill | Static shells, deferred third parties, LCP and bundle budgets |
 | **Planning** | `build-plan.md`, `progress-tracker.md`, `decisions/` | Milestones, dated progress, ADRs |
 | **Skills** | `architect`, `architecture`, `review`, `recover`, `remember`, `sweep`, `imprint`, `add-library-skill` | Planning, architecture from the first implementation, and repeatable workflows |
 | **Checks** | `scripts/checks/docs-check.mjs`, Claude Code stop hook | Docs stay true; in Claude Code, failures go back to the agent |

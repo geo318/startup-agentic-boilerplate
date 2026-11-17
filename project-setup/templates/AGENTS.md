@@ -98,6 +98,9 @@ Read only the rows your task touches. [context/README.md](context/README.md) map
 | React state, data fetching, caching, performance | [React](context/standards/react.md) |
 | Building or matching a UI component | [UI registry](context/ui-registry.md), then `/imprint` after |
 {{/if}}
+{{#if NEXTJS}}
+| Slow page, Web Vitals regression, or a new script/widget/SDK on a public page | [page-load](.agents/skills/page-load/SKILL.md) |
+{{/if}}
 {{#if HAS_DB}}
 | Database, migrations | [database standards](context/standards/database.md) |
 {{/if}}

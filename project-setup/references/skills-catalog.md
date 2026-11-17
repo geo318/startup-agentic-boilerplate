@@ -10,6 +10,9 @@ UI-enabled projects already ship the optional `design-taste` visual planning ski
 local, on-demand Taste Standard reference. It needs no separate install and does not replace
 approved design tokens.
 
+Next.js projects ship the `page-load` skill: static shells with Cache Components, deferred
+third-party code, LCP image rules, and CI bundle budgets. It needs no separate install.
+
 ## How to install
 
 Prefer the upstream source through the skills CLI, which records a pin in `skills-lock.json`:
