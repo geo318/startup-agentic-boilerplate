@@ -29,6 +29,10 @@ layer boundaries, SOLID, repositories, and source ownership. It also supports au
 
 [Sweep](skills/sweep/SKILL.md) cleans up leftover processes, stale caches, and unused worktrees on request.
 
+[Security audit](skills/security-audit/SKILL.md) checks inputs, outputs, headers, exposed routes and
+dependencies against the [security boundaries](../context/architecture/security.md): a checklist
+with evidence, then findings. Load its fixes reference only when asked to fix.
+
 ## Libraries and domains
 
 <!-- FILL: one bullet per installed library/domain skill, grouped by area (Tooling, Web, API & data, Mobile, AI, Payments & jobs): "`name` (upstream `owner/repo` or "project"): when to load it". -->

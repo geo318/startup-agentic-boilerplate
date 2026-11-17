@@ -47,6 +47,11 @@ Read [Authorization](architecture/authorization.md) before touching auth, roles,
 Read [AI architecture](architecture/ai.md) before adding a prompt, model call, agent, or tool.
 
 {{/if}}
+## Security boundaries
+
+Read [Security boundaries](architecture/security.md) before adding an input, upload, link,
+generated file, outbound fetch, response header, or public route.
+
 ## Deployment and runtime
 
 Read [Deployment](architecture/deployment.md) before changing env, build, hosting, migrations, or

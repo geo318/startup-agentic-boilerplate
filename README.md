@@ -68,11 +68,11 @@ The skill is a symlink into `node_modules`, so `npm update` updates it too, and 
 | --- | --- | --- |
 | **Agent rules** | `AGENTS.md`, `CLAUDE.md`, `apps/*/AGENTS.md` | Root rules plus a dev loop and scoped rules per app |
 | **Project context** | `context/project-overview.md`, `glossary.md`, `code-map.md` | What it is, the vocabulary, and where code lives |
-| **Architecture** | `context/architecture/*` | Domain modules, deployment, tenant isolation, auth, AI |
+| **Architecture** | `context/architecture/*` | Domain modules, deployment, security boundaries, tenant isolation, auth, AI |
 | **Standards** | `context/standards/*` | Design principles, code organisation, React, TypeScript, testing, delivery, database |
 | **UI** | `ui-rules.md`, `ui-tokens.md`, `ui-registry.md`, `design-taste` skill | Visual rules and on-demand design guidance |
 | **Planning** | `build-plan.md`, `progress-tracker.md`, `decisions/` | Milestones, dated progress, ADRs |
-| **Skills** | `architect`, `architecture`, `review`, `recover`, `remember`, `sweep`, `imprint`, `add-library-skill` | Planning, architecture from the first implementation, and repeatable workflows |
+| **Skills** | `architect`, `architecture`, `review`, `security-audit`, `recover`, `remember`, `sweep`, `imprint`, `add-library-skill` | Planning, architecture from the first implementation, and repeatable workflows |
 | **Checks** | `scripts/checks/docs-check.mjs`, Claude Code stop hook | Docs stay true; in Claude Code, failures go back to the agent |
 | **Git & CI** | `.githooks/`, `ci.yml`, `merge-gate.yml`, PR template, `REVIEW.md`, Dependabot | Branch, commit and PR rules, enforced |
 | **Code quality** | `biome.json`, strict `tsconfig`, `.fallowrc.json`, oxlint | Boundaries, dead code, duplication, complexity |

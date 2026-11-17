@@ -36,6 +36,13 @@ invariant needs to be short and obviously right, or it will erode.
 | D6 | Auth-library upgrades are schema releases, patch versions included: never inside a grouped dependency PR; verify sign-in against a real DB. | auth library | review + dependabot ignore/grouping | (observed) two production sign-in outages from patch bumps whose builds passed. |
 | D7 | Secrets never in code, logs, docs, or `memory.md`. | always | review, secret scanning | — |
 | D8 | Money is integers in minor units with an explicit currency; time is stored in UTC with the tenant's zone applied at the edges. | payments / scheduling | types + tests | — |
+| D9 | Every request field is bounded by its schema: length, range, item count, closed shape. Free-form documents pass an allowlist before storage. | any API | schema library + `/security-audit` (walks the generated API schema) | (observed) strings with no limit were bounded only by the platform's payload cap. |
+| D10 | SQL goes through the ORM or bound parameters; search text is escaped for `LIKE`; sort and filter columns come from a closed set. | DB | lint (e.g. Ruff `S608`) + A3 | String-built SQL is where injection starts; one database layer makes it auditable. |
+| D11 | No raw-HTML sink receives data. Rich text is stored as structured data and checked on the server against an allowlist; links allow `http` and `https` only. | UI with user or AI content | Biome `noDangerouslySetInnerHtml` + validator tests | Escaping by the framework covers text, not `href`, `src`, or markup a sink is handed. |
+| D12 | Uploads use a type allowlist without HTML or SVG; the storage request enforces type and size; content is sniffed before parsing; downloads carry `nosniff` or are attachments. | uploads | tests + `/security-audit` | A declared content type is the uploader's claim; an HTML file served from the app's origin is stored XSS. |
+| D13 | A URL supplied by a user, page or model is fetched only through one guard: `http(s)`, public addresses, the connection pinned to the resolved address, redirects re-validated, size and time bounded. | outbound fetches (research, scraping, webhooks) | one fetch port + tests | Otherwise the server can be pointed at its own network or metadata endpoint. |
+| D14 | Every route sends a framing limit, `nosniff`, a referrer policy and HSTS. Pages that render user or model data send a nonce script policy without `'unsafe-inline'`; prerendered pages enter that area by a full page load. | web UI | proxy/middleware test + production-build check | (observed) a nonce on every page would have made prerendered public pages render per request; a client navigation into the protected area kept the outer page's policy. |
+| D15 | Interactive API docs and development routes are not served on the public site outside development; settings refuse development modes there. | any API | settings validator + release smoke check | (observed) the docs page loaded third-party scripts on the session's origin, without sign-in. |
 
 ## Type safety and code
 
@@ -70,6 +77,7 @@ invariant needs to be short and obviously right, or it will erode.
 | O1 | All scheduled production work runs on the job platform; no background loops or in-memory queues in serverless handlers. | jobs + serverless | review | Serverless instances freeze between requests; loops silently stop. |
 | O2 | A typecheck is not verification. Runtime behaviour is checked in the running app. | always | PR template | (observed) routes passed typecheck and 1,689 unit tests while mounted at an unreachable path. |
 | O3 | Jobs and webhooks are idempotent and re-check tenant state at execution time. | jobs/webhooks | tests | Every job and webhook will be retried or delivered twice eventually. |
+| O4 | Production dependencies carry no known advisory at release; a fix raises the package to its fixed version and nothing else. | always | `/security-audit` (`pnpm audit --prod`, `pip-audit`) or a CI job | (observed) ten denial-of-service advisories in a PDF parser were reachable through uploads. |
 
 ## Process
 
