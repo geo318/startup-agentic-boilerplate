@@ -37,12 +37,14 @@ const OWN_SKILLS = new Set([
   "remember",
   "sweep",
   "security-audit",
+  "data-access-audit",
   "imprint",
   "design-taste",
   "page-load",
   "add-library-skill",
 ]);
-const TOKEN_BUDGETS = { "AGENTS.md": 1500, "context/README.md": 800 }; // estimated characters / 4
+// estimated characters / 4. AGENTS.md: +50 over 1500 for the request-cost hard defaults.
+const TOKEN_BUDGETS = { "AGENTS.md": 1550, "context/README.md": 800 };
 const LINE_BUDGETS = {
   "AGENTS.md": 200,
   "context/README.md": 80,

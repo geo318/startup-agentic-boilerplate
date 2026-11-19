@@ -29,6 +29,14 @@ Use `remember save -y` when asked to save without an overwrite question; saving 
 - Keep presentation thin, rules independent of I/O, and storage behind the existing data boundary.
   Group source by feature and component ownership from the first implementation.
 - Validate external inputs; preserve authorization, error handling, and accessibility.
+{{#if HAS_DB}}
+- Request cost: one read transaction per request; no repository call in a loop (batch by ids);
+  reads never write; no transaction open across a network call.
+{{/if}}
+{{#if NEXTJS}}
+- No request waterfalls: a page prefetches every read it renders on the server; nothing fetches
+  after hydration.
+{{/if}}
 - Run relevant checks and report their actual results before handoff. Skip e2e/integration tests before a PR unless asked; add only surgical tests for real regression risk.
 - Ask only when an unresolved decision changes implementation; existing authorization persists.
 - A repeated failure needs new evidence, not another identical attempt.

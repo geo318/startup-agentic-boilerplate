@@ -60,6 +60,9 @@ states, money words). State your reading of each; ask the user to correct it. Th
 
 ## 4. Choose invariants
 
+The request-cost rules are hard defaults, already in the `AGENTS.md` template: Q1–Q5 with a
+database, U9 with Next.js. Do not offer them as a choice or repeat them in the FILL bullets.
+
 From [invariants-catalog.md](invariants-catalog.md), pre-select the ones whose "applies when"
 matches, then show the list (one line each) and let the user drop or add. Add project-specific
 invariants the brief implies (e.g. "prices are integers in minor units", "no PII in logs").

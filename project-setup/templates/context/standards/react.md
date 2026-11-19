@@ -34,7 +34,9 @@ Pick the first that fits; never keep the same state in two places.
 - Fetchers pass the query's `signal` to the HTTP client so abandoned requests are cancelled.
 - No waterfalls: fetch independent data in parallel (`useQueries`, `useSuspenseQueries`, or one
   route-level prefetch). A child never waits for its parent's render to start a fetch whose inputs
-  are already known.
+  are already known; a query that needs another's result is a single endpoint, not two hops.
+- A server-prefetched query's `staleTime` is never `0`, or hydration fetches it again. "Changed
+  since this page opened" comes from `isFetchedAfterMount`, not from comparing two server times.
 - One query client per request on the server; one per browser tab on the client.
 
 {{#if NEXTJS}}
@@ -56,6 +58,10 @@ Pick the first that fits; never keep the same state in two places.
   authorization; every data access still checks on the server.
 - Server data rendered on the client: prefetch with the feature's `queryOptions` in the Server
   Component, then pass it through `HydrationBoundary` so the client does not refetch on mount.
+- Every page prefetches every read it renders on open, with the same arguments its components
+  use, through its feature's `prefetch<Page>(client, …)` in one parallel server round. A page
+  makes no API request after hydration; the browser check in
+  {{#if HAS_DB}}[data-access-audit](../../.agents/skills/data-access-audit/SKILL.md){{else}}the network panel{{/if}} proves it.
 
 ## Next.js caching
 

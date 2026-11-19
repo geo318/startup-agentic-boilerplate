@@ -40,13 +40,20 @@ Unsure where a change belongs? See the [code map](context/code-map.md).
 - Request path: `{{REQUEST_PATH}}`. Each layer talks only to its neighbour; details in
   [architecture](context/architecture.md#canonical-request-path).
 {{/if}}
+{{#if HAS_DB}}
+- Request cost: one read transaction per request, no query in a loop, reads never write, no
+  transaction across a network call ([rules](context/standards/database.md#request-cost)).
+{{/if}}
+{{#if NEXTJS}}
+- No request waterfalls: pages prefetch every read on the server ([React](context/standards/react.md)).
+{{/if}}
 <!-- FILL: 6–12 bullets from the invariants catalog plus brief-specific ones: rule in one sentence, then where it is enforced. Data/security first, style last. -->
 - Unfamiliar library API: read the [library docs](context/library-docs.md) or installed skill. Project rules override generic examples.
 - Same problem after one corrective attempt → stop and run `/recover`.
-- Questions: ask in plain text and end the turn — never `AskUserQuestion` or plan-approval dialogs
-  (they block the session). Ask only when the answer changes the implementation and docs and code
-  don't settle it; recommended option first. Small choices: say `Assumed: X (alternative: Y)` and
-  continue. Irreversible actions (deleting data, force-push, publishing, spending) need an explicit yes.
+- Questions: plain text, then end the turn; never `AskUserQuestion` or plan-approval dialogs (they
+  block the session). Ask only when the answer changes the implementation and docs and code don't
+  settle it, recommended option first; small choices: `Assumed: X (alternative: Y)`, continue.
+  Irreversible actions (deleting data, force-push, publishing, spending) need an explicit yes.
 
 - All agents: same active window, grouped task tabs; no new instances. Read [browser rules](docs/browser-use.md).
 
