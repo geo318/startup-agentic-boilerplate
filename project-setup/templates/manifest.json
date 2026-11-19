@@ -11,6 +11,7 @@
     { "path": "context/standards/react.md", "flag": "HAS_UI" },
     { "path": ".agents/skills/imprint", "flag": "HAS_UI" },
     { "path": ".agents/skills/design-taste", "flag": "HAS_UI" },
+    { "path": ".agents/skills/skeleton", "flag": "HAS_UI" },
     { "path": ".agents/skills/page-load", "flag": "NEXTJS" },
     { "path": "context/standards/database.md", "flag": "HAS_DB" },
     { "path": ".agents/skills/data-access-audit", "flag": "HAS_DB" },

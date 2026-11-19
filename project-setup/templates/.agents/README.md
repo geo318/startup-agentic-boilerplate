@@ -17,6 +17,9 @@ For skills outside these common workflows, use the [complete skill catalog](skil
 {{#if HAS_UI}}
 For visual design planning, redesigns, and Stitch screen briefs, use
 [design-taste](skills/design-taste/SKILL.md). Its long reference is **not** for routine UI edits.
+
+For any loading state, skeleton or placeholder, use [skeleton](skills/skeleton/SKILL.md): the page
+itself with its values missing, each region loading on its own.
 {{/if}}
 {{#if NEXTJS}}
 For slow pages, Web Vitals regressions, or adding analytics, chat, ads, or heavy visuals to a public
