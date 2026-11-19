@@ -60,6 +60,12 @@ test("the skill measures before judging and keeps fixes out of the default read"
   assert.match(body, /"Not covered",\s+never a pass/);
   assert.match(body, /\[fixes\]\(references\/fixes\.md\) only when asked to fix/);
   assert.match(body, /whole integration suite/);
+  assert.match(body, /zero statements for a request you know reads data is broken/);
+  // A client-side AsyncLocalStorage trace does not cross the socket: the probe starts on the server.
+  const probes = readFileSync(join(root, "project-setup/templates", skill, "references/probes.md"), "utf8");
+  assert.match(probes, /export function probeRequest/);
+  assert.match(probes, /does not\s+cross a socket/);
+  assert.doesNotMatch(probes, /export async function probed/);
 });
 
 test("without a database the rules and the skill stay out", () => {

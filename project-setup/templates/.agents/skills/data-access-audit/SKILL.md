@@ -18,7 +18,9 @@ decides what to fix. Read [fixes](references/fixes.md) only when asked to fix.
   statement below.
 - Run the [per-request probe](references/probes.md#server) over the whole integration suite,
   not over a few hand-picked calls. For each request it records statements, BEGIN count,
-  repeated SQL shapes with their call sites, and writes made by reads.
+  repeated SQL shapes with their call sites, and writes made by reads. A probe that reports
+  zero statements for a request you know reads data is broken, not a pass: the trace started
+  outside the request's handling.
 {{#if HAS_UI}}
 - Open every page in the running app (a production build when timing matters) and run the
   [browser probe](references/probes.md#browser): API requests after hydration, grouped into

@@ -5,7 +5,9 @@ the command line) unless the project turns one into a budget test.
 
 ## Server
 
-Wrap the test client's request method; count every statement the driver sends during it. Group
+Start one trace per request where the request is handled, and count every statement the driver
+sends during it. A trace started in the test client only works when the app runs in the same
+thread or task (Starlette's `TestClient`, an in-process `app.request`). Group
 statements by **shape**: the SQL with bound values replaced by `?` and `IN (?, ?, …)` collapsed,
 so the same query for different ids counts as a repeat.
 
@@ -36,28 +38,50 @@ pg.Client.prototype.query = function (this: pg.Client, ...args: Parameters<typeo
   return query.apply(this, args);
 } as typeof query;
 
-/** Run one request under the probe and append its numbers to a JSON-lines file. */
-export async function probed<T>(label: string, send: () => Promise<T>): Promise<T> {
+function report(label: string, trace: Trace) {
+  const counts = Map.groupBy(trace.statements, (s) => s);
+  const repeats = [...counts].filter(([, list]) => list.length > 1);
+  console.log(JSON.stringify({
+    label,
+    statements: trace.statements.length,
+    transactions: trace.statements.filter((s) => s.startsWith("BEGIN")).length,
+    repeats: repeats.map(([s, list]) => ({ n: list.length, s, at: trace.stacks.get(s) })),
+    writes: trace.statements.filter((s) => /^(INSERT|UPDATE|DELETE)/.test(s)),
+  }));
+}
+
+/** Server side: run each request's handling under a trace, reported when it ends. */
+export function probeRequest<T>(label: string, handle: () => Promise<T>): Promise<T> {
   const trace: Trace = { statements: [], stacks: new Map() };
-  try {
-    return await current.run(trace, send);
-  } finally {
-    const counts = Map.groupBy(trace.statements, (s) => s);
-    const repeats = [...counts].filter(([, list]) => list.length > 1);
-    console.log(JSON.stringify({
-      label,
-      statements: trace.statements.length,
-      transactions: trace.statements.filter((s) => s.startsWith("BEGIN")).length,
-      repeats: repeats.map(([s, list]) => ({ n: list.length, s, at: trace.stacks.get(s) })),
-      writes: trace.statements.filter((s) => /^(INSERT|UPDATE|DELETE)/.test(s)),
-    }));
-  }
+  return current.run(trace, async () => {
+    try {
+      return await handle();
+    } finally {
+      report(label, trace);
+    }
+  });
 }
 ```
 
-Wrap the HTTP test helper (`supertest`, `app.request`, `fetch` against the test server) in
-`probed`, run the integration suite, then sort the JSON lines by `statements` and by the largest
-`repeats[].n`.
+The trace must start **inside the server's request handling**: `AsyncLocalStorage` does not
+cross a socket, so wrapping a client call (`fetch` to a port, `supertest`) records zero
+statements and reports nothing wrong. Register it as the outermost middleware of the test app:
+
+```ts
+// Hono, or any framework whose middleware awaits the rest of the chain:
+app.use((c, next) => probeRequest(`${c.req.method} ${c.req.routePath}`, next));
+
+// Express: `next()` does not wait for the response, so report when it finishes.
+app.use((req, res, next) => {
+  const trace: Trace = { statements: [], stacks: new Map() };
+  res.on("finish", () => report(`${req.method} ${req.route?.path ?? req.path}`, trace));
+  current.run(trace, next);
+});
+```
+
+Before trusting a run, check that a request you know reads data reports more than zero
+statements. Run the integration suite, then sort the JSON lines by `statements` and by the
+largest `repeats[].n`.
 
 ### Python (SQLAlchemy)
 
