@@ -36,6 +36,13 @@ layer boundaries, SOLID, repositories, and source ownership. It also supports au
 [Security audit](skills/security-audit/SKILL.md) checks inputs, outputs, headers, exposed routes and
 dependencies against the [security boundaries](../context/architecture/security.md): a checklist
 with evidence, then findings. Load its fixes reference only when asked to fix.
+{{#if HAS_DB}}
+
+[Data access audit](skills/data-access-audit/SKILL.md) counts what each request costs: statements,
+transactions, N+1 and repeated queries, reads that write{{#if HAS_UI}}, and browser requests after
+hydration{{/if}}, against the [request-cost rules](../context/standards/database.md#request-cost). Load its
+fixes reference only when asked to fix.
+{{/if}}
 
 ## Libraries and domains
 

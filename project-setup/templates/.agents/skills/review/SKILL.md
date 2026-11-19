@@ -38,10 +38,16 @@ safe, and necessary; report a flawed requirement or rule with concrete evidence.
 6. **Security** — authorization on every new route *and* row; no secrets in code or logs; no
    untrusted value used as an id, URL, query fragment, or HTML. A diff that adds an input,
    upload, outbound fetch or public route also gets `/security-audit`.
-7. **Tests** — new behaviour has tests that would fail without it; bug fixes carry a regression
+{{#if HAS_DB}}
+7. **Request cost** — no repository call in a loop, no read that writes, no transaction open
+   across a network call, read-only use cases on the snapshot unit of work{{#if HAS_UI}}, and every
+   page's reads prefetched with the arguments its components use{{/if}}. A diff that adds a read
+   path, repository method or page also gets `/data-access-audit`, and its budget is lowered.
+{{/if}}
+8. **Tests** — new behaviour has tests that would fail without it; bug fixes carry a regression
    test; nothing asserts implementation details.
-8. **Standards** — `context/code-standards.md` rules, design principles{{#if HAS_UI}}, UI rules and the UI registry{{/if}}, naming, dead code.
-9. **Docs** — build plan, progress tracker, and any rule docs updated in the same change; a new
+9. **Standards** — `context/code-standards.md` rules, design principles{{#if HAS_UI}}, UI rules and the UI registry{{/if}}, naming, dead code.
+10. **Docs** — build plan, progress tracker, and any rule docs updated in the same change; a new
    module has its `context/code-map.md` row, a new dependency its `context/library-docs.md` row
    (`/add-library-skill`); a new rule that a tool can enforce went into the tool's config, with
    a one-line pointer in the docs instead of a paragraph.

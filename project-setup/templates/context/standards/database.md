@@ -36,6 +36,28 @@
 - Put constraints (unique, foreign key, check, exclusion) in the database, not only in code.
 - A transaction lives in one use case (`uow.run`); never hold one open across a network call.
 
+## Request cost
+
+Every statement is a round trip to the database; latency is their count times the distance.
+Measure with [data-access-audit](../../.agents/skills/data-access-audit/SKILL.md).
+
+- **One read transaction per request.** A request's read-only work joins one request-scoped
+  snapshot (`AsyncLocalStorage` holder, opened by request middleware): the scope{{#if MULTI_TENANT}}, tenant{{/if}} and
+  membership checks run once, and a repeated query returns the rows it already read. Read-only
+  use cases take the snapshot unit of work, never the write one.
+- **A command keeps its own transaction.** Opening it ends the shared snapshot (one connection
+  per request at a time); a read after the commit takes a new snapshot that sees it.
+- **No query per item.** A repository answers per-id questions from one canonical statement for
+  the aggregate and filters in memory, or takes a batch (`findMany(ids)`). Never call a
+  repository in a loop over ids; never lock rows one at a time in a loop.
+- **Reads never write.** A default a read needs is built in memory and stored only by the locked
+  command. Name the exceptions here (access log, first-open materialization); each runs in its
+  own transaction.
+- **No transaction across a network call**, the shared snapshot included: the HTTP client's and
+  SDKs' send methods end it first.
+- **Budgets.** Key reads have a statement budget (statements, BEGIN/COMMIT, pool pings) in an
+  integration test; lower it whenever trips are cut, never raise it to pass.
+
 ## Repositories
 
 - One repository per aggregate: `<db>/repositories/<module>/<entity>-repository.ts`, created by
