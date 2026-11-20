@@ -57,6 +57,36 @@ still pending are wrong answers, not placeholders.
   then revealed together.
 - A component with its own read renders as soon as its frame is known; its read runs alongside
   the others, not after them.
+{{#if NEXTJS}}
+
+### In Next.js: islands are Cache Components holes
+
+With `cacheComponents: true` (Partial Prerendering), every route is built into a static shell,
+even one that reads request data, and its islands stream into that shell:
+
+- **Build.** Next renders each route until a component makes a request-time read (`cookies()`,
+  `headers()`, `searchParams`, `connection()`, an uncached fetch or query). Everything that
+  does not wait for one, plus all `"use cache"` output, is the shell; the nearest `<Suspense>`
+  fallback is written into the shell in that component's place. A request-time read outside
+  any `<Suspense>` fails the build.
+- **Request.** The CDN (or Next's own cache when self-hosted) answers at once with the shell:
+  frame, static text, bars. The same response stays open while the server renders every hole
+  in parallel and streams each one in as it settles, swapping out its fallback. No client
+  fetch, no second round trip.
+- So one island is one `<Suspense>` around the deepest component that makes the request-time
+  read, and its fallback is this skill's placeholder. That placeholder is the first paint every
+  visitor gets from the CDN, which is why it must be the page.
+- Regions held as one island (above) share one boundary; independent regions get their own,
+  so a slow read never holds back a fast one.
+- A route-level `loading.tsx` is one boundary around the whole page: the page swap this section
+  forbids. Use it only when it renders the page's real frame (section 2's shared frame).
+- A value that is the same for every visitor belongs in `"use cache"` (`cacheLife` + `cacheTag`):
+  it lands in the shell as text, with no bar at all.
+- Dynamic segments: `await params` inside the boundary for one shell shared by every param, or
+  list known params in `generateStaticParams` for a shell per param.
+- `next build` must show the route as `◐`. An `ƒ` means a request-time read escaped its
+  boundary. Configuration rules: [page-load](../page-load/SKILL.md#1-static-shell-first-largest-win-ttfb-and-lcp).
+{{/if}}
 
 ## 4. Parts only some users see
 
