@@ -7,11 +7,23 @@
 // Runs under both Node and Bun; no dependencies.
 
 import { spawnSync } from "node:child_process";
+{{#if TYPESCRIPT}}
+{{#unless LEAN}}
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+{{else}}
+import { readFileSync } from "node:fs";
+{{/unless}}
+{{else}}
+import { readFileSync } from "node:fs";
+{{/if}}
 
 const MAX_LINES = 30;
+{{#if TYPESCRIPT}}
+{{#unless LEAN}}
 const CODE_FILE = /\.(?:[cm]?[jt]sx?|json)$/;
+{{/unless}}
+{{/if}}
 
 function run(label, command, args) {
   const result = spawnSync(command, args, {
@@ -33,11 +45,15 @@ function run(label, command, args) {
 
 const BASE_REFS = ["origin/{{DEFAULT_BRANCH}}", "{{DEFAULT_BRANCH}}", "origin/HEAD"];
 
+{{#if TYPESCRIPT}}
+{{#unless LEAN}}
 function hasBase() {
   return BASE_REFS.some(
     (ref) => spawnSync("git", ["rev-parse", "--verify", "--quiet", ref]).status === 0,
   );
 }
+{{/unless}}
+{{/if}}
 
 function branchChanges() {
   for (const ref of BASE_REFS) {
