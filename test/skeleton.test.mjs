@@ -12,9 +12,9 @@ const scaffold = join(root, "project-setup/scripts/scaffold.mjs");
 const base = JSON.parse(readFileSync(join(root, "test/fixtures/answers.json"), "utf8"));
 const skillPath = ".agents/skills/skeleton";
 
-function render({ lean, ui }) {
+function render({ lean, ui, next = false }) {
   const target = mkdtempSync(join(tmpdir(), "skeleton-"));
-  const answers = { ...base, flags: { ...base.flags, LEAN: lean, HAS_UI: ui } };
+  const answers = { ...base, flags: { ...base.flags, LEAN: lean, HAS_UI: ui, NEXTJS: next } };
   const answersFile = join(target, "answers.json");
   writeFileSync(answersFile, JSON.stringify(answers));
   const run = spawnSync(process.execPath, [scaffold, "--answers", answersFile, "--target", target], {
@@ -39,5 +39,9 @@ for (const lean of [false, true]) {
     assert.doesNotMatch(skill, /\{\{|## In this project/);
     assert.match(readFileSync(join(target, ".agents/skills-index.md"), "utf8"), /skeleton/);
     assert.ok(lstatSync(join(target, ".claude/skills/skeleton")).isSymbolicLink());
+    assert.doesNotMatch(skill, /Cache Components/, "the Next.js section is NEXTJS-gated");
+    const next = readFileSync(join(render({ lean, ui: true, next: true }), skillPath, "SKILL.md"), "utf8");
+    assert.match(next, /### In Next\.js: islands are Cache Components holes/);
+    assert.doesNotMatch(next, /\{\{/);
   });
 }
