@@ -44,3 +44,21 @@ for (const defaultBranch of ["main", "trunk"]) test(`Stop hook checks committed 
   assert.match(result.stderr, /broken documentation/);
   assert.equal(run({ stop_hook_active: true }).status, 0, "failed check does not loop indefinitely");
 });
+
+// Issue #12: helpers only the fallow block uses must not render without it.
+for (const [lean, ts] of [[true, true], [false, false], [false, true]]) test(`Stop hook renders no unused helpers (lean=${lean}, ts=${ts})`, () => {
+  const dir = mkdtempSync(join(tmpdir(), "stop-hook-"));
+  const answers = JSON.parse(readFileSync(join(root, "test/fixtures/answers.json"), "utf8"));
+  answers.flags = { ...answers.flags, LEAN: lean, TYPESCRIPT: ts };
+  const answersPath = join(dir, "answers.json");
+  writeFileSync(answersPath, JSON.stringify(answers));
+  const render = spawnSync(process.execPath, [join(root, "project-setup/scripts/scaffold.mjs"), "--answers", answersPath, "--target", dir], { encoding: "utf8" });
+  assert.equal(render.status, 0, render.stderr);
+  const hook = readFileSync(join(dir, "scripts/checks/agent-stop.mjs"), "utf8");
+  for (const name of ["existsSync", "CODE_FILE", "hasBase"]) {
+    const uses = hook.match(new RegExp(`\\b${name}\\b`, "g"))?.length ?? 0;
+    assert.equal(uses >= 2, !lean && ts, `${name}: ${uses} occurrence(s)`);
+  }
+  assert.equal(hook.includes('"node:path"'), !lean && ts, "join is imported only for the fallow block");
+  assert.equal(spawnSync(process.execPath, ["--check", join(dir, "scripts/checks/agent-stop.mjs")]).status, 0);
+});
