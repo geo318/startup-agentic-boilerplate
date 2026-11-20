@@ -3,6 +3,11 @@
 Update a project with `npm update @geo318/agentic-boilerplate`, then
 `npx agentic-boilerplate sync --dry-run` and rerun without `--dry-run`.
 
+## 0.1.10 — 2026-11-20
+
+- Fix the Stop hook (`scripts/checks/agent-stop.mjs`) rendering fallow-only helpers in lean and
+  non-TypeScript projects, which Biome reported as unused imports and variables.
+
 ## 0.1.9 — 2026-11-20
 
 - Add a `page-load` skill for Next.js projects: static shells with Cache Components, a three-tier
