@@ -73,7 +73,7 @@ The skill is a symlink into `node_modules`, so `npm update` updates it too, and 
 | **UI** | `ui-rules.md`, `ui-tokens.md`, `ui-registry.md`, `design-taste` skill | Visual rules and on-demand design guidance |
 | **Next.js** | `page-load` skill | Static shells, deferred third parties, LCP and bundle budgets |
 | **Planning** | `build-plan.md`, `progress-tracker.md`, `decisions/` | Milestones, dated progress, ADRs |
-| **Skills** | `architect`, `architecture`, `review`, `security-audit`, `data-access-audit`, `recover`, `remember`, `sweep`, `imprint`, `add-library-skill` | Planning, architecture from the first implementation, and repeatable workflows |
+| **Skills** | `architect`, `architecture`, `review`, `security-audit`, `data-access-audit`, `recover`, `remember`, `sweep`, `imprint`, `skeleton`, `add-library-skill` | Planning, architecture from the first implementation, and repeatable workflows |
 | **Checks** | `scripts/checks/docs-check.mjs`, Claude Code stop hook | Docs stay true; in Claude Code, failures go back to the agent |
 | **Git & CI** | `.githooks/`, `ci.yml`, `merge-gate.yml`, PR template, `REVIEW.md`, Dependabot | Branch, commit and PR rules, enforced |
 | **Code quality** | `biome.json`, strict `tsconfig`, `.fallowrc.json`, oxlint | Boundaries, dead code, duplication, complexity |

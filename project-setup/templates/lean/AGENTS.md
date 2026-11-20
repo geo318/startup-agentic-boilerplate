@@ -37,6 +37,10 @@ Use `remember save -y` when asked to save without an overwrite question; saving 
 - No request waterfalls: a page prefetches every read it renders on the server; nothing fetches
   after hydration.
 {{/if}}
+{{#if HAS_UI}}
+- Loading states are the page itself: real labels and controls from the first paint; bars only
+  where a read fills a value; each region loads on its own, never a page swap.
+{{/if}}
 - Run relevant checks and report their actual results before handoff. Skip e2e/integration tests before a PR unless asked; add only surgical tests for real regression risk.
 - Ask only when an unresolved decision changes implementation; existing authorization persists.
 - A repeated failure needs new evidence, not another identical attempt.
@@ -62,6 +66,7 @@ the limitation; never silently open another window. Preserve unrelated tabs and 
 - [Library docs](context/library-docs.md): relevant official docs or installed skills.
 {{#if HAS_UI}}
 - [Design taste](.agents/skills/design-taste/SKILL.md): visual design plans only; load its long reference on demand.
+- [Skeleton](.agents/skills/skeleton/SKILL.md): any loading state, skeleton or placeholder.
 {{/if}}
 {{#if NEXTJS}}
 - [Page load](.agents/skills/page-load/SKILL.md): slow pages, Web Vitals, adding third-party scripts or heavy widgets.

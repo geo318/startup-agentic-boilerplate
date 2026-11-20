@@ -43,6 +43,8 @@ a named `useMountEffect()` hook.
   headers render from the first paint.
 - A placeholder is the size of what replaces it — build it from the real component's markup so
   nothing shifts when data lands. Numbers that change use `tabular-nums`.
+- Each read's region loads on its own; never swap the page for a skeleton, never print a value
+  ("0", "empty") before its read lands. Method: [skeleton skill](../.agents/skills/skeleton/SKILL.md).
 
 ## Accessibility
 

@@ -177,7 +177,8 @@ function included(relPath, flags) {
       "docs/archive/product-brief.md",
     ].includes(relPath) &&
     !relPath.startsWith(".agents/skills/design-taste/") &&
-    !relPath.startsWith(".agents/skills/page-load/")
+    !relPath.startsWith(".agents/skills/page-load/") &&
+    !relPath.startsWith(".agents/skills/skeleton/")
   )
     return false;
   return manifest.when.every(

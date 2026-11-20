@@ -47,6 +47,9 @@ Unsure where a change belongs? See the [code map](context/code-map.md).
 {{#if NEXTJS}}
 - No request waterfalls: pages prefetch every read on the server ([React](context/standards/react.md)).
 {{/if}}
+{{#if HAS_UI}}
+- Loading states are the page with its values missing, each region loading on its own ([skeleton](.agents/skills/skeleton/SKILL.md)).
+{{/if}}
 <!-- FILL: 6–12 bullets from the invariants catalog plus brief-specific ones: rule in one sentence, then where it is enforced. Data/security first, style last. -->
 - Unfamiliar library API: read the [library docs](context/library-docs.md) or installed skill. Project rules override generic examples.
 - Same problem after one corrective attempt → stop and run `/recover`.
