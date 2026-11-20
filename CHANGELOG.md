@@ -3,6 +3,21 @@
 Update a project with `npm update @geo318/agentic-boilerplate`, then
 `npx agentic-boilerplate sync --dry-run` and rerun without `--dry-run`.
 
+## 0.1.9 — 2026-11-20
+
+- Add a `page-load` skill for Next.js projects: static shells with Cache Components, a three-tier
+  schedule for third-party and heavy client code, LCP image rules, CSS delivery, prefetch, and CI
+  bundle budgets.
+- Add a `security-audit` skill (full preset) and `context/architecture/security.md`, a boundaries
+  table for where each rule is enforced; the invariants catalog gains D9–D15 and O4.
+- Add a `data-access-audit` skill (database projects) and request-cost hard defaults in
+  `AGENTS.md`: one read transaction per request, no query in a loop, reads never write, no
+  transaction across a network call; Next.js projects also get the no-waterfall rule.
+- Add a `skeleton` skill (UI projects) and a loading-state hard default: the placeholder is the
+  page with its values missing, each region loads on its own, placeholder controls are `inert`.
+  Next.js projects also get how Cache Components serve the shell from the CDN and stream each
+  island into it.
+
 ## 0.1.8 — 2026-11-03
 
 - Add a `REVIEW.md` template (GitHub + Claude Code) for Claude Code Review: what Important means,
