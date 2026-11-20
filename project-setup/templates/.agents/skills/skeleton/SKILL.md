@@ -38,9 +38,12 @@ still pending are wrong answers, not placeholders.
   surrounding font size), the cell's padding for a table cell.
 - Tables: real column headers, one bar per column. Lists: each entry in the real entry's box,
   a fixed viewport-sized count, not the page size.
-- A real control in a placeholder looks as it will and takes no input: `tabIndex={-1}`,
-  `aria-disabled`, `pointer-events: none`. Not `disabled`: its faded look the loaded control
-  does not have.
+- A real control in a placeholder looks as it will and takes no input: wrap the placeholder's
+  controls in an `inert` container, which blocks focus, clicks and label activation alike, and
+  keep the region's `role="status"` on an element outside it (inert content leaves the
+  accessibility tree). Not `disabled`: its faded look the loaded control does not have; not
+  `tabIndex={-1}`, `aria-disabled` or `pointer-events: none`: a click on the control's label
+  still reaches it.
 - A select whose options are loading shimmers in its own trigger (`aria-busy`); no bar appears
   under it and disappears later.
 
